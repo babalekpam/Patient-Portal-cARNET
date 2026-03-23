@@ -1,0 +1,98 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "nPAZsRwRjE2cw6TjaVlO6"
+uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_1.png"
+type = "image"
+title = "iOS - 1. Your Health, One App"
+
+[[outputs]]
+id = "_slavI3qKsx33IM4lSRUy"
+uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_2.png"
+type = "image"
+title = "iOS - 2. Smart Dashboard"
+
+[[outputs]]
+id = "boroX3LrHO1JhKyy82SYP"
+uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_3.png"
+type = "image"
+title = "iOS - 3. Medication Reminders"
+
+[[outputs]]
+id = "UYSFXvcyAMmB9SFxD-XM_"
+uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_4.png"
+type = "image"
+title = "iOS - 4. Emergency Card"
+
+[[outputs]]
+id = "h8aSyUqr3pvfyMXq_Xh3t"
+uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_5.png"
+type = "image"
+title = "iOS - 5. Health Timeline"
+
+[[outputs]]
+id = "QHE1daVt5LhSjrRxn_U79"
+uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_6.png"
+type = "image"
+title = "iOS - 6. Symptom Checker"
+
+[[outputs]]
+id = "dGM9CmXjVayJNe9BfU9fj"
+uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_7.png"
+type = "image"
+title = "iOS - 7. 10 Languages"
+
+[[outputs]]
+id = "7nyd3K13lGWKBQ_3QFsPT"
+uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_8.png"
+type = "image"
+title = "iOS - 8. Secure & Private"
+
+[[outputs]]
+id = "G24iVdjJqbb3WSsyGtEKw"
+uri = "file://artifacts/mobile/store-screenshots/android/screenshot_1.png"
+type = "image"
+title = "Android - 1. Your Health, One App"
+
+[[outputs]]
+id = "AjxMS_N7ws-F-jg8ubwtI"
+uri = "file://artifacts/mobile/store-screenshots/android/screenshot_2.png"
+type = "image"
+title = "Android - 2. Smart Dashboard"
+
+[[outputs]]
+id = "9gRUZt2etuuUvQuUr5FtQ"
+uri = "file://artifacts/mobile/store-screenshots/android/screenshot_3.png"
+type = "image"
+title = "Android - 3. Medication Reminders"
+
+[[outputs]]
+id = "KzAmTDeuKkoxsVkgNVS53"
+uri = "file://artifacts/mobile/store-screenshots/android/screenshot_4.png"
+type = "image"
+title = "Android - 4. Emergency Card"
+
+[[outputs]]
+id = "bAYREZNgHL8DmQFh-0oCt"
+uri = "file://artifacts/mobile/store-screenshots/android/screenshot_5.png"
+type = "image"
+title = "Android - 5. Health Timeline"
+
+[[outputs]]
+id = "FmkomTmFmx-TWLfPWZLmV"
+uri = "file://artifacts/mobile/store-screenshots/android/screenshot_6.png"
+type = "image"
+title = "Android - 6. Symptom Checker"
+
+[[outputs]]
+id = "7ineRAO-jn7FGgTiV0deC"
+uri = "file://artifacts/mobile/store-screenshots/android/screenshot_7.png"
+type = "image"
+title = "Android - 7. 10 Languages"
+
+[[outputs]]
+id = "rtxMWkINlc9vItAS8YByQ"
+uri = "file://artifacts/mobile/store-screenshots/android/screenshot_8.png"
+type = "image"
+title = "Android - 8. Secure & Private"
