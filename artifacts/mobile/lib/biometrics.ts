@@ -24,7 +24,7 @@ export async function setBiometricEnabled(enabled: boolean): Promise<void> {
 export async function authenticateWithBiometrics(): Promise<boolean> {
   try {
     const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: "Authenticate to access CARNET",
+      promptMessage: "Authenticate to access NaviMED",
       fallbackLabel: "Use password",
       cancelLabel: "Cancel",
       disableDeviceFallback: false,

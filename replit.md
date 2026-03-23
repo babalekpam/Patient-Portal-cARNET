@@ -97,13 +97,14 @@ Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHea
 
 Expo React Native mobile app — CARNET Patient Health Portal by Navimedi. Connects to the external Navimedi API (`https://navimedi.org/api`) with Bearer token auth.
 
-- **Screens**: Login, Home (Dashboard), Profile (editable), Appointments (with calendar sync), Prescriptions, Lab Results, Bills, Messages (with compose)
+- **Screens**: Login, Home (Dashboard), Profile (editable), Appointments (with calendar sync), Prescriptions, Lab Results, Bills, Messages (with compose), Visit Summaries, Request Appointment
 - **Auth**: `context/AuthContext.tsx` manages login/logout/profile state with AsyncStorage token persistence. Supports biometric auth on app resume and push notification registration on login.
-- **API Client**: `lib/api.ts` — typed API client with platform-aware base URL (uses proxy on web, direct URL on native). Includes `updateProfile()` for PUT profile changes.
+- **API Client**: `lib/api.ts` — typed API client with platform-aware base URL (uses proxy on web, direct URL on native). Includes `updateProfile()`, `getVisitSummaries()`, `requestAppointment()`.
 - **Proxy**: On web, API calls route through the API server's relay endpoint at `/api/navimedi/...` to avoid CORS restrictions from the Navimedi API
 - **Theme**: Dark mode support via `context/ThemeContext.tsx` with system/light/dark toggle. Colors defined in `constants/colors.ts` with full light/dark palettes. All screens use `useTheme()` hook.
 - **Data fetching**: React Query (`@tanstack/react-query`)
 - **Navigation**: Expo Router with NativeTabs (liquid glass on iOS 26+), Stack for other screens
+- **i18n**: Multi-language support via `lib/i18n.ts` with 10 languages (en, fr, es, pt, ar, zh, de, it, ja, ko). Translation files in `lib/translations/`. Language selector in profile settings. Uses React Context + AsyncStorage persistence.
 - **Key Components**:
   - `ScreenHeader` — gradient header with LinearGradient
   - `StatusBadge` — theme-aware status badges
@@ -114,8 +115,9 @@ Expo React Native mobile app — CARNET Patient Health Portal by Navimedi. Conne
   - `SearchBar` — filterable search with focus border animation
 - **Profile Editing**: Users can edit personal info (name, email, phone, address, gender, DOB, emergency contact). Read-only fields (MRN, blood type) are clearly marked.
 - **Calendar Sync**: Appointments screen has calendar strip view showing which dates have appointments. Toggle between calendar day view and full list view.
-- **Biometrics**: `lib/biometrics.ts` — Face ID/fingerprint authentication for quick sign-in. Toggle in profile settings.
+- **Biometrics**: `lib/biometrics.ts` — Face ID/fingerprint authentication for quick sign-in. Toggle in profile settings (always visible, with disabled state explanation when hardware not available).
 - **Push Notifications**: `lib/notifications.ts` — registers for push notifications on login with token persistence.
+- **Branding**: Powered by Argilette. App name is NaviMED. Logo subtitle reads "by Argilette".
 
 ### `scripts` (`@workspace/scripts`)
 

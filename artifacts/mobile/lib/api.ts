@@ -85,6 +85,38 @@ export interface Message {
   sender?: string;
 }
 
+export interface VisitSummary {
+  id?: string;
+  visitDate?: string;
+  visitType?: string;
+  provider?: string;
+  doctorName?: string;
+  hospitalName?: string;
+  diagnosis?: string;
+  summary?: string;
+  notes?: string;
+  followUpDate?: string;
+  followUpInstructions?: string;
+  vitals?: {
+    bloodPressure?: string;
+    heartRate?: string;
+    temperature?: string;
+    weight?: string;
+  };
+  prescriptions?: string[];
+  labOrders?: string[];
+  status?: string;
+}
+
+export interface AppointmentRequest {
+  appointmentType: string;
+  preferredDate: string;
+  preferredTime?: string;
+  reason: string;
+  doctorPreference?: string;
+  notes?: string;
+}
+
 export interface Bill {
   id?: string;
   totalCharges?: number;
@@ -240,6 +272,22 @@ class ApiClient {
         originalContent: { subject, message },
         ...(recipientId && { recipientId }),
       }),
+    });
+    return this.handleResponse(response);
+  }
+
+  async getVisitSummaries(): Promise<VisitSummary[]> {
+    const response = await fetch(`${getBaseUrl()}/patient/visit-summaries`, {
+      headers: await this.getHeaders(),
+    });
+    return this.handleResponse<VisitSummary[]>(response);
+  }
+
+  async requestAppointment(data: AppointmentRequest): Promise<any> {
+    const response = await fetch(`${getBaseUrl()}/patient/appointment-requests`, {
+      method: "POST",
+      headers: await this.getHeaders(),
+      body: JSON.stringify(data),
     });
     return this.handleResponse(response);
   }

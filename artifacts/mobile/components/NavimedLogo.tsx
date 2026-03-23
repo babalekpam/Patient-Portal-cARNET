@@ -72,7 +72,7 @@ export default function NavimedLogo({ size = 120 }: NavimedLogoProps) {
         <Rect x={334} y={234} width={24} height={60} rx={6} fill="white" />
       </G>
       <SvgText x={256} y={463} fontFamily="Georgia, serif" fontSize={38} fontWeight="700" letterSpacing={2} textAnchor="middle" fill="white" opacity={0.95}>NaviMED</SvgText>
-      <SvgText x={256} y={490} fontFamily="Arial, sans-serif" fontSize={18} fontWeight="400" letterSpacing={8} textAnchor="middle" fill="#1A8FE3" opacity={0.9}>CARNET</SvgText>
+      <SvgText x={256} y={490} fontFamily="Arial, sans-serif" fontSize={14} fontWeight="400" letterSpacing={4} textAnchor="middle" fill="#1A8FE3" opacity={0.9}>by Argilette</SvgText>
       <Line x1={196} y1={497} x2={316} y2={497} stroke="#1A8FE3" strokeWidth={1.5} opacity={0.5} />
     </Svg>
   );

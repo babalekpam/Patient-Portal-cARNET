@@ -15,6 +15,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { I18nContext, useI18nProvider } from "@/lib/i18n";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -42,6 +43,8 @@ function RootLayoutNav() {
       <Stack.Screen name="lab-results" options={{ headerShown: false }} />
       <Stack.Screen name="messages" options={{ headerShown: false }} />
       <Stack.Screen name="bills" options={{ headerShown: false }} />
+      <Stack.Screen name="visit-summaries" options={{ headerShown: false }} />
+      <Stack.Screen name="request-appointment" options={{ headerShown: false }} />
     </Stack>
   );
 }
@@ -54,6 +57,8 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
+  const i18n = useI18nProvider();
+
   useEffect(() => {
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
@@ -65,17 +70,19 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <ThemeProvider>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              <GestureHandlerRootView>
-                <KeyboardProvider>
-                  <RootLayoutNav />
-                </KeyboardProvider>
-              </GestureHandlerRootView>
-            </AuthProvider>
-          </QueryClientProvider>
-        </ThemeProvider>
+        <I18nContext.Provider value={i18n}>
+          <ThemeProvider>
+            <QueryClientProvider client={queryClient}>
+              <AuthProvider>
+                <GestureHandlerRootView>
+                  <KeyboardProvider>
+                    <RootLayoutNav />
+                  </KeyboardProvider>
+                </GestureHandlerRootView>
+              </AuthProvider>
+            </QueryClientProvider>
+          </ThemeProvider>
+        </I18nContext.Provider>
       </ErrorBoundary>
     </SafeAreaProvider>
   );

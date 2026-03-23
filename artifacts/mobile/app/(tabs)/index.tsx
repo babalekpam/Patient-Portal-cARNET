@@ -19,23 +19,25 @@ import { useTheme } from "@/context/ThemeContext";
 import { AnimatedCard } from "@/components/AnimatedCard";
 import { HomeSkeleton } from "@/components/SkeletonLoader";
 import { api, type Message, type Appointment } from "@/lib/api";
+import { useI18n, type TranslationKey } from "@/lib/i18n";
 
 interface QuickAction {
-  label: string;
+  labelKey: TranslationKey;
   icon: React.ComponentProps<typeof Feather>["name"];
   route: string;
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { label: "Schedule an\nAppointment", icon: "calendar", route: "/appointments" },
-  { label: "Messages", icon: "mail", route: "/messages" },
-  { label: "Visits", icon: "clipboard", route: "/appointments" },
-  { label: "Test Results", icon: "bar-chart-2", route: "/lab-results" },
-  { label: "Medications", icon: "package", route: "/prescriptions" },
-  { label: "Account\nSummary", icon: "credit-card", route: "/bills" },
+  { labelKey: "scheduleAppointment", icon: "calendar", route: "/request-appointment" },
+  { labelKey: "messages", icon: "mail", route: "/messages" },
+  { labelKey: "visits", icon: "clipboard", route: "/visit-summaries" },
+  { labelKey: "testResults", icon: "bar-chart-2", route: "/lab-results" },
+  { labelKey: "medications", icon: "package", route: "/prescriptions" },
+  { labelKey: "accountSummary", icon: "credit-card", route: "/bills" },
 ];
 
 function QuickActionTile({ item, colors }: { item: QuickAction; colors: any }) {
+  const { t } = useI18n();
   return (
     <Pressable
       style={({ pressed }) => [
@@ -51,7 +53,7 @@ function QuickActionTile({ item, colors }: { item: QuickAction; colors: any }) {
       <View style={[styles.tileIconWrap, { backgroundColor: colors.primaryLight }]}>
         <Feather name={item.icon} size={28} color={colors.primary} />
       </View>
-      <Text style={[styles.tileLabel, { color: colors.text }]} numberOfLines={2}>{item.label}</Text>
+      <Text style={[styles.tileLabel, { color: colors.text }]} numberOfLines={2}>{t(item.labelKey)}</Text>
     </Pressable>
   );
 }
@@ -64,6 +66,7 @@ function formatMessageDate(dateStr?: string) {
 }
 
 function MessagePreview({ messages, colors, hasError }: { messages: Message[]; colors: any; hasError?: boolean }) {
+  const { t } = useI18n();
   if (hasError) {
     return (
       <AnimatedCard index={1}>
@@ -72,12 +75,12 @@ function MessagePreview({ messages, colors, hasError }: { messages: Message[]; c
             <View style={[styles.previewIconWrap, { backgroundColor: colors.primaryLight }]}>
               <Feather name="mail" size={20} color={colors.primary} />
             </View>
-            <Text style={[styles.previewTitle, { color: colors.text }]}>Messages</Text>
+            <Text style={[styles.previewTitle, { color: colors.text }]}>{t("messages")}</Text>
           </View>
           <View style={styles.emptyState}>
             <Feather name="wifi-off" size={28} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Unable to load messages</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>Pull down to refresh</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("unableToLoadMessages")}</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>{t("pullToRefresh")}</Text>
           </View>
         </View>
       </AnimatedCard>
@@ -91,12 +94,12 @@ function MessagePreview({ messages, colors, hasError }: { messages: Message[]; c
             <View style={[styles.previewIconWrap, { backgroundColor: colors.primaryLight }]}>
               <Feather name="mail" size={20} color={colors.primary} />
             </View>
-            <Text style={[styles.previewTitle, { color: colors.text }]}>Messages</Text>
+            <Text style={[styles.previewTitle, { color: colors.text }]}>{t("messages")}</Text>
           </View>
           <View style={styles.emptyState}>
             <Feather name="inbox" size={32} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No new messages</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>Your care team messages will appear here</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("noNewMessages")}</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>{t("careTeamMessages")}</Text>
           </View>
           <Pressable
             style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
@@ -105,7 +108,7 @@ function MessagePreview({ messages, colors, hasError }: { messages: Message[]; c
               router.push("/messages" as any);
             }}
           >
-            <Text style={styles.viewBtnText}>Send a message</Text>
+            <Text style={styles.viewBtnText}>{t("sendMessage")}</Text>
           </Pressable>
         </View>
       </AnimatedCard>
@@ -148,7 +151,7 @@ function MessagePreview({ messages, colors, hasError }: { messages: Message[]; c
             router.push("/messages" as any);
           }}
         >
-          <Text style={styles.viewBtnText}>View message</Text>
+          <Text style={styles.viewBtnText}>{t("viewMessage")}</Text>
         </Pressable>
 
         <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
@@ -161,7 +164,7 @@ function MessagePreview({ messages, colors, hasError }: { messages: Message[]; c
           }}
         >
           <Feather name="mail" size={16} color={colors.textSecondary} />
-          <Text style={[styles.viewAllText, { color: colors.textSecondary }]}>View all ({messages.length})</Text>
+          <Text style={[styles.viewAllText, { color: colors.textSecondary }]}>{t("viewAll")} ({messages.length})</Text>
         </Pressable>
       </View>
     </AnimatedCard>
@@ -182,6 +185,7 @@ function formatAppointmentDate(dateStr?: string) {
 }
 
 function AppointmentPreview({ appointments, colors, hasError }: { appointments: Appointment[]; colors: any; hasError?: boolean }) {
+  const { t } = useI18n();
   if (hasError) {
     return (
       <AnimatedCard index={2}>
@@ -190,12 +194,12 @@ function AppointmentPreview({ appointments, colors, hasError }: { appointments: 
             <View style={[styles.visitIconWrap, { backgroundColor: colors.primaryLight }]}>
               <Feather name="calendar" size={18} color={colors.primary} />
             </View>
-            <Text style={[styles.previewTitle, { color: colors.text }]}>Upcoming Appointment</Text>
+            <Text style={[styles.previewTitle, { color: colors.text }]}>{t("upcomingAppointment")}</Text>
           </View>
           <View style={styles.emptyState}>
             <Feather name="wifi-off" size={28} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Unable to load appointments</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>Pull down to refresh</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("unableToLoadAppointments")}</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>{t("pullToRefresh")}</Text>
           </View>
         </View>
       </AnimatedCard>
@@ -212,12 +216,12 @@ function AppointmentPreview({ appointments, colors, hasError }: { appointments: 
             <View style={[styles.visitIconWrap, { backgroundColor: colors.primaryLight }]}>
               <Feather name="calendar" size={18} color={colors.primary} />
             </View>
-            <Text style={[styles.previewTitle, { color: colors.text }]}>Upcoming Appointment</Text>
+            <Text style={[styles.previewTitle, { color: colors.text }]}>{t("upcomingAppointment")}</Text>
           </View>
           <View style={styles.emptyState}>
             <Feather name="calendar" size={32} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No upcoming appointments</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>Schedule a visit with your care team</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("noUpcomingAppointments")}</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>{t("scheduleVisit")}</Text>
           </View>
           <Pressable
             style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
@@ -226,7 +230,7 @@ function AppointmentPreview({ appointments, colors, hasError }: { appointments: 
               router.push("/appointments" as any);
             }}
           >
-            <Text style={styles.viewBtnText}>Schedule appointment</Text>
+            <Text style={styles.viewBtnText}>{t("scheduleAppointmentBtn")}</Text>
           </Pressable>
         </View>
       </AnimatedCard>
@@ -286,7 +290,7 @@ function AppointmentPreview({ appointments, colors, hasError }: { appointments: 
             router.push("/appointments" as any);
           }}
         >
-          <Text style={styles.viewBtnText}>View details</Text>
+          <Text style={styles.viewBtnText}>{t("viewDetails")}</Text>
         </Pressable>
       </View>
     </AnimatedCard>
@@ -297,6 +301,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { profile, isLoading, refreshProfile } = useAuth();
   const { colors } = useTheme();
+  const { t } = useI18n();
   const [refreshing, setRefreshing] = useState(false);
 
   const queryClient = useQueryClient();
@@ -350,7 +355,7 @@ export default function HomeScreen() {
           style={[styles.headerGradient, { paddingTop: topPad + 16 }]}
         >
           <View style={styles.headerRow}>
-            <Text style={styles.welcomeText}>Welcome, {firstName}!</Text>
+            <Text style={styles.welcomeText}>{t("welcome", { name: firstName })}</Text>
             <Pressable
               style={({ pressed }) => [styles.editProfileBtn, pressed && { opacity: 0.7 }]}
               onPress={() => {
@@ -367,7 +372,7 @@ export default function HomeScreen() {
           <View style={styles.tilesContainer}>
             <View style={styles.tilesGrid}>
               {QUICK_ACTIONS.map((item) => (
-                <QuickActionTile key={item.label} item={item} colors={colors} />
+                <QuickActionTile key={item.labelKey} item={item} colors={colors} />
               ))}
             </View>
           </View>
@@ -380,7 +385,7 @@ export default function HomeScreen() {
 
         <View style={styles.footer}>
           <Feather name="shield" size={13} color={colors.textTertiary} />
-          <Text style={[styles.footerText, { color: colors.textTertiary }]}>CARNET · Powered by Navimedi</Text>
+          <Text style={[styles.footerText, { color: colors.textTertiary }]}>{t("poweredBy")}</Text>
         </View>
       </ScrollView>
     </View>

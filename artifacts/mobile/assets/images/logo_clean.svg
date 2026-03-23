@@ -55,6 +55,6 @@
     <rect x="334" y="234" width="24" height="60" rx="6" fill="white"/>
   </g>
   <text x="256" y="463" font-family="Georgia, serif" font-size="38" font-weight="700" letter-spacing="2" text-anchor="middle" fill="white" opacity="0.95">NaviMED</text>
-  <text x="256" y="490" font-family="Arial, sans-serif" font-size="18" font-weight="400" letter-spacing="8" text-anchor="middle" fill="#1A8FE3" opacity="0.9">CARNET</text>
+  <text x="256" y="490" font-family="Arial, sans-serif" font-size="14" font-weight="400" letter-spacing="4" text-anchor="middle" fill="#1A8FE3" opacity="0.9">by Argilette</text>
   <line x1="196" y1="497" x2="316" y2="497" stroke="#1A8FE3" stroke-width="1.5" opacity="0.5"/>
 </svg>
