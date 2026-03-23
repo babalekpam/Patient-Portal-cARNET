@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import NavimedLogo from "@/components/NavimedLogo";
 import { useAuth } from "@/context/AuthContext";
 
 const C = Colors.light;
@@ -22,9 +23,9 @@ const C = Colors.light;
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { login } = useAuth();
-  const [email, setEmail] = useState("sarah.johnson@email.com");
-  const [password, setPassword] = useState("password123");
-  const [tenantId, setTenantId] = useState("SAINT PAUL");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [tenantId, setTenantId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -61,11 +62,7 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <Feather name="activity" size={32} color={C.primary} />
-          </View>
-          <Text style={styles.appName}>CARNET</Text>
-          <Text style={styles.subtitle}>Patient Health Portal</Text>
+          <NavimedLogo size={100} />
         </View>
 
         <View style={styles.card}>
@@ -172,32 +169,6 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     marginBottom: 32,
-  },
-  logoContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    backgroundColor: Colors.light.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-    shadowColor: Colors.light.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  appName: {
-    fontSize: 32,
-    fontFamily: "Inter_700Bold",
-    color: Colors.light.text,
-    letterSpacing: 2,
-  },
-  subtitle: {
-    fontSize: 15,
-    fontFamily: "Inter_400Regular",
-    color: Colors.light.textSecondary,
-    marginTop: 4,
   },
   card: {
     backgroundColor: "#fff",
