@@ -25,7 +25,7 @@ export default function LoginScreen() {
   const { login } = useAuth();
   const [email, setEmail] = useState("abel@argilette.com");
   const [password, setPassword] = useState("");
-  const [tenantId, setTenantId] = useState("SAINT PAUL");
+  const [tenantId, setTenantId] = useState("Saint Paul Hospital");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
