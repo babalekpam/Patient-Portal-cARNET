@@ -96,3 +96,15 @@ id = "rtxMWkINlc9vItAS8YByQ"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_8.png"
 type = "image"
 title = "Android - 8. Secure & Private"
+
+[[outputs]]
+id = "IRCa3jpmhrtFm4FowAwwT"
+uri = "file://artifacts/mobile/store-screenshots/ios-screenshots.zip"
+type = "unspecified"
+title = "iOS Screenshots (8 images - 1290x2796)"
+
+[[outputs]]
+id = "_ru-zfM7mtbsKlfdQIMXb"
+uri = "file://artifacts/mobile/store-screenshots/android-screenshots.zip"
+type = "unspecified"
+title = "Android Screenshots (8 images - 1080x1920)"
