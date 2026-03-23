@@ -113,7 +113,7 @@ title = "Google Play Store Screenshots (8 PNG images)"
 id = "iTWGvr6FYm1U4XNnikZHN"
 uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
-title = "CARNET App Icon (1024x1024) - for both stores"
+title = "CARNET App Icon (1024x1024)"
 
 [[outputs]]
 id = "hQWq2uVuT3ylxHpLaUjuZ"
@@ -131,16 +131,22 @@ title = "NaviMed Full Logo (with name)"
 id = "N49qMOoBMOUTNLEHJvcza"
 uri = "file://artifacts/mobile/assets/images/adaptive-icon.png"
 type = "image"
-title = "CARNET Android Adaptive Icon (1024x1024)"
+title = "CARNET Android Adaptive Icon"
 
 [[outputs]]
 id = "k-j9rF17VC0C1cFapGezz"
 uri = "file://artifacts/mobile/assets/images/carnet-feature-graphic.png"
 type = "image"
-title = "CARNET Feature Graphic (1024x500) - Google Play banner"
+title = "CARNET Feature Graphic (1024x500) - Google Play"
 
 [[outputs]]
 id = "vl-NeJpG2zqA65yiGoDQu"
 uri = "file://artifacts/mobile/assets/images/carnet-logo-square.png"
 type = "image"
 title = "NaviMed Logo Square (512x512)"
+
+[[outputs]]
+id = "nOIhUvBy4cPXGh1h1935w"
+uri = "file://artifacts/mobile/assets/images/splash-icon.png"
+type = "image"
+title = "CARNET Splash Screen Icon"
