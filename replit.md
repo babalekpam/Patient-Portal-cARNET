@@ -118,6 +118,7 @@ Expo React Native mobile app — NaviMED Patient Health Portal by Argilette. Mul
 - **Calendar Sync**: Appointments screen has calendar strip view showing which dates have appointments. Toggle between calendar day view and full list view.
 - **Biometrics**: `lib/biometrics.ts` — Face ID/fingerprint authentication for quick sign-in. Toggle in profile settings (always visible, with disabled state explanation when hardware not available).
 - **Push Notifications**: `lib/notifications.ts` — registers for push notifications on login with token persistence.
+- **Medication Reminders**: `lib/notifications.ts` — schedule/cancel/toggle/mark-taken with AsyncStorage. `app/(tabs)/reminders.tsx` — prescription picker modal, time picker, reminder cards with daily progress tracking. Android notification channel "medication-reminders". All 10 language files include 26 reminder-related translation keys.
 - **Branding**: Powered by Argilette. App name is NaviMED. Logo subtitle reads "by Argilette".
 
 ### `scripts` (`@workspace/scripts`)
