@@ -17,6 +17,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 const SECTIONS = [
   { key: "personal", icon: "user" as const, label: "personalInfo" },
@@ -177,6 +178,7 @@ export default function ExportRecordsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScreenHeader title={t("exportRecords")} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

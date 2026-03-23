@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useI18n } from "@/lib/i18n";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 type VisitState = "lobby" | "waiting" | "inCall" | "ended";
 
@@ -151,6 +152,7 @@ export default function TelehealthScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <LinearGradient
         colors={[colors.gradientStart, colors.gradientEnd]}
         style={[styles.header, { paddingTop: topPad }]}

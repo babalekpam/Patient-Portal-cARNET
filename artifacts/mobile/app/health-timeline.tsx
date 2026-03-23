@@ -16,6 +16,7 @@ import { ListSkeleton } from "@/components/SkeletonLoader";
 import { useTheme } from "@/context/ThemeContext";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 type EventType = "appointment" | "prescription" | "lab" | "message";
 
@@ -198,6 +199,7 @@ export default function HealthTimelineScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScreenHeader title={t("healthTimeline")} subtitle={`${events.length} ${t("events").toLowerCase()}`} />
 
       <View style={styles.filterRow}>

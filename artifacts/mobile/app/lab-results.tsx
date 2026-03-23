@@ -16,6 +16,7 @@ import { AnimatedCard } from "@/components/AnimatedCard";
 import { ListSkeleton } from "@/components/SkeletonLoader";
 import { useTheme } from "@/context/ThemeContext";
 import { api, type LabResult } from "@/lib/api";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return null;
@@ -160,6 +161,7 @@ export default function LabResultsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScreenHeader title="Lab Results" subtitle={data && data.length > 0 ? `${data.length} test${data.length !== 1 ? "s" : ""}` : undefined} />
       <FlatList
         data={filtered || []}

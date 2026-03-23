@@ -16,6 +16,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { useTheme } from "@/context/ThemeContext";
 import { api, type VisitSummary } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return "";
@@ -183,6 +184,7 @@ export default function VisitSummariesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScreenHeader
         title={t("visitSummaries")}
         subtitle={data && data.length > 0 ? `${data.length} visits` : undefined}

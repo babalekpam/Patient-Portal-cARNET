@@ -18,6 +18,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 function InfoRow({ icon, label, value, colors, danger }: { icon: React.ComponentProps<typeof Feather>["name"]; label: string; value: string; colors: any; danger?: boolean }) {
   return (
@@ -68,6 +69,7 @@ export default function EmergencyCardScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <LinearGradient
         colors={["#dc2626", "#b91c1c"]}
         style={[styles.header, { paddingTop: Platform.OS === "web" ? 20 : insets.top }]}

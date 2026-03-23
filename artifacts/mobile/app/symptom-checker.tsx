@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useI18n } from "@/lib/i18n";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 const BODY_AREAS = [
   { key: "head", icon: "eye" as const, area: "Head & Face" },
@@ -262,6 +263,7 @@ export default function SymptomCheckerScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <LinearGradient
         colors={[colors.gradientStart, colors.gradientEnd]}
         style={[styles.header, { paddingTop: topPad }]}

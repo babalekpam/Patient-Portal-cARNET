@@ -19,6 +19,7 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { AnimatedCard } from "@/components/AnimatedCard";
 import { useTheme } from "@/context/ThemeContext";
 import { useI18n } from "@/lib/i18n";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 const DOC_STORAGE_KEY = "scanned_documents";
 
@@ -129,6 +130,7 @@ export default function DocumentsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScreenHeader title={t("documents")} subtitle={documents.length > 0 ? `${documents.length} ${t("documentsSaved")}` : undefined} rightIcon="plus" onRightPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleCapture(); }} />
 
       <FlatList

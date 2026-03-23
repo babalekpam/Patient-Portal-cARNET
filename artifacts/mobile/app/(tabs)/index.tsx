@@ -20,6 +20,7 @@ import { AnimatedCard } from "@/components/AnimatedCard";
 import { HomeSkeleton } from "@/components/SkeletonLoader";
 import { api, type Message, type Appointment } from "@/lib/api";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 interface QuickAction {
   labelKey: TranslationKey;
@@ -351,6 +352,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}

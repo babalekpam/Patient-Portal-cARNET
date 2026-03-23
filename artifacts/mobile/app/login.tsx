@@ -23,6 +23,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { useI18n } from "@/lib/i18n";
 import { api } from "@/lib/api";
 import type { EHRProviderConfig } from "@/lib/ehr/types";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 function ProviderCard({
   provider,
@@ -167,6 +168,7 @@ export default function LoginScreen() {
       style={{ flex: 1, backgroundColor: C.background }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
+      <LogoWatermark />
       <ScrollView
         contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"

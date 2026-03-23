@@ -15,6 +15,7 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { AnimatedCard } from "@/components/AnimatedCard";
 import { useTheme } from "@/context/ThemeContext";
 import { useI18n } from "@/lib/i18n";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 const METRICS_KEY = "health_metrics";
 
@@ -147,6 +148,7 @@ export default function HealthMetricsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScreenHeader title={t("healthMetrics")} subtitle={t("trackYourHealth")} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

@@ -16,6 +16,7 @@ import { AnimatedCard } from "@/components/AnimatedCard";
 import { ListSkeleton } from "@/components/SkeletonLoader";
 import { useTheme } from "@/context/ThemeContext";
 import { api, type Prescription } from "@/lib/api";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 function PrescriptionCard({ item, index, colors }: { item: Prescription; index: number; colors: any }) {
   return (
@@ -128,6 +129,7 @@ export default function PrescriptionsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScreenHeader title="Prescriptions" subtitle={data && data.length > 0 ? `${data.length} medication${data.length !== 1 ? "s" : ""}` : undefined} />
       <FlatList
         data={filtered || []}

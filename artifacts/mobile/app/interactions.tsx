@@ -14,6 +14,7 @@ import { ListSkeleton } from "@/components/SkeletonLoader";
 import { useTheme } from "@/context/ThemeContext";
 import { api, type Prescription } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 interface Interaction {
   id: string;
@@ -125,6 +126,7 @@ export default function InteractionsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScreenHeader title={t("interactionChecker")} subtitle={interactions.length > 0 ? `${interactions.length} ${t("interactionsFound")}` : undefined} />
 
       {interactions.length > 0 && (

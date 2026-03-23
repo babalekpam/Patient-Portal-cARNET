@@ -17,6 +17,7 @@ import { AnimatedCard } from "@/components/AnimatedCard";
 import { ListSkeleton } from "@/components/SkeletonLoader";
 import { useTheme } from "@/context/ThemeContext";
 import { api, type Appointment } from "@/lib/api";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 function toDateKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -206,6 +207,7 @@ export default function AppointmentsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScreenHeader title="Appointments" subtitle={subtitle} rightElement={viewToggle} />
       <FlatList
         data={filtered}

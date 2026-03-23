@@ -18,6 +18,7 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { useTheme } from "@/context/ThemeContext";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 const APPOINTMENT_TYPE_KEYS = [
   { key: "generalCheckup", value: "general_checkup" },
@@ -240,6 +241,7 @@ export default function RequestAppointmentScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScreenHeader title={t("requestAppointment")} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}

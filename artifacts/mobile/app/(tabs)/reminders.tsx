@@ -33,6 +33,7 @@ import {
   parseFrequencyToTimes,
   requestNotificationPermissions,
 } from "@/lib/notifications";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 const TIME_OPTIONS = [
   "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30",
@@ -516,6 +517,7 @@ export default function RemindersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <FlatList
         data={reminders}
         keyExtractor={(item) => item.id}

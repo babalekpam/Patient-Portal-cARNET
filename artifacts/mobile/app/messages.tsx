@@ -20,6 +20,7 @@ import { AnimatedCard } from "@/components/AnimatedCard";
 import { ListSkeleton } from "@/components/SkeletonLoader";
 import { useTheme } from "@/context/ThemeContext";
 import { api, type Message } from "@/lib/api";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return null;
@@ -187,6 +188,7 @@ export default function MessagesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScreenHeader title="Messages" subtitle={data && data.length > 0 ? `${data.length} message${data.length !== 1 ? "s" : ""}` : undefined} rightElement={composeBtn} />
       <FlatList
         data={data || []}

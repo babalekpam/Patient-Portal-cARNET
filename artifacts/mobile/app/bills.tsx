@@ -15,6 +15,7 @@ import { AnimatedCard } from "@/components/AnimatedCard";
 import { ListSkeleton } from "@/components/SkeletonLoader";
 import { useTheme } from "@/context/ThemeContext";
 import { api, type Bill } from "@/lib/api";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 function formatCurrency(amount?: number) {
   if (amount === undefined || amount === null) return "\u2014";
@@ -139,6 +140,7 @@ export default function BillsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LogoWatermark />
       <ScreenHeader title="Bills & Payments" />
       <FlatList
         data={bills}

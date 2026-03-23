@@ -31,6 +31,7 @@ import {
   getBiometricType,
 } from "@/lib/biometrics";
 import { useI18n, LANGUAGES } from "@/lib/i18n";
+import { LogoWatermark } from "@/components/LogoWatermark";
 
 const READ_ONLY_FIELDS = ["mrn", "bloodType", "allergies", "insurancePolicyNumber"];
 
@@ -226,6 +227,7 @@ export default function ProfileScreen() {
       style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
+      <LogoWatermark />
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
