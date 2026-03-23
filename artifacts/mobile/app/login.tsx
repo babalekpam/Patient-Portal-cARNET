@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 import NavimedLogo from "@/components/NavimedLogo";
 import { useAuth } from "@/context/AuthContext";
+import { api } from "@/lib/api";
 
 const C = Colors.light;
 
@@ -31,6 +33,31 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const passwordRef = useRef<TextInput>(null);
   const tenantRef = useRef<TextInput>(null);
+
+  const [resetSending, setResetSending] = useState(false);
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError("Please enter your email address first.");
+      return;
+    }
+    setResetSending(true);
+    setError("");
+    try {
+      await api.forgotPassword(email);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        "Reset Link Sent",
+        "If an account with that email exists, a password reset link has been sent. Please check your inbox.",
+        [{ text: "OK" }]
+      );
+    } catch (err: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(err.message || "Failed to send reset link.");
+    } finally {
+      setResetSending(false);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -111,6 +138,10 @@ export default function LoginScreen() {
                 </Pressable>
               </View>
             </View>
+
+            <Pressable onPress={handleForgotPassword} disabled={resetSending}>
+              <Text style={styles.forgotLink}>{resetSending ? "Sending..." : "Forgot Password?"}</Text>
+            </Pressable>
 
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Hospital / Clinic (optional)</Text>
@@ -227,6 +258,12 @@ const styles = StyleSheet.create({
   },
   eyeButton: {
     padding: 4,
+  },
+  forgotLink: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.light.primary,
+    textAlign: "right",
   },
   errorBox: {
     flexDirection: "row",

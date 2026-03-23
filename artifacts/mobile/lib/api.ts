@@ -157,6 +157,15 @@ class ApiClient {
     return this.handleResponse<LoginResponse>(response, true);
   }
 
+  async forgotPassword(email: string): Promise<any> {
+    const response = await fetch(`${getBaseUrl()}/auth/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    return this.handleResponse<any>(response);
+  }
+
   async getProfile(): Promise<Profile> {
     const response = await fetch(`${getBaseUrl()}/patient/profile`, {
       headers: await this.getHeaders(),
