@@ -91,6 +91,19 @@ Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used b
 
 Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
 
+### `artifacts/mobile` (`@workspace/mobile`)
+
+Expo React Native mobile app — CARNET Patient Health Portal by Navimedi. Connects to the external Navimedi API (`https://navimedi.org/api`) with Bearer token auth.
+
+- **Screens**: Login, Home (Dashboard), Profile, Appointments, Prescriptions, Lab Results, Bills, Messages (with compose)
+- **Auth**: `context/AuthContext.tsx` manages login/logout/profile state with AsyncStorage token persistence
+- **API Client**: `lib/api.ts` — typed API client with platform-aware base URL (uses proxy on web, direct URL on native)
+- **Proxy**: On web, API calls route through the API server's relay endpoint at `/api/navimedi/...` to avoid CORS restrictions from the Navimedi API
+- **Theme**: Healthcare blue (#1a6fbf primary) defined in `constants/colors.ts`
+- **Data fetching**: React Query (`@tanstack/react-query`)
+- **Navigation**: Expo Router with NativeTabs (liquid glass on iOS 26+), Stack for other screens
+- **Components**: `ScreenHeader`, `StatusBadge` reusable components
+
 ### `scripts` (`@workspace/scripts`)
 
 Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.

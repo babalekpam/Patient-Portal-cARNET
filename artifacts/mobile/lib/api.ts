@@ -1,6 +1,18 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 
-const BASE_URL = "https://navimedi.org/api";
+const DIRECT_URL = "https://navimedi.org/api";
+
+function getBaseUrl(): string {
+  if (Platform.OS === "web") {
+    const devDomain = process.env.EXPO_PUBLIC_DOMAIN;
+    if (devDomain) {
+      return `https://${devDomain}/api/navimedi`;
+    }
+  }
+  return DIRECT_URL;
+}
+
 const TOKEN_KEY = "carnet_auth_token";
 
 export const saveToken = async (token: string): Promise<void> => {
@@ -105,72 +117,76 @@ class ApiClient {
     return headers;
   }
 
-  private async handleResponse<T>(response: Response): Promise<T> {
+  private async handleResponse<T>(response: Response, isLogin = false): Promise<T> {
     if (!response.ok) {
-      if (response.status === 401) {
-        await clearToken();
-        throw new Error("Session expired. Please log in again.");
-      }
-      if (response.status === 404) {
-        throw new Error("This feature is not yet available.");
-      }
-      if (response.status === 500) {
-        throw new Error("Server error. Please try again later.");
-      }
-      const error = await response.json().catch(() => ({
+      const errorBody = await response.json().catch(() => ({
         message: `Request failed with status ${response.status}.`,
       }));
-      throw new Error(error.message || `Request failed with status ${response.status}.`);
+      const serverMessage = errorBody.message || "";
+
+      if (response.status === 401) {
+        if (!isLogin) {
+          await clearToken();
+        }
+        throw new Error(serverMessage || (isLogin ? "Invalid credentials. Please check your email, password, and hospital." : "Session expired. Please log in again."));
+      }
+      if (response.status === 404) {
+        throw new Error(serverMessage || "This feature is not yet available.");
+      }
+      if (response.status === 500) {
+        throw new Error(serverMessage || "Server error. Please try again later.");
+      }
+      throw new Error(serverMessage || `Request failed with status ${response.status}.`);
     }
     return response.json();
   }
 
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
-    const response = await fetch(`${BASE_URL}/auth/login`, {
+    const response = await fetch(`${getBaseUrl()}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(credentials),
     });
-    return this.handleResponse<LoginResponse>(response);
+    return this.handleResponse<LoginResponse>(response, true);
   }
 
   async getProfile(): Promise<Profile> {
-    const response = await fetch(`${BASE_URL}/patient/profile`, {
+    const response = await fetch(`${getBaseUrl()}/patient/profile`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<Profile>(response);
   }
 
   async getAppointments(): Promise<Appointment[]> {
-    const response = await fetch(`${BASE_URL}/patient/appointments`, {
+    const response = await fetch(`${getBaseUrl()}/patient/appointments`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<Appointment[]>(response);
   }
 
   async getPrescriptions(): Promise<Prescription[]> {
-    const response = await fetch(`${BASE_URL}/patient/prescriptions`, {
+    const response = await fetch(`${getBaseUrl()}/patient/prescriptions`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<Prescription[]>(response);
   }
 
   async getLabResults(): Promise<LabResult[]> {
-    const response = await fetch(`${BASE_URL}/patient/lab-results`, {
+    const response = await fetch(`${getBaseUrl()}/patient/lab-results`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<LabResult[]>(response);
   }
 
   async getMessages(): Promise<Message[]> {
-    const response = await fetch(`${BASE_URL}/medical-communications`, {
+    const response = await fetch(`${getBaseUrl()}/medical-communications`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<Message[]>(response);
   }
 
   async sendMessage(subject: string, message: string, recipientId?: string): Promise<any> {
-    const response = await fetch(`${BASE_URL}/medical-communications`, {
+    const response = await fetch(`${getBaseUrl()}/medical-communications`, {
       method: "POST",
       headers: await this.getHeaders(),
       body: JSON.stringify({
@@ -184,7 +200,7 @@ class ApiClient {
   }
 
   async getBills(): Promise<Bill[]> {
-    const response = await fetch(`${BASE_URL}/patient/bills`, {
+    const response = await fetch(`${getBaseUrl()}/patient/bills`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<Bill[]>(response);
