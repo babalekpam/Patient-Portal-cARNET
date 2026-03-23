@@ -26,30 +26,35 @@ app.use(
   }),
 );
 app.use(cors());
-app.use(express.json({ limit: "5mb" }));
-app.use(express.urlencoded({ extended: true }));
 
 const NAVIMEDI_BASE = "https://navimedi.org/api";
 
 app.all("/api/navimedi/{*path}", async (req: Request, res: Response) => {
   const targetPath = req.originalUrl.replace("/api/navimedi", "");
   const targetUrl = `${NAVIMEDI_BASE}${targetPath}`;
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+  const headers: Record<string, string> = {};
   const authHeader = req.headers["authorization"];
   if (authHeader && typeof authHeader === "string") {
     headers["Authorization"] = authHeader;
   }
+  const incomingContentType = req.headers["content-type"];
+  if (incomingContentType && typeof incomingContentType === "string") {
+    headers["Content-Type"] = incomingContentType;
+  }
   try {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    await new Promise<void>((resolve) => req.on("end", resolve));
+    const rawBody = Buffer.concat(chunks);
+
     const fetchOptions: RequestInit = {
       method: req.method,
       headers,
     };
-    if (req.method !== "GET" && req.method !== "HEAD" && req.body) {
-      fetchOptions.body = JSON.stringify(req.body);
+    if (req.method !== "GET" && req.method !== "HEAD" && rawBody.length > 0) {
+      fetchOptions.body = rawBody;
     }
-    logger.info({ targetUrl, method: req.method, body: req.body }, "Navimedi relay request");
+    logger.info({ targetUrl, method: req.method, bodyLen: rawBody.length }, "Navimedi relay request");
     const response = await fetch(targetUrl, fetchOptions);
     const contentType = response.headers.get("content-type") || "";
     res.status(response.status);
@@ -65,6 +70,9 @@ app.all("/api/navimedi/{*path}", async (req: Request, res: Response) => {
     res.status(502).json({ message: "Failed to reach the healthcare API." });
   }
 });
+
+app.use(express.json({ limit: "5mb" }));
+app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 
