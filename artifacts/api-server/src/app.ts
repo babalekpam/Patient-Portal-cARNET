@@ -49,6 +49,7 @@ app.all("/api/navimedi/{*path}", async (req: Request, res: Response) => {
     if (req.method !== "GET" && req.method !== "HEAD" && req.body) {
       fetchOptions.body = JSON.stringify(req.body);
     }
+    logger.info({ targetUrl, method: req.method, body: req.body }, "Navimedi relay request");
     const response = await fetch(targetUrl, fetchOptions);
     const contentType = response.headers.get("content-type") || "";
     res.status(response.status);
