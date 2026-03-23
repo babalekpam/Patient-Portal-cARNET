@@ -25,7 +25,7 @@ export default function LoginScreen() {
   const { login } = useAuth();
   const [email, setEmail] = useState("abel@argilette.com");
   const [password, setPassword] = useState("");
-  const [tenantId, setTenantId] = useState("Saint Paul Hospital");
+  const [tenantId, setTenantId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -33,8 +33,8 @@ export default function LoginScreen() {
   const tenantRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
-    if (!email || !password || !tenantId) {
-      setError("Please fill in all fields.");
+    if (!email || !password) {
+      setError("Please enter your email and password.");
       return;
     }
     setLoading(true);
@@ -113,7 +113,7 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Hospital / Clinic</Text>
+              <Text style={styles.label}>Hospital / Clinic (optional)</Text>
               <View style={styles.inputWrapper}>
                 <Feather name="home" size={18} color={C.textTertiary} style={styles.inputIcon} />
                 <TextInput

@@ -30,7 +30,7 @@ export const clearToken = async (): Promise<void> => {
 export interface LoginCredentials {
   email: string;
   password: string;
-  tenantId: string;
+  tenantId?: string;
 }
 
 export interface LoginResponse {
@@ -142,10 +142,17 @@ class ApiClient {
   }
 
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
+    const body: Record<string, string> = {
+      email: credentials.email,
+      password: credentials.password,
+    };
+    if (credentials.tenantId) {
+      body.tenantId = credentials.tenantId;
+    }
     const response = await fetch(`${getBaseUrl()}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(credentials),
+      body: JSON.stringify(body),
     });
     return this.handleResponse<LoginResponse>(response, true);
   }
