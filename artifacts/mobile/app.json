@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Carnet",
-    "slug": "carnet",
+    "name": "NaviMED",
+    "slug": "navimed",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "carnet",
+    "scheme": "navimed",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -15,10 +15,22 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.carnet.app"
+      "bundleIdentifier": "com.argilette.navimed"
     },
     "android": {
-      "package": "com.carnet.app"
+      "package": "com.argilette.navimed",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#1a6fbf"
+      },
+      "permissions": [
+        "INTERNET",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
