@@ -116,6 +116,25 @@ const pt: Record<string, string> = {
   appointmentsWillAppear: "Suas consultas agendadas aparecerão aqui.",
   updateFailed: "Falha na atualização",
   couldNotSave: "Não foi possível salvar seu perfil. Tente novamente.",
+
+  ehrSystem: "Sistema PEP",
+  selectProvider: "Selecione seu provedor de saúde",
+  searchProviders: "Buscar provedores...",
+  addCustomEndpoint: "Adicionar endpoint FHIR personalizado",
+  customFhirEndpoint: "Endpoint FHIR R4 personalizado",
+  providerName: "Nome do provedor",
+  addAndConnect: "Adicionar e conectar",
+  ehrCustomRequired: "Por favor, insira um nome e uma URL.",
+  ehrInvalidUrl: "Por favor, insira uma URL válida começando com http.",
+  error: "Erro",
+  enterEmailFirst: "Por favor, insira seu endereço de e-mail primeiro.",
+  resetLinkSent: "Link de redefinição enviado",
+  resetLinkSentText: "Se uma conta com esse e-mail existir, um link de redefinição foi enviado. Verifique sua caixa de entrada.",
+  resetFailed: "Falha ao enviar o link de redefinição.",
+  enterCredentials: "Por favor, insira seu e-mail e senha.",
+  loginFailed: "Falha no login. Tente novamente.",
+  sending: "Enviando",
+  connectedTo: "Conectado a {{name}}",
 };
 
 export default pt;

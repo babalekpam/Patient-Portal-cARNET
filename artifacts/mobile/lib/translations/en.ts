@@ -128,6 +128,25 @@ const en = {
 
   updateFailed: "Update Failed",
   couldNotSave: "Could not save your profile. Please try again.",
+
+  ehrSystem: "EHR System",
+  selectProvider: "Select your healthcare provider",
+  searchProviders: "Search providers...",
+  addCustomEndpoint: "Add Custom FHIR Endpoint",
+  customFhirEndpoint: "Custom FHIR R4 Endpoint",
+  providerName: "Provider name",
+  addAndConnect: "Add & Connect",
+  ehrCustomRequired: "Please enter a name and URL.",
+  ehrInvalidUrl: "Please enter a valid URL starting with http.",
+  error: "Error",
+  enterEmailFirst: "Please enter your email address first.",
+  resetLinkSent: "Reset Link Sent",
+  resetLinkSentText: "If an account with that email exists, a password reset link has been sent. Please check your inbox.",
+  resetFailed: "Failed to send reset link.",
+  enterCredentials: "Please enter your email and password.",
+  loginFailed: "Login failed. Please try again.",
+  sending: "Sending",
+  connectedTo: "Connected to {{name}}",
 };
 
 export default en;

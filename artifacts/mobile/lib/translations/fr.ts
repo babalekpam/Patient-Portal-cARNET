@@ -128,6 +128,25 @@ const fr: Record<string, string> = {
 
   updateFailed: "Échec de la mise à jour",
   couldNotSave: "Impossible de sauvegarder votre profil. Veuillez réessayer.",
+
+  ehrSystem: "Système DSE",
+  selectProvider: "Sélectionnez votre prestataire de santé",
+  searchProviders: "Rechercher des prestataires...",
+  addCustomEndpoint: "Ajouter un point d'accès FHIR personnalisé",
+  customFhirEndpoint: "Point d'accès FHIR R4 personnalisé",
+  providerName: "Nom du prestataire",
+  addAndConnect: "Ajouter et connecter",
+  ehrCustomRequired: "Veuillez entrer un nom et une URL.",
+  ehrInvalidUrl: "Veuillez entrer une URL valide commençant par http.",
+  error: "Erreur",
+  enterEmailFirst: "Veuillez d'abord entrer votre adresse e-mail.",
+  resetLinkSent: "Lien de réinitialisation envoyé",
+  resetLinkSentText: "Si un compte avec cet e-mail existe, un lien de réinitialisation a été envoyé. Vérifiez votre boîte de réception.",
+  resetFailed: "Échec de l'envoi du lien de réinitialisation.",
+  enterCredentials: "Veuillez entrer votre e-mail et votre mot de passe.",
+  loginFailed: "Échec de la connexion. Veuillez réessayer.",
+  sending: "Envoi en cours",
+  connectedTo: "Connecté à {{name}}",
 };
 
 export default fr;

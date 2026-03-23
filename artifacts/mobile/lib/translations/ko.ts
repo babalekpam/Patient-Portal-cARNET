@@ -116,6 +116,25 @@ const ko: Record<string, string> = {
   appointmentsWillAppear: "예정된 예약이 여기에 표시됩니다.",
   updateFailed: "업데이트 실패",
   couldNotSave: "프로필을 저장할 수 없습니다. 다시 시도해 주세요.",
+
+  ehrSystem: "전자건강기록 시스템",
+  selectProvider: "의료 기관을 선택하세요",
+  searchProviders: "기관 검색...",
+  addCustomEndpoint: "사용자 정의 FHIR 엔드포인트 추가",
+  customFhirEndpoint: "사용자 정의 FHIR R4 엔드포인트",
+  providerName: "기관 이름",
+  addAndConnect: "추가 및 연결",
+  ehrCustomRequired: "이름과 URL을 입력해 주세요.",
+  ehrInvalidUrl: "http로 시작하는 유효한 URL을 입력해 주세요.",
+  error: "오류",
+  enterEmailFirst: "먼저 이메일 주소를 입력해 주세요.",
+  resetLinkSent: "재설정 링크 발송 완료",
+  resetLinkSentText: "해당 이메일의 계정이 있다면 재설정 링크가 전송되었습니다. 받은편지함을 확인하세요.",
+  resetFailed: "재설정 링크 전송에 실패했습니다.",
+  enterCredentials: "이메일과 비밀번호를 입력해 주세요.",
+  loginFailed: "로그인에 실패했습니다. 다시 시도해 주세요.",
+  sending: "전송 중",
+  connectedTo: "{{name}}에 연결됨",
 };
 
 export default ko;

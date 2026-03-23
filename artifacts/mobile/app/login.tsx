@@ -5,6 +5,7 @@ import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,13 +18,69 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import NavimedLogo from "@/components/NavimedLogo";
 import { useAuth } from "@/context/AuthContext";
+import { useEHR } from "@/context/EHRContext";
 import { useTheme } from "@/context/ThemeContext";
+import { useI18n } from "@/lib/i18n";
 import { api } from "@/lib/api";
+import type { EHRProviderConfig } from "@/lib/ehr/types";
+
+function ProviderCard({
+  provider,
+  isSelected,
+  onPress,
+  colors,
+}: {
+  provider: EHRProviderConfig;
+  isSelected: boolean;
+  onPress: () => void;
+  colors: any;
+}) {
+  const iconName: any = provider.icon || "server";
+  const typeLabel =
+    provider.type === "fhir"
+      ? `FHIR ${provider.fhirVersion || "R4"}`
+      : provider.type === "navimedi"
+        ? "NaviMED"
+        : "Custom";
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.providerCard,
+        {
+          backgroundColor: isSelected ? colors.primaryLight : colors.surfaceSecondary,
+          borderColor: isSelected ? colors.primary : colors.borderLight,
+        },
+        pressed && { opacity: 0.8 },
+      ]}
+      onPress={onPress}
+    >
+      <View style={[styles.providerIcon, { backgroundColor: isSelected ? colors.primary : colors.border }]}>
+        <Feather name={iconName} size={18} color={isSelected ? "#fff" : colors.textSecondary} />
+      </View>
+      <View style={styles.providerInfo}>
+        <Text style={[styles.providerName, { color: colors.text }]}>{provider.name}</Text>
+        {provider.description ? (
+          <Text style={[styles.providerDesc, { color: colors.textTertiary }]} numberOfLines={1}>
+            {provider.description}
+          </Text>
+        ) : null}
+      </View>
+      <View style={[styles.typeBadge, { backgroundColor: isSelected ? colors.primary : colors.border }]}>
+        <Text style={[styles.typeText, { color: isSelected ? "#fff" : colors.textSecondary }]}>{typeLabel}</Text>
+      </View>
+      {isSelected ? <Feather name="check-circle" size={20} color={colors.primary} /> : null}
+    </Pressable>
+  );
+}
 
 export default function LoginScreen() {
   const { colors: C } = useTheme();
   const insets = useSafeAreaInsets();
   const { login } = useAuth();
+  const { providers, activeProvider, selectProvider, addCustomFHIREndpoint, search } = useEHR();
+  const { t } = useI18n();
+
   const [email, setEmail] = useState("abel@argilette.com");
   const [password, setPassword] = useState("Serrega1208@!!");
   const [tenantId, setTenantId] = useState("");
@@ -34,10 +91,42 @@ export default function LoginScreen() {
   const tenantRef = useRef<TextInput>(null);
 
   const [resetSending, setResetSending] = useState(false);
+  const [showProviderPicker, setShowProviderPicker] = useState(false);
+  const [providerSearch, setProviderSearch] = useState("");
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [customUrl, setCustomUrl] = useState("");
+
+  const filteredProviders = providerSearch ? search(providerSearch) : providers;
+
+  const handleSelectProvider = async (provider: EHRProviderConfig) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await selectProvider(provider);
+    setShowProviderPicker(false);
+    setProviderSearch("");
+  };
+
+  const handleAddCustom = async () => {
+    if (!customName.trim() || !customUrl.trim()) {
+      Alert.alert(t("error"), t("ehrCustomRequired"));
+      return;
+    }
+    if (!customUrl.startsWith("http")) {
+      Alert.alert(t("error"), t("ehrInvalidUrl"));
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const provider = addCustomFHIREndpoint(customName.trim(), customUrl.trim());
+    await selectProvider(provider);
+    setShowCustomForm(false);
+    setShowProviderPicker(false);
+    setCustomName("");
+    setCustomUrl("");
+  };
 
   const handleForgotPassword = async () => {
     if (!email) {
-      setError("Please enter your email address first.");
+      setError(t("enterEmailFirst"));
       return;
     }
     setResetSending(true);
@@ -45,14 +134,10 @@ export default function LoginScreen() {
     try {
       await api.forgotPassword(email);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        "Reset Link Sent",
-        "If an account with that email exists, a password reset link has been sent. Please check your inbox.",
-        [{ text: "OK" }]
-      );
+      Alert.alert(t("resetLinkSent"), t("resetLinkSentText"), [{ text: "OK" }]);
     } catch (err: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(err.message || "Failed to send reset link.");
+      setError(err.message || t("resetFailed"));
     } finally {
       setResetSending(false);
     }
@@ -60,7 +145,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      setError("Please enter your email and password.");
+      setError(t("enterCredentials"));
       return;
     }
     setLoading(true);
@@ -71,7 +156,7 @@ export default function LoginScreen() {
       router.replace("/(tabs)");
     } catch (err: any) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(err.message || "Login failed. Please try again.");
+      setError(err.message || t("loginFailed"));
     } finally {
       setLoading(false);
     }
@@ -92,12 +177,117 @@ export default function LoginScreen() {
         </View>
 
         <View style={[styles.card, { backgroundColor: C.surface }]}>
-          <Text style={[styles.cardTitle, { color: C.text }]}>Sign In</Text>
-          <Text style={[styles.cardSubtitle, { color: C.textSecondary }]}>Access your medical records securely</Text>
+          <Text style={[styles.cardTitle, { color: C.text }]}>{t("signIn")}</Text>
+          <Text style={[styles.cardSubtitle, { color: C.textSecondary }]}>{t("accessRecords")}</Text>
 
           <View style={styles.form}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.providerSelector,
+                {
+                  backgroundColor: C.surfaceSecondary,
+                  borderColor: showProviderPicker ? C.primary : C.border,
+                },
+                pressed && { opacity: 0.8 },
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowProviderPicker(!showProviderPicker);
+              }}
+            >
+              <View style={[styles.providerSelectorIcon, { backgroundColor: activeProvider ? C.primaryLight : C.border }]}>
+                <Feather
+                  name={(activeProvider?.icon as any) || "globe"}
+                  size={18}
+                  color={activeProvider ? C.primary : C.textTertiary}
+                />
+              </View>
+              <View style={styles.providerSelectorContent}>
+                <Text style={[styles.providerSelectorLabel, { color: C.textTertiary }]}>
+                  {t("ehrSystem")}
+                </Text>
+                <Text style={[styles.providerSelectorValue, { color: activeProvider ? C.text : C.textTertiary }]}>
+                  {activeProvider ? activeProvider.name : t("selectProvider")}
+                </Text>
+              </View>
+              <Feather name={showProviderPicker ? "chevron-up" : "chevron-down"} size={18} color={C.textTertiary} />
+            </Pressable>
+
+            {showProviderPicker ? (
+              <View style={[styles.providerPickerWrap, { backgroundColor: C.surface, borderColor: C.borderLight }]}>
+                <View style={[styles.searchRow, { borderBottomColor: C.borderLight }]}>
+                  <Feather name="search" size={16} color={C.textTertiary} />
+                  <TextInput
+                    style={[styles.searchInput, { color: C.text }]}
+                    value={providerSearch}
+                    onChangeText={setProviderSearch}
+                    placeholder={t("searchProviders")}
+                    placeholderTextColor={C.textTertiary}
+                    autoCapitalize="none"
+                  />
+                </View>
+                {filteredProviders.map((provider) => (
+                  <ProviderCard
+                    key={provider.id}
+                    provider={provider}
+                    isSelected={activeProvider?.id === provider.id}
+                    onPress={() => handleSelectProvider(provider)}
+                    colors={C}
+                  />
+                ))}
+
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.customEndpointBtn,
+                    { borderColor: C.border },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowCustomForm(!showCustomForm);
+                  }}
+                >
+                  <Feather name="plus-circle" size={16} color={C.primary} />
+                  <Text style={[styles.customEndpointText, { color: C.primary }]}>{t("addCustomEndpoint")}</Text>
+                </Pressable>
+
+                {showCustomForm ? (
+                  <View style={[styles.customFormWrap, { backgroundColor: C.surfaceSecondary, borderColor: C.borderLight }]}>
+                    <Text style={[styles.customFormTitle, { color: C.text }]}>{t("customFhirEndpoint")}</Text>
+                    <TextInput
+                      style={[styles.customInput, { color: C.text, borderColor: C.border, backgroundColor: C.surface }]}
+                      value={customName}
+                      onChangeText={setCustomName}
+                      placeholder={t("providerName")}
+                      placeholderTextColor={C.textTertiary}
+                    />
+                    <TextInput
+                      style={[styles.customInput, { color: C.text, borderColor: C.border, backgroundColor: C.surface }]}
+                      value={customUrl}
+                      onChangeText={setCustomUrl}
+                      placeholder="https://fhir.example.com/r4"
+                      placeholderTextColor={C.textTertiary}
+                      autoCapitalize="none"
+                      keyboardType="url"
+                    />
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.addProviderBtn,
+                        { backgroundColor: C.primary },
+                        pressed && { opacity: 0.85 },
+                      ]}
+                      onPress={handleAddCustom}
+                    >
+                      <Feather name="plus" size={16} color="#fff" />
+                      <Text style={styles.addProviderBtnText}>{t("addAndConnect")}</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
             <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: C.textSecondary }]}>Email Address</Text>
+              <Text style={[styles.label, { color: C.textSecondary }]}>{t("email")}</Text>
               <View style={[styles.inputWrapper, { backgroundColor: C.surfaceSecondary, borderColor: C.border }]}>
                 <Feather name="mail" size={18} color={C.textTertiary} style={styles.inputIcon} />
                 <TextInput
@@ -117,7 +307,7 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: C.textSecondary }]}>Password</Text>
+              <Text style={[styles.label, { color: C.textSecondary }]}>{t("password")}</Text>
               <View style={[styles.inputWrapper, { backgroundColor: C.surfaceSecondary, borderColor: C.border }]}>
                 <Feather name="lock" size={18} color={C.textTertiary} style={styles.inputIcon} />
                 <TextInput
@@ -139,11 +329,13 @@ export default function LoginScreen() {
             </View>
 
             <Pressable onPress={handleForgotPassword} disabled={resetSending}>
-              <Text style={[styles.forgotLink, { color: C.primary }]}>{resetSending ? "Sending..." : "Forgot Password?"}</Text>
+              <Text style={[styles.forgotLink, { color: C.primary }]}>
+                {resetSending ? `${t("sending")}...` : t("forgotPassword")}
+              </Text>
             </Pressable>
 
             <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: C.textSecondary }]}>Hospital / Clinic (optional)</Text>
+              <Text style={[styles.label, { color: C.textSecondary }]}>{t("hospitalOptional")}</Text>
               <View style={[styles.inputWrapper, { backgroundColor: C.surfaceSecondary, borderColor: C.border }]}>
                 <Feather name="home" size={18} color={C.textTertiary} style={styles.inputIcon} />
                 <TextInput
@@ -151,7 +343,7 @@ export default function LoginScreen() {
                   style={[styles.input, { color: C.text }]}
                   value={tenantId}
                   onChangeText={setTenantId}
-                  placeholder="Your hospital name"
+                  placeholder={t("yourHospitalName")}
                   placeholderTextColor={C.textTertiary}
                   returnKeyType="done"
                   onSubmitEditing={handleLogin}
@@ -176,7 +368,7 @@ export default function LoginScreen() {
               {loading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.loginBtnText}>Sign In</Text>
+                <Text style={styles.loginBtnText}>{t("signIn")}</Text>
               )}
             </Pressable>
           </View>
@@ -184,7 +376,7 @@ export default function LoginScreen() {
 
         <View style={styles.footer}>
           <Feather name="shield" size={14} color={C.textTertiary} />
-          <Text style={[styles.footerText, { color: C.textTertiary }]}>Your data is encrypted and secure</Text>
+          <Text style={[styles.footerText, { color: C.textTertiary }]}>{t("dataEncrypted")}</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -296,5 +488,135 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
+  },
+  providerSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    gap: 12,
+  },
+  providerSelectorIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  providerSelectorContent: {
+    flex: 1,
+  },
+  providerSelectorLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  providerSelectorValue: {
+    fontSize: 15,
+    fontFamily: "Inter_500Medium",
+  },
+  providerPickerWrap: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    paddingVertical: 4,
+  },
+  providerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)",
+  },
+  providerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  providerInfo: {
+    flex: 1,
+  },
+  providerName: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+  },
+  providerDesc: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    marginTop: 1,
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  typeText: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.3,
+  },
+  customEndpointBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    padding: 12,
+    borderTopWidth: 1,
+  },
+  customEndpointText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+  },
+  customFormWrap: {
+    margin: 10,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 10,
+  },
+  customFormTitle: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 2,
+  },
+  customInput: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  addProviderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  addProviderBtnText: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: "#fff",
   },
 });

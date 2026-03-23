@@ -95,11 +95,12 @@ Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHea
 
 ### `artifacts/mobile` (`@workspace/mobile`)
 
-Expo React Native mobile app — CARNET Patient Health Portal by Navimedi. Connects to the external Navimedi API (`https://navimedi.org/api`) with Bearer token auth.
+Expo React Native mobile app — NaviMED Patient Health Portal by Argilette. Multi-EHR support with adapter pattern.
 
-- **Screens**: Login, Home (Dashboard), Profile (editable), Appointments (with calendar sync), Prescriptions, Lab Results, Bills, Messages (with compose), Visit Summaries, Request Appointment
+- **Screens**: Login (with EHR provider selector), Home (Dashboard), Profile (editable), Appointments (with calendar sync), Prescriptions, Lab Results, Bills, Messages (with compose), Visit Summaries, Request Appointment
 - **Auth**: `context/AuthContext.tsx` manages login/logout/profile state with AsyncStorage token persistence. Supports biometric auth on app resume and push notification registration on login.
-- **API Client**: `lib/api.ts` — typed API client with platform-aware base URL (uses proxy on web, direct URL on native). Includes `updateProfile()`, `getVisitSummaries()`, `requestAppointment()`.
+- **EHR Integration**: `lib/ehr/` — adapter pattern for multi-EHR support. `context/EHRContext.tsx` manages active provider. Built-in adapters: `NavimediAdapter` (Navimedi API), `FHIRAdapter` (any FHIR R4 server). Registry in `lib/ehr/registry.ts` with built-in providers (Navimedi, HAPI FHIR, SMART Health IT). Users can add custom FHIR endpoints.
+- **API Client**: `lib/api.ts` — typed API client that delegates to the active EHR adapter. Falls back to direct Navimedi API calls when no adapter is set. Includes `updateProfile()`, `getVisitSummaries()`, `requestAppointment()`.
 - **Proxy**: On web, API calls route through the API server's relay endpoint at `/api/navimedi/...` to avoid CORS restrictions from the Navimedi API
 - **Theme**: Dark mode support via `context/ThemeContext.tsx` with system/light/dark toggle. Colors defined in `constants/colors.ts` with full light/dark palettes. All screens use `useTheme()` hook.
 - **Data fetching**: React Query (`@tanstack/react-query`)

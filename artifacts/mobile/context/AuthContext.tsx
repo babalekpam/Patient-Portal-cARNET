@@ -51,6 +51,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
           }
         }
+
+        if (api.adapter) {
+          api.adapter.setToken(token);
+        }
+
         setIsAuthenticated(true);
         try {
           const p = await api.getProfile();
@@ -78,6 +83,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     await clearToken();
     await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+    if (api.adapter) {
+      api.adapter.clearToken();
+    }
     setIsAuthenticated(false);
     setProfile(null);
   };

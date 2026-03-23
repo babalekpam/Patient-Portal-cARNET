@@ -116,6 +116,25 @@ const it: Record<string, string> = {
   appointmentsWillAppear: "I tuoi appuntamenti programmati appariranno qui.",
   updateFailed: "Aggiornamento fallito",
   couldNotSave: "Impossibile salvare il profilo. Riprova.",
+
+  ehrSystem: "Sistema CCE",
+  selectProvider: "Seleziona il tuo fornitore sanitario",
+  searchProviders: "Cerca fornitori...",
+  addCustomEndpoint: "Aggiungi endpoint FHIR personalizzato",
+  customFhirEndpoint: "Endpoint FHIR R4 personalizzato",
+  providerName: "Nome del fornitore",
+  addAndConnect: "Aggiungi e connetti",
+  ehrCustomRequired: "Inserisci un nome e un URL.",
+  ehrInvalidUrl: "Inserisci un URL valido che inizi con http.",
+  error: "Errore",
+  enterEmailFirst: "Inserisci prima il tuo indirizzo email.",
+  resetLinkSent: "Link di reimpostazione inviato",
+  resetLinkSentText: "Se esiste un account con quell'email, è stato inviato un link di reimpostazione. Controlla la tua casella di posta.",
+  resetFailed: "Invio del link di reimpostazione non riuscito.",
+  enterCredentials: "Inserisci email e password.",
+  loginFailed: "Accesso non riuscito. Riprova.",
+  sending: "Invio in corso",
+  connectedTo: "Connesso a {{name}}",
 };
 
 export default it;

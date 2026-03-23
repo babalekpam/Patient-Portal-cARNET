@@ -116,6 +116,25 @@ const zh: Record<string, string> = {
   appointmentsWillAppear: "您的预约将显示在此处。",
   updateFailed: "更新失败",
   couldNotSave: "无法保存您的个人资料。请重试。",
+
+  ehrSystem: "电子病历系统",
+  selectProvider: "选择您的医疗服务提供者",
+  searchProviders: "搜索提供者...",
+  addCustomEndpoint: "添加自定义FHIR端点",
+  customFhirEndpoint: "自定义FHIR R4端点",
+  providerName: "提供者名称",
+  addAndConnect: "添加并连接",
+  ehrCustomRequired: "请输入名称和URL。",
+  ehrInvalidUrl: "请输入以http开头的有效URL。",
+  error: "错误",
+  enterEmailFirst: "请先输入您的电子邮件地址。",
+  resetLinkSent: "重置链接已发送",
+  resetLinkSentText: "如果存在该邮箱的账户，重置链接已发送。请检查您的收件箱。",
+  resetFailed: "发送重置链接失败。",
+  enterCredentials: "请输入您的邮箱和密码。",
+  loginFailed: "登录失败。请重试。",
+  sending: "发送中",
+  connectedTo: "已连接到 {{name}}",
 };
 
 export default zh;

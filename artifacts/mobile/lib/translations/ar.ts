@@ -116,6 +116,25 @@ const ar: Record<string, string> = {
   appointmentsWillAppear: "ستظهر مواعيدك المجدولة هنا.",
   updateFailed: "فشل التحديث",
   couldNotSave: "تعذر حفظ ملفك الشخصي. يرجى المحاولة مرة أخرى.",
+
+  ehrSystem: "نظام السجلات الطبية",
+  selectProvider: "اختر مزود الرعاية الصحية",
+  searchProviders: "البحث عن مزودين...",
+  addCustomEndpoint: "إضافة نقطة FHIR مخصصة",
+  customFhirEndpoint: "نقطة FHIR R4 مخصصة",
+  providerName: "اسم المزود",
+  addAndConnect: "إضافة وربط",
+  ehrCustomRequired: "يرجى إدخال اسم وعنوان URL.",
+  ehrInvalidUrl: "يرجى إدخال عنوان URL صالح يبدأ بـ http.",
+  error: "خطأ",
+  enterEmailFirst: "يرجى إدخال بريدك الإلكتروني أولاً.",
+  resetLinkSent: "تم إرسال رابط إعادة التعيين",
+  resetLinkSentText: "إذا كان هناك حساب بهذا البريد، فقد تم إرسال رابط إعادة التعيين. تحقق من صندوق الوارد.",
+  resetFailed: "فشل إرسال رابط إعادة التعيين.",
+  enterCredentials: "يرجى إدخال البريد الإلكتروني وكلمة المرور.",
+  loginFailed: "فشل تسجيل الدخول. يرجى المحاولة مرة أخرى.",
+  sending: "جاري الإرسال",
+  connectedTo: "متصل بـ {{name}}",
 };
 
 export default ar;

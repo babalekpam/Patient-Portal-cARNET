@@ -14,6 +14,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { EHRProvider } from "@/context/EHRContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { I18nContext, useI18nProvider } from "@/lib/i18n";
 
@@ -73,6 +74,7 @@ export default function RootLayout() {
         <I18nContext.Provider value={i18n}>
           <ThemeProvider>
             <QueryClientProvider client={queryClient}>
+              <EHRProvider>
               <AuthProvider>
                 <GestureHandlerRootView>
                   <KeyboardProvider>
@@ -80,6 +82,7 @@ export default function RootLayout() {
                   </KeyboardProvider>
                 </GestureHandlerRootView>
               </AuthProvider>
+              </EHRProvider>
             </QueryClientProvider>
           </ThemeProvider>
         </I18nContext.Provider>

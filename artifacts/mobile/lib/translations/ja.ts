@@ -116,6 +116,25 @@ const ja: Record<string, string> = {
   appointmentsWillAppear: "予約済みの予約がここに表示されます。",
   updateFailed: "更新に失敗",
   couldNotSave: "プロフィールを保存できませんでした。もう一度お試しください。",
+
+  ehrSystem: "電子カルテシステム",
+  selectProvider: "医療機関を選択してください",
+  searchProviders: "医療機関を検索...",
+  addCustomEndpoint: "カスタムFHIRエンドポイントを追加",
+  customFhirEndpoint: "カスタムFHIR R4エンドポイント",
+  providerName: "医療機関名",
+  addAndConnect: "追加して接続",
+  ehrCustomRequired: "名前とURLを入力してください。",
+  ehrInvalidUrl: "httpで始まる有効なURLを入力してください。",
+  error: "エラー",
+  enterEmailFirst: "まずメールアドレスを入力してください。",
+  resetLinkSent: "リセットリンク送信完了",
+  resetLinkSentText: "そのメールアドレスのアカウントが存在する場合、リセットリンクが送信されました。受信トレイを確認してください。",
+  resetFailed: "リセットリンクの送信に失敗しました。",
+  enterCredentials: "メールアドレスとパスワードを入力してください。",
+  loginFailed: "ログインに失敗しました。もう一度お試しください。",
+  sending: "送信中",
+  connectedTo: "{{name}}に接続中",
 };
 
 export default ja;

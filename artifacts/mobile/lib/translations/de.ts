@@ -116,6 +116,25 @@ const de: Record<string, string> = {
   appointmentsWillAppear: "Ihre geplanten Termine werden hier angezeigt.",
   updateFailed: "Aktualisierung fehlgeschlagen",
   couldNotSave: "Ihr Profil konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+
+  ehrSystem: "EHR-System",
+  selectProvider: "Wählen Sie Ihren Gesundheitsdienstleister",
+  searchProviders: "Anbieter suchen...",
+  addCustomEndpoint: "Benutzerdefinierten FHIR-Endpunkt hinzufügen",
+  customFhirEndpoint: "Benutzerdefinierter FHIR R4-Endpunkt",
+  providerName: "Anbietername",
+  addAndConnect: "Hinzufügen & verbinden",
+  ehrCustomRequired: "Bitte geben Sie einen Namen und eine URL ein.",
+  ehrInvalidUrl: "Bitte geben Sie eine gültige URL ein, die mit http beginnt.",
+  error: "Fehler",
+  enterEmailFirst: "Bitte geben Sie zuerst Ihre E-Mail-Adresse ein.",
+  resetLinkSent: "Link zum Zurücksetzen gesendet",
+  resetLinkSentText: "Wenn ein Konto mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen gesendet. Überprüfen Sie Ihren Posteingang.",
+  resetFailed: "Link zum Zurücksetzen konnte nicht gesendet werden.",
+  enterCredentials: "Bitte geben Sie E-Mail und Passwort ein.",
+  loginFailed: "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+  sending: "Wird gesendet",
+  connectedTo: "Verbunden mit {{name}}",
 };
 
 export default de;

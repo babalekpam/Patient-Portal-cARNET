@@ -128,6 +128,25 @@ const es: Record<string, string> = {
 
   updateFailed: "Error al actualizar",
   couldNotSave: "No se pudo guardar su perfil. Inténtelo de nuevo.",
+
+  ehrSystem: "Sistema HCE",
+  selectProvider: "Seleccione su proveedor de salud",
+  searchProviders: "Buscar proveedores...",
+  addCustomEndpoint: "Agregar punto FHIR personalizado",
+  customFhirEndpoint: "Punto FHIR R4 personalizado",
+  providerName: "Nombre del proveedor",
+  addAndConnect: "Agregar y conectar",
+  ehrCustomRequired: "Por favor ingrese un nombre y una URL.",
+  ehrInvalidUrl: "Por favor ingrese una URL válida que comience con http.",
+  error: "Error",
+  enterEmailFirst: "Por favor ingrese su dirección de correo electrónico primero.",
+  resetLinkSent: "Enlace de restablecimiento enviado",
+  resetLinkSentText: "Si existe una cuenta con ese correo, se ha enviado un enlace de restablecimiento. Revise su bandeja de entrada.",
+  resetFailed: "No se pudo enviar el enlace de restablecimiento.",
+  enterCredentials: "Por favor ingrese su correo y contraseña.",
+  loginFailed: "Error de inicio de sesión. Intente de nuevo.",
+  sending: "Enviando",
+  connectedTo: "Conectado a {{name}}",
 };
 
 export default es;

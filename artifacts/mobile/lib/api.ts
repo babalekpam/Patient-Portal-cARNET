@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import type { EHRAdapter } from "@/lib/ehr/types";
 
 const DIRECT_URL = "https://navimedi.org/api";
 
@@ -158,6 +159,16 @@ export interface ProfileUpdateData {
 }
 
 class ApiClient {
+  private _adapter: EHRAdapter | null = null;
+
+  setAdapter(adapter: EHRAdapter | null): void {
+    this._adapter = adapter;
+  }
+
+  get adapter(): EHRAdapter | null {
+    return this._adapter;
+  }
+
   private async getHeaders(): Promise<HeadersInit> {
     const headers: HeadersInit = {
       "Content-Type": "application/json",
@@ -194,6 +205,11 @@ class ApiClient {
   }
 
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
+    if (this._adapter) {
+      const result = await this._adapter.login(credentials);
+      this._adapter.setToken(result.token);
+      return result;
+    }
     const body: Record<string, string> = {
       email: credentials.email,
       password: credentials.password,
@@ -210,6 +226,7 @@ class ApiClient {
   }
 
   async forgotPassword(email: string): Promise<any> {
+    if (this._adapter) return this._adapter.forgotPassword(email);
     const response = await fetch(`${getBaseUrl()}/auth/forgot-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -219,6 +236,7 @@ class ApiClient {
   }
 
   async getProfile(): Promise<Profile> {
+    if (this._adapter) return this._adapter.getProfile();
     const response = await fetch(`${getBaseUrl()}/patient/profile`, {
       headers: await this.getHeaders(),
     });
@@ -226,6 +244,7 @@ class ApiClient {
   }
 
   async updateProfile(data: ProfileUpdateData): Promise<Profile> {
+    if (this._adapter) return this._adapter.updateProfile(data);
     const response = await fetch(`${getBaseUrl()}/patient/profile`, {
       method: "PUT",
       headers: await this.getHeaders(),
@@ -235,6 +254,7 @@ class ApiClient {
   }
 
   async getAppointments(): Promise<Appointment[]> {
+    if (this._adapter) return this._adapter.getAppointments();
     const response = await fetch(`${getBaseUrl()}/patient/appointments`, {
       headers: await this.getHeaders(),
     });
@@ -242,6 +262,7 @@ class ApiClient {
   }
 
   async getPrescriptions(): Promise<Prescription[]> {
+    if (this._adapter) return this._adapter.getPrescriptions();
     const response = await fetch(`${getBaseUrl()}/patient/prescriptions`, {
       headers: await this.getHeaders(),
     });
@@ -249,6 +270,7 @@ class ApiClient {
   }
 
   async getLabResults(): Promise<LabResult[]> {
+    if (this._adapter) return this._adapter.getLabResults();
     const response = await fetch(`${getBaseUrl()}/patient/lab-results`, {
       headers: await this.getHeaders(),
     });
@@ -256,6 +278,7 @@ class ApiClient {
   }
 
   async getMessages(): Promise<Message[]> {
+    if (this._adapter) return this._adapter.getMessages();
     const response = await fetch(`${getBaseUrl()}/medical-communications`, {
       headers: await this.getHeaders(),
     });
@@ -263,6 +286,7 @@ class ApiClient {
   }
 
   async sendMessage(subject: string, message: string, recipientId?: string): Promise<any> {
+    if (this._adapter) return this._adapter.sendMessage(subject, message, recipientId);
     const response = await fetch(`${getBaseUrl()}/medical-communications`, {
       method: "POST",
       headers: await this.getHeaders(),
@@ -277,6 +301,7 @@ class ApiClient {
   }
 
   async getVisitSummaries(): Promise<VisitSummary[]> {
+    if (this._adapter) return this._adapter.getVisitSummaries();
     const response = await fetch(`${getBaseUrl()}/patient/visit-summaries`, {
       headers: await this.getHeaders(),
     });
@@ -284,6 +309,7 @@ class ApiClient {
   }
 
   async requestAppointment(data: AppointmentRequest): Promise<any> {
+    if (this._adapter) return this._adapter.requestAppointment(data);
     const response = await fetch(`${getBaseUrl()}/patient/appointment-requests`, {
       method: "POST",
       headers: await this.getHeaders(),
@@ -293,6 +319,7 @@ class ApiClient {
   }
 
   async getBills(): Promise<Bill[]> {
+    if (this._adapter) return this._adapter.getBills();
     const response = await fetch(`${getBaseUrl()}/patient/bills`, {
       headers: await this.getHeaders(),
     });
