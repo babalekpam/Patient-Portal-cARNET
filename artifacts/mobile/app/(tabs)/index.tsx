@@ -34,6 +34,15 @@ const QUICK_ACTIONS: QuickAction[] = [
   { labelKey: "testResults", icon: "bar-chart-2", route: "/lab-results" },
   { labelKey: "medications", icon: "package", route: "/prescriptions" },
   { labelKey: "accountSummary", icon: "credit-card", route: "/bills" },
+  { labelKey: "emergencyCard", icon: "alert-circle", route: "/emergency-card" },
+  { labelKey: "healthTimeline", icon: "clock", route: "/health-timeline" },
+  { labelKey: "symptomChecker", icon: "thermometer", route: "/symptom-checker" },
+  { labelKey: "documents", icon: "camera", route: "/documents" },
+  { labelKey: "familyMembers", icon: "users", route: "/family" },
+  { labelKey: "interactionChecker", icon: "zap", route: "/interactions" },
+  { labelKey: "exportRecords", icon: "share", route: "/export-records" },
+  { labelKey: "telehealth", icon: "video", route: "/telehealth" },
+  { labelKey: "healthMetrics", icon: "activity", route: "/health-metrics" },
 ];
 
 function QuickActionTile({ item, colors }: { item: QuickAction; colors: any }) {

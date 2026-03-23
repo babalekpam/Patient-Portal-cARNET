@@ -97,7 +97,7 @@ Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHea
 
 Expo React Native mobile app — NaviMED Patient Health Portal by Argilette. Multi-EHR support with adapter pattern.
 
-- **Screens**: Login (with EHR provider selector), Home (Dashboard), Profile (editable), Appointments (with calendar sync), Prescriptions, Lab Results, Bills, Messages (with compose), Visit Summaries, Request Appointment
+- **Screens**: Login (with EHR provider selector), Home (Dashboard), Profile (editable), Appointments (with calendar sync), Prescriptions, Lab Results, Bills, Messages (with compose), Visit Summaries, Request Appointment, Emergency Card, Health Timeline, Symptom Checker, Documents (scanner), Family Members, Drug Interactions, Export Records, Telehealth, Health Metrics
 - **Auth**: `context/AuthContext.tsx` manages login/logout/profile state with AsyncStorage token persistence. Supports biometric auth on app resume and push notification registration on login.
 - **EHR Integration**: `lib/ehr/` — adapter pattern for multi-EHR support. `context/EHRContext.tsx` manages active provider. Built-in adapters: `NavimediAdapter` (Navimedi API), `FHIRAdapter` (any FHIR R4 server). Registry in `lib/ehr/registry.ts` with built-in providers (Navimedi, HAPI FHIR, SMART Health IT). Users can add custom FHIR endpoints.
 - **API Client**: `lib/api.ts` — typed API client that delegates to the active EHR adapter. Falls back to direct Navimedi API calls when no adapter is set. Includes `updateProfile()`, `getVisitSummaries()`, `requestAppointment()`.
@@ -119,6 +119,17 @@ Expo React Native mobile app — NaviMED Patient Health Portal by Argilette. Mul
 - **Biometrics**: `lib/biometrics.ts` — Face ID/fingerprint authentication for quick sign-in. Toggle in profile settings (always visible, with disabled state explanation when hardware not available).
 - **Push Notifications**: `lib/notifications.ts` — registers for push notifications on login with token persistence.
 - **Medication Reminders**: `lib/notifications.ts` — schedule/cancel/toggle/mark-taken with AsyncStorage. `app/(tabs)/reminders.tsx` — prescription picker modal, time picker, reminder cards with daily progress tracking. Android notification channel "medication-reminders". All 10 language files include 26 reminder-related translation keys.
+- **10 New Features** (all with i18n for 10 languages):
+  - **Emergency Card** (`app/emergency-card.tsx`): Quick-access card showing allergies, blood type, emergency contacts, current medications. Red gradient header, shareable via system share sheet.
+  - **Health Timeline** (`app/health-timeline.tsx`): Unified chronological view combining appointments, labs, prescriptions, messages. Filterable by event type with color-coded cards.
+  - **Symptom Checker** (`app/symptom-checker.tsx`): Multi-step guided triage flow — body area → symptoms → severity → duration → recommendation (emergency/urgent/schedule/self-care). Saves history to AsyncStorage.
+  - **Document Scanner** (`app/documents.tsx`): Camera/gallery capture of insurance cards, prescriptions, lab reports. Categorized storage in AsyncStorage with preview and delete.
+  - **Family Members** (`app/family.tsx`): Manage dependents' health info (name, relationship, DOB, blood type, allergies, medications). CRUD with AsyncStorage.
+  - **Drug Interaction Checker** (`app/interactions.tsx`): Checks active prescriptions against a database of known interactions. Visual severity indicators (severe/moderate/mild).
+  - **Export Records** (`app/export-records.tsx`): Generate a text health summary report (personal info, medications, allergies, labs, appointments, visits). Shareable via system share sheet.
+  - **Telehealth** (`app/telehealth.tsx`): Video visit interface with waiting room, in-call controls (mute/camera/end), and post-call actions (view summary, schedule follow-up).
+  - **Health Metrics** (`app/health-metrics.tsx`): Manual vital signs tracking (steps, heart rate, BP, weight, sleep, temperature, blood oxygen). Mini bar charts for trends.
+  - **Offline Mode** (`lib/offline.ts`): NetInfo connectivity detection, data caching with TTL, pending action queue for sync when reconnected.
 - **Branding**: Powered by Argilette. App name is NaviMED. Logo subtitle reads "by Argilette".
 
 ### `scripts` (`@workspace/scripts`)

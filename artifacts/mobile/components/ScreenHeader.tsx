@@ -11,9 +11,11 @@ interface ScreenHeaderProps {
   subtitle?: string;
   showBack?: boolean;
   rightElement?: React.ReactNode;
+  rightIcon?: React.ComponentProps<typeof Feather>["name"];
+  onRightPress?: () => void;
 }
 
-export function ScreenHeader({ title, subtitle, showBack = true, rightElement }: ScreenHeaderProps) {
+export function ScreenHeader({ title, subtitle, showBack = true, rightElement, rightIcon, onRightPress }: ScreenHeaderProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
 
@@ -40,7 +42,11 @@ export function ScreenHeader({ title, subtitle, showBack = true, rightElement }:
           <Text style={styles.title}>{title}</Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
-        {rightElement ? <View>{rightElement}</View> : <View style={styles.placeholder} />}
+        {rightElement ? <View>{rightElement}</View> : rightIcon && onRightPress ? (
+          <Pressable style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]} onPress={onRightPress}>
+            <Feather name={rightIcon} size={22} color="#fff" />
+          </Pressable>
+        ) : <View style={styles.placeholder} />}
       </View>
     </LinearGradient>
   );

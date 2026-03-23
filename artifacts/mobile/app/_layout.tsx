@@ -46,6 +46,15 @@ function RootLayoutNav() {
       <Stack.Screen name="bills" options={{ headerShown: false }} />
       <Stack.Screen name="visit-summaries" options={{ headerShown: false }} />
       <Stack.Screen name="request-appointment" options={{ headerShown: false }} />
+      <Stack.Screen name="emergency-card" options={{ headerShown: false }} />
+      <Stack.Screen name="health-timeline" options={{ headerShown: false }} />
+      <Stack.Screen name="symptom-checker" options={{ headerShown: false }} />
+      <Stack.Screen name="documents" options={{ headerShown: false }} />
+      <Stack.Screen name="family" options={{ headerShown: false }} />
+      <Stack.Screen name="interactions" options={{ headerShown: false }} />
+      <Stack.Screen name="export-records" options={{ headerShown: false }} />
+      <Stack.Screen name="telehealth" options={{ headerShown: false }} />
+      <Stack.Screen name="health-metrics" options={{ headerShown: false }} />
     </Stack>
   );
 }
