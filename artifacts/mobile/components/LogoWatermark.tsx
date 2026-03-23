@@ -1,7 +1,7 @@
 import React from "react";
 import { Dimensions, Image, StyleSheet, View } from "react-native";
 
-const logo = require("@/assets/images/navimed-icon-only.jpeg");
+const logo = require("@/assets/images/navimed-icon-only.png");
 
 const TILE_SIZE = 120;
 const ICON_SIZE = 50;
