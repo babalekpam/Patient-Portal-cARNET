@@ -48,6 +48,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b1150c38-8755-4f3f-ba50-59b63e8084b7"
+      }
+    },
+    "owner": "argilette"
   }
 }
