@@ -22,6 +22,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 artifacts-monorepo/
 ├── artifacts/              # Deployable applications
 │   └── api-server/         # Express API server
+│   └── mobile/             # Expo React Native mobile app
 ├── lib/                    # Shared libraries
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
@@ -56,6 +57,7 @@ Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` 
 
 - Entry: `src/index.ts` — reads `PORT`, starts Express
 - App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
+- **Navimedi API Relay**: `app.all("/api/navimedi/{*path}")` proxies requests to `https://navimedi.org/api` with raw body passthrough (no JSON re-encoding). Supports all HTTP methods (GET, POST, PUT, DELETE). Placed before `express.json()` middleware to avoid body consumption.
 - Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
 - Depends on: `@workspace/db`, `@workspace/api-zod`
 - `pnpm --filter @workspace/api-server run dev` — run the dev server
@@ -95,14 +97,25 @@ Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHea
 
 Expo React Native mobile app — CARNET Patient Health Portal by Navimedi. Connects to the external Navimedi API (`https://navimedi.org/api`) with Bearer token auth.
 
-- **Screens**: Login, Home (Dashboard), Profile, Appointments, Prescriptions, Lab Results, Bills, Messages (with compose)
-- **Auth**: `context/AuthContext.tsx` manages login/logout/profile state with AsyncStorage token persistence
-- **API Client**: `lib/api.ts` — typed API client with platform-aware base URL (uses proxy on web, direct URL on native)
+- **Screens**: Login, Home (Dashboard), Profile (editable), Appointments (with calendar sync), Prescriptions, Lab Results, Bills, Messages (with compose)
+- **Auth**: `context/AuthContext.tsx` manages login/logout/profile state with AsyncStorage token persistence. Supports biometric auth on app resume and push notification registration on login.
+- **API Client**: `lib/api.ts` — typed API client with platform-aware base URL (uses proxy on web, direct URL on native). Includes `updateProfile()` for PUT profile changes.
 - **Proxy**: On web, API calls route through the API server's relay endpoint at `/api/navimedi/...` to avoid CORS restrictions from the Navimedi API
-- **Theme**: Healthcare blue (#1a6fbf primary) defined in `constants/colors.ts`
+- **Theme**: Dark mode support via `context/ThemeContext.tsx` with system/light/dark toggle. Colors defined in `constants/colors.ts` with full light/dark palettes. All screens use `useTheme()` hook.
 - **Data fetching**: React Query (`@tanstack/react-query`)
 - **Navigation**: Expo Router with NativeTabs (liquid glass on iOS 26+), Stack for other screens
-- **Components**: `ScreenHeader`, `StatusBadge` reusable components
+- **Key Components**:
+  - `ScreenHeader` — gradient header with LinearGradient
+  - `StatusBadge` — theme-aware status badges
+  - `CalendarStrip` — horizontal scrolling calendar for appointments with date-based filtering
+  - `SkeletonLoader` — shimmer animation skeleton screens (Card, Profile, Home, List variants)
+  - `AnimatedCard` — staggered fade-in/slide-up card animation
+  - `Avatar` — initials-based user avatar
+  - `SearchBar` — filterable search with focus border animation
+- **Profile Editing**: Users can edit personal info (name, email, phone, address, gender, DOB, emergency contact). Read-only fields (MRN, blood type) are clearly marked.
+- **Calendar Sync**: Appointments screen has calendar strip view showing which dates have appointments. Toggle between calendar day view and full list view.
+- **Biometrics**: `lib/biometrics.ts` — Face ID/fingerprint authentication for quick sign-in. Toggle in profile settings.
+- **Push Notifications**: `lib/notifications.ts` — registers for push notifications on login with token persistence.
 
 ### `scripts` (`@workspace/scripts`)
 

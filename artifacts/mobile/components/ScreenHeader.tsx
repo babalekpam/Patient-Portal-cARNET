@@ -1,11 +1,10 @@
 import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Colors from "@/constants/colors";
-
-const C = Colors.light;
+import { useTheme } from "@/context/ThemeContext";
 
 interface ScreenHeaderProps {
   title: string;
@@ -16,9 +15,15 @@ interface ScreenHeaderProps {
 
 export function ScreenHeader({ title, subtitle, showBack = true, rightElement }: ScreenHeaderProps) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
 
   return (
-    <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+    <LinearGradient
+      colors={[colors.gradientStart, colors.gradientEnd]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.header, { paddingTop: insets.top + 12 }]}
+    >
       <View style={styles.row}>
         {showBack ? (
           <Pressable
@@ -26,7 +31,7 @@ export function ScreenHeader({ title, subtitle, showBack = true, rightElement }:
             onPress={() => router.back()}
             testID="button-back"
           >
-            <Feather name="chevron-left" size={24} color={C.text} />
+            <Feather name="chevron-left" size={24} color="#fff" />
           </Pressable>
         ) : (
           <View style={styles.placeholder} />
@@ -37,17 +42,14 @@ export function ScreenHeader({ title, subtitle, showBack = true, rightElement }:
         </View>
         {rightElement ? <View>{rightElement}</View> : <View style={styles.placeholder} />}
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: "#fff",
     paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: C.borderLight,
+    paddingBottom: 18,
   },
   row: {
     flexDirection: "row",
@@ -57,7 +59,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: C.surfaceSecondary,
+    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -71,12 +73,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",
-    color: C.text,
+    color: "#fff",
   },
   subtitle: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: C.textTertiary,
+    color: "rgba(255,255,255,0.75)",
     marginTop: 2,
   },
 });

@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { api, clearToken, getToken, saveToken, type LoginCredentials, type Profile } from "@/lib/api";
+import { registerForPushNotifications } from "@/lib/notifications";
+import { isBiometricAvailable, isBiometricEnabled, authenticateWithBiometrics } from "@/lib/biometrics";
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -13,6 +15,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const PUSH_TOKEN_KEY = "carnet_push_token";
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,20 +26,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, []);
 
+  const registerPush = async () => {
+    try {
+      const token = await registerForPushNotifications();
+      if (token) {
+        const prev = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+        if (prev !== token) {
+          await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+        }
+      }
+    } catch {}
+  };
+
   const checkAuth = async () => {
     try {
       const token = await getToken();
       if (token) {
+        const bioAvail = await isBiometricAvailable();
+        const bioOn = await isBiometricEnabled();
+        if (bioAvail && bioOn) {
+          const success = await authenticateWithBiometrics();
+          if (!success) {
+            setIsLoading(false);
+            return;
+          }
+        }
         setIsAuthenticated(true);
         try {
           const p = await api.getProfile();
           setProfile(p);
-        } catch {
-          // Profile load failure shouldn't log out
-        }
+        } catch {}
+        registerPush();
       }
     } catch {
-      // ignore
     } finally {
       setIsLoading(false);
     }
@@ -49,10 +72,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const p = await api.getProfile();
       setProfile(p);
     } catch {}
+    registerPush();
   };
 
   const logout = async () => {
     await clearToken();
+    await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
     setIsAuthenticated(false);
     setProfile(null);
   };

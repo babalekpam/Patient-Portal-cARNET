@@ -1,15 +1,21 @@
+import { Feather } from "@expo/vector-icons";
 import { Link, Stack } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
+import { useTheme } from "@/context/ThemeContext";
 
 export default function NotFoundScreen() {
+  const { colors } = useTheme();
   return (
     <>
       <Stack.Screen options={{ title: "Oops!" }} />
-      <View style={styles.container}>
-        <Text style={styles.title}>This screen doesn&apos;t exist.</Text>
-
-        <Link href="/" style={styles.link}>
-          <Text style={styles.linkText}>Go to home screen!</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.iconWrap, { backgroundColor: colors.surfaceSecondary }]}>
+          <Feather name="map" size={32} color={colors.textTertiary} />
+        </View>
+        <Text style={[styles.title, { color: colors.text }]}>Page not found</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>This screen doesn&apos;t exist.</Text>
+        <Link href="/" style={[styles.link, { backgroundColor: colors.primaryLight }]}>
+          <Text style={[styles.linkText, { color: colors.primary }]}>Go to home screen</Text>
         </Link>
       </View>
     </>
@@ -22,17 +28,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
+    gap: 12,
+  },
+  iconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
   },
   title: {
     fontSize: 20,
-    fontWeight: "bold",
+    fontFamily: "Inter_700Bold",
+  },
+  subtitle: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
   },
   link: {
     marginTop: 15,
-    paddingVertical: 15,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
   },
   linkText: {
-    fontSize: 14,
-    color: "#2e78b7",
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
   },
 });

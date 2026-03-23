@@ -1,8 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import Colors from "@/constants/colors";
-
-const C = Colors.light;
+import { useTheme } from "@/context/ThemeContext";
 
 type StatusType = "success" | "warning" | "danger" | "info" | "default";
 
@@ -21,15 +19,16 @@ function getStatusType(status: string): StatusType {
 }
 
 export function StatusBadge({ label, type }: StatusBadgeProps) {
+  const { colors: C } = useTheme();
   const resolvedType = type || getStatusType(label);
-  const colors = {
+  const colorMap = {
     success: { bg: C.successLight, text: C.success },
     warning: { bg: C.warningLight, text: C.warning },
     danger: { bg: C.dangerLight, text: C.danger },
     info: { bg: C.infoLight, text: C.info },
     default: { bg: C.surfaceSecondary, text: C.textSecondary },
   };
-  const c = colors[resolvedType];
+  const c = colorMap[resolvedType];
   return (
     <View style={[styles.badge, { backgroundColor: c.bg }]}>
       <Text style={[styles.text, { color: c.text }]}>{label}</Text>

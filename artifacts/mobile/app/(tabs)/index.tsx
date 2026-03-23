@@ -1,9 +1,9 @@
 import { Feather } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,10 +13,11 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Colors from "@/constants/colors";
 import { useAuth } from "@/context/AuthContext";
-
-const C = Colors.light;
+import { useTheme } from "@/context/ThemeContext";
+import { Avatar } from "@/components/Avatar";
+import { AnimatedCard } from "@/components/AnimatedCard";
+import { HomeSkeleton } from "@/components/SkeletonLoader";
 
 interface MenuItem {
   label: string;
@@ -70,32 +71,40 @@ const MENU_ITEMS: MenuItem[] = [
   },
 ];
 
-function MenuCard({ item }: { item: MenuItem }) {
+function MenuCard({ item, index }: { item: MenuItem; index: number }) {
+  const { colors } = useTheme();
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(item.route as any);
   };
 
   return (
-    <Pressable
-      style={({ pressed }) => [styles.menuCard, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-      onPress={handlePress}
-    >
-      <View style={[styles.menuIcon, { backgroundColor: item.bg }]}>
-        <Feather name={item.icon} size={22} color={item.color} />
-      </View>
-      <View style={styles.menuContent}>
-        <Text style={styles.menuLabel}>{item.label}</Text>
-        <Text style={styles.menuDesc}>{item.description}</Text>
-      </View>
-      <Feather name="chevron-right" size={18} color={C.textTertiary} />
-    </Pressable>
+    <AnimatedCard index={index}>
+      <Pressable
+        style={({ pressed }) => [
+          styles.menuCard,
+          { backgroundColor: colors.surface, borderColor: colors.borderLight },
+          pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+        ]}
+        onPress={handlePress}
+      >
+        <View style={[styles.menuIcon, { backgroundColor: item.bg }]}>
+          <Feather name={item.icon} size={22} color={item.color} />
+        </View>
+        <View style={styles.menuContent}>
+          <Text style={[styles.menuLabel, { color: colors.text }]}>{item.label}</Text>
+          <Text style={[styles.menuDesc, { color: colors.textSecondary }]}>{item.description}</Text>
+        </View>
+        <Feather name="chevron-right" size={18} color={colors.textTertiary} />
+      </Pressable>
+    </AnimatedCard>
   );
 }
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { profile, isLoading, logout, refreshProfile } = useAuth();
+  const { colors } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -115,72 +124,82 @@ export default function HomeScreen() {
   const firstName = profile?.firstName || "Patient";
   const lastName = profile?.lastName || "";
 
+  if (isLoading && !profile) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad + 16 }]}>
+        <HomeSkeleton />
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.container]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
         contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 34 : 20 }}
       >
-        {/* Header */}
-        <View style={[styles.headerSection, { paddingTop: topPad + 16 }]}>
+        <LinearGradient
+          colors={[colors.gradientStart, colors.gradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.headerGradient, { paddingTop: topPad + 16 }]}
+        >
           <View style={styles.headerTop}>
             <View>
-              <Text style={styles.greeting}>Good day,</Text>
-              <Text style={styles.patientName}>{`${firstName} ${lastName}`.trim()}</Text>
+              <Text style={styles.greetingWhite}>Good day,</Text>
+              <Text style={styles.patientNameWhite}>{`${firstName} ${lastName}`.trim()}</Text>
             </View>
             <Pressable
               style={({ pressed }) => [styles.logoutBtn, pressed && { opacity: 0.7 }]}
               onPress={handleLogout}
             >
-              <Feather name="log-out" size={20} color={C.textSecondary} />
+              <Feather name="log-out" size={20} color="rgba(255,255,255,0.8)" />
             </Pressable>
           </View>
-          <View style={styles.patientCard}>
-            <View style={styles.patientAvatar}>
-              <Feather name="user" size={28} color={C.primary} />
-            </View>
+        </LinearGradient>
+
+        <View style={styles.cardOverlap}>
+          <View style={[styles.patientCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+            <Avatar firstName={firstName} lastName={lastName} size={56} />
             <View style={styles.patientInfo}>
-              <Text style={styles.patientInfoName}>{`${firstName} ${lastName}`.trim()}</Text>
+              <Text style={[styles.patientInfoName, { color: colors.text }]}>{`${firstName} ${lastName}`.trim()}</Text>
               {profile?.dateOfBirth ? (
-                <Text style={styles.patientInfoDetail}>DOB: {profile.dateOfBirth}</Text>
+                <Text style={[styles.patientInfoDetail, { color: colors.textSecondary }]}>DOB: {profile.dateOfBirth}</Text>
               ) : null}
               {profile?.bloodType ? (
                 <View style={styles.bloodTypeRow}>
-                  <Feather name="droplet" size={12} color={C.danger} />
-                  <Text style={styles.bloodTypeText}>{profile.bloodType}</Text>
+                  <Feather name="droplet" size={12} color={colors.danger} />
+                  <Text style={[styles.bloodTypeText, { color: colors.danger }]}>{profile.bloodType}</Text>
                 </View>
               ) : null}
             </View>
-            {isLoading ? <ActivityIndicator size="small" color={C.primary} /> : null}
           </View>
         </View>
 
-        {/* Alerts */}
         {profile?.allergies && profile.allergies.length > 0 ? (
-          <View style={styles.allergyAlert}>
+          <View style={[styles.allergyAlert, { backgroundColor: colors.dangerLight }]}>
             <View style={styles.allergyIconRow}>
-              <Feather name="alert-triangle" size={16} color={C.danger} />
-              <Text style={styles.allergyTitle}>Allergies on file</Text>
+              <Feather name="alert-triangle" size={16} color={colors.danger} />
+              <Text style={[styles.allergyTitle, { color: colors.danger }]}>Allergies on file</Text>
             </View>
             <Text style={styles.allergyText}>{profile.allergies.join(", ")}</Text>
           </View>
         ) : null}
 
-        {/* Menu */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>My Health</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>My Health</Text>
         </View>
         <View style={styles.menuList}>
-          {MENU_ITEMS.map((item) => (
-            <MenuCard key={item.route} item={item} />
+          {MENU_ITEMS.map((item, i) => (
+            <MenuCard key={item.route} item={item} index={i} />
           ))}
         </View>
 
         <View style={styles.footer}>
-          <Feather name="shield" size={13} color={C.textTertiary} />
-          <Text style={styles.footerText}>CARNET · Powered by Navimedi</Text>
+          <Feather name="shield" size={13} color={colors.textTertiary} />
+          <Text style={[styles.footerText, { color: colors.textTertiary }]}>CARNET · Powered by Navimedi</Text>
         </View>
       </ScrollView>
     </View>
@@ -190,11 +209,10 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: C.background,
   },
-  headerSection: {
+  headerGradient: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 50,
   },
   headerTop: {
     flexDirection: "row",
@@ -202,48 +220,41 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 16,
   },
-  greeting: {
+  greetingWhite: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: C.textSecondary,
+    color: "rgba(255,255,255,0.75)",
   },
-  patientName: {
+  patientNameWhite: {
     fontSize: 24,
     fontFamily: "Inter_700Bold",
-    color: C.text,
+    color: "#fff",
   },
   logoutBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: C.surfaceSecondary,
+    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: C.border,
+  },
+  cardOverlap: {
+    marginTop: -30,
+    paddingHorizontal: 20,
+    marginBottom: 8,
   },
   patientCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
     gap: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: C.borderLight,
-  },
-  patientAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: C.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
   },
   patientInfo: {
     flex: 1,
@@ -252,12 +263,10 @@ const styles = StyleSheet.create({
   patientInfoName: {
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",
-    color: C.text,
   },
   patientInfoDetail: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: C.textSecondary,
   },
   bloodTypeRow: {
     flexDirection: "row",
@@ -268,12 +277,10 @@ const styles = StyleSheet.create({
   bloodTypeText: {
     fontSize: 13,
     fontFamily: "Inter_600SemiBold",
-    color: C.danger,
   },
   allergyAlert: {
     marginHorizontal: 20,
     marginBottom: 8,
-    backgroundColor: C.dangerLight,
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
@@ -288,7 +295,6 @@ const styles = StyleSheet.create({
   allergyTitle: {
     fontSize: 13,
     fontFamily: "Inter_600SemiBold",
-    color: C.danger,
   },
   allergyText: {
     fontSize: 13,
@@ -303,7 +309,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontFamily: "Inter_700Bold",
-    color: C.text,
   },
   menuList: {
     paddingHorizontal: 20,
@@ -312,7 +317,6 @@ const styles = StyleSheet.create({
   menuCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
     gap: 14,
@@ -322,7 +326,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 1,
     borderWidth: 1,
-    borderColor: C.borderLight,
   },
   menuIcon: {
     width: 48,
@@ -337,12 +340,10 @@ const styles = StyleSheet.create({
   menuLabel: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
-    color: C.text,
   },
   menuDesc: {
     fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: C.textSecondary,
     marginTop: 2,
   },
   footer: {
@@ -356,6 +357,5 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: C.textTertiary,
   },
 });

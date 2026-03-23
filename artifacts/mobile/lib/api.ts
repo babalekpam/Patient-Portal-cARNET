@@ -47,6 +47,10 @@ export interface Appointment {
   reason?: string;
   provider?: string;
   location?: string;
+  hospitalName?: string;
+  doctorName?: string;
+  duration?: number;
+  notes?: string;
 }
 
 export interface Prescription {
@@ -103,6 +107,22 @@ export interface Profile {
   gender?: string;
   address?: string;
   mrn?: string;
+  emergencyContact?: string;
+  emergencyPhone?: string;
+  insuranceProvider?: string;
+  insurancePolicyNumber?: string;
+}
+
+export interface ProfileUpdateData {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  emergencyContact?: string;
+  emergencyPhone?: string;
 }
 
 class ApiClient {
@@ -169,6 +189,15 @@ class ApiClient {
   async getProfile(): Promise<Profile> {
     const response = await fetch(`${getBaseUrl()}/patient/profile`, {
       headers: await this.getHeaders(),
+    });
+    return this.handleResponse<Profile>(response);
+  }
+
+  async updateProfile(data: ProfileUpdateData): Promise<Profile> {
+    const response = await fetch(`${getBaseUrl()}/patient/profile`, {
+      method: "PUT",
+      headers: await this.getHeaders(),
+      body: JSON.stringify(data),
     });
     return this.handleResponse<Profile>(response);
   }
