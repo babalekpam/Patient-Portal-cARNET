@@ -23,9 +23,9 @@ const C = Colors.light;
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const { login } = useAuth();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("abel@argilette.com");
   const [password, setPassword] = useState("");
-  const [tenantId, setTenantId] = useState("");
+  const [tenantId, setTenantId] = useState("SAINT PAUL");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
