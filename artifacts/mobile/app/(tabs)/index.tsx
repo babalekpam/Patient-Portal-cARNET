@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
   Pressable,
@@ -15,114 +16,316 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
-import { Avatar } from "@/components/Avatar";
 import { AnimatedCard } from "@/components/AnimatedCard";
 import { HomeSkeleton } from "@/components/SkeletonLoader";
+import { api, type Message, type Appointment } from "@/lib/api";
 
-interface MenuItem {
+interface QuickAction {
   label: string;
   icon: React.ComponentProps<typeof Feather>["name"];
   route: string;
-  description: string;
-  color: string;
-  bg: string;
 }
 
-const MENU_ITEMS: MenuItem[] = [
-  {
-    label: "Appointments",
-    icon: "calendar",
-    route: "/appointments",
-    description: "View & manage visits",
-    color: "#2563eb",
-    bg: "#dbeafe",
-  },
-  {
-    label: "Prescriptions",
-    icon: "package",
-    route: "/prescriptions",
-    description: "Medications & refills",
-    color: "#7c3aed",
-    bg: "#ede9fe",
-  },
-  {
-    label: "Lab Results",
-    icon: "bar-chart-2",
-    route: "/lab-results",
-    description: "Tests & analysis",
-    color: "#059669",
-    bg: "#d1fae5",
-  },
-  {
-    label: "Messages",
-    icon: "message-circle",
-    route: "/messages",
-    description: "Care team inbox",
-    color: "#0284c7",
-    bg: "#e0f2fe",
-  },
-  {
-    label: "Bills",
-    icon: "credit-card",
-    route: "/bills",
-    description: "Payments & invoices",
-    color: "#d97706",
-    bg: "#fef3c7",
-  },
+const QUICK_ACTIONS: QuickAction[] = [
+  { label: "Schedule an\nAppointment", icon: "calendar", route: "/appointments" },
+  { label: "Messages", icon: "mail", route: "/messages" },
+  { label: "Visits", icon: "clipboard", route: "/appointments" },
+  { label: "Test Results", icon: "bar-chart-2", route: "/lab-results" },
+  { label: "Medications", icon: "package", route: "/prescriptions" },
+  { label: "Account\nSummary", icon: "credit-card", route: "/bills" },
 ];
 
-function MenuCard({ item, index }: { item: MenuItem; index: number }) {
-  const { colors } = useTheme();
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(item.route as any);
-  };
+function QuickActionTile({ item, colors }: { item: QuickAction; colors: any }) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.tile,
+        { backgroundColor: colors.surface, borderColor: colors.borderLight },
+        pressed && { opacity: 0.8, transform: [{ scale: 0.96 }] },
+      ]}
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        router.push(item.route as any);
+      }}
+    >
+      <View style={[styles.tileIconWrap, { backgroundColor: colors.primaryLight }]}>
+        <Feather name={item.icon} size={28} color={colors.primary} />
+      </View>
+      <Text style={[styles.tileLabel, { color: colors.text }]} numberOfLines={2}>{item.label}</Text>
+    </Pressable>
+  );
+}
+
+function formatMessageDate(dateStr?: string) {
+  if (!dateStr) return "";
+  try {
+    return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  } catch { return ""; }
+}
+
+function MessagePreview({ messages, colors, hasError }: { messages: Message[]; colors: any; hasError?: boolean }) {
+  if (hasError) {
+    return (
+      <AnimatedCard index={1}>
+        <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+          <View style={styles.previewHeader}>
+            <View style={[styles.previewIconWrap, { backgroundColor: colors.primaryLight }]}>
+              <Feather name="mail" size={20} color={colors.primary} />
+            </View>
+            <Text style={[styles.previewTitle, { color: colors.text }]}>Messages</Text>
+          </View>
+          <View style={styles.emptyState}>
+            <Feather name="wifi-off" size={28} color={colors.textTertiary} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Unable to load messages</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>Pull down to refresh</Text>
+          </View>
+        </View>
+      </AnimatedCard>
+    );
+  }
+  if (!messages || messages.length === 0) {
+    return (
+      <AnimatedCard index={1}>
+        <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+          <View style={styles.previewHeader}>
+            <View style={[styles.previewIconWrap, { backgroundColor: colors.primaryLight }]}>
+              <Feather name="mail" size={20} color={colors.primary} />
+            </View>
+            <Text style={[styles.previewTitle, { color: colors.text }]}>Messages</Text>
+          </View>
+          <View style={styles.emptyState}>
+            <Feather name="inbox" size={32} color={colors.textTertiary} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No new messages</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>Your care team messages will appear here</Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/messages" as any);
+            }}
+          >
+            <Text style={styles.viewBtnText}>Send a message</Text>
+          </Pressable>
+        </View>
+      </AnimatedCard>
+    );
+  }
+  const latest = messages[0];
+  const subject = latest.originalContent?.subject || latest.type?.replace(/_/g, " ") || "Message";
+  const body = latest.originalContent?.message || "";
+  const sender = latest.sender || "Care Team";
+  const dateStr = formatMessageDate(latest.createdAt);
+  const initial = sender.charAt(0).toUpperCase();
 
   return (
-    <AnimatedCard index={index}>
-      <Pressable
-        style={({ pressed }) => [
-          styles.menuCard,
-          { backgroundColor: colors.surface, borderColor: colors.borderLight },
-          pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
-        ]}
-        onPress={handlePress}
-      >
-        <View style={[styles.menuIcon, { backgroundColor: item.bg }]}>
-          <Feather name={item.icon} size={22} color={item.color} />
+    <AnimatedCard index={1}>
+      <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+        <View style={styles.previewHeader}>
+          <View style={[styles.previewIconWrap, { backgroundColor: colors.primaryLight }]}>
+            <Feather name="mail" size={20} color={colors.primary} />
+          </View>
+          <Text style={[styles.previewTitle, { color: colors.text }]}>{subject}</Text>
         </View>
-        <View style={styles.menuContent}>
-          <Text style={[styles.menuLabel, { color: colors.text }]}>{item.label}</Text>
-          <Text style={[styles.menuDesc, { color: colors.textSecondary }]}>{item.description}</Text>
+
+        <View style={styles.messageBody}>
+          <View style={[styles.senderAvatar, { backgroundColor: colors.surfaceSecondary }]}>
+            <Text style={[styles.senderInitial, { color: colors.primary }]}>{initial}</Text>
+          </View>
+          <View style={styles.messageContent}>
+            <View style={styles.senderRow}>
+              <Text style={[styles.senderName, { color: colors.text }]}>{sender}</Text>
+              {dateStr ? <Text style={[styles.messageDate, { color: colors.textTertiary }]}>{dateStr}</Text> : null}
+            </View>
+            {body ? <Text style={[styles.messagePreviewText, { color: colors.textSecondary }]} numberOfLines={1}>{body}</Text> : null}
+          </View>
         </View>
-        <Feather name="chevron-right" size={18} color={colors.textTertiary} />
-      </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/messages" as any);
+          }}
+        >
+          <Text style={styles.viewBtnText}>View message</Text>
+        </Pressable>
+
+        <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
+
+        <Pressable
+          style={({ pressed }) => [styles.viewAllRow, pressed && { opacity: 0.7 }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/messages" as any);
+          }}
+        >
+          <Feather name="mail" size={16} color={colors.textSecondary} />
+          <Text style={[styles.viewAllText, { color: colors.textSecondary }]}>View all ({messages.length})</Text>
+        </Pressable>
+      </View>
+    </AnimatedCard>
+  );
+}
+
+function formatAppointmentDate(dateStr?: string) {
+  if (!dateStr) return null;
+  try {
+    const d = new Date(dateStr);
+    return {
+      month: d.toLocaleDateString("en-US", { month: "short" }),
+      day: d.getDate().toString(),
+      weekday: d.toLocaleDateString("en-US", { weekday: "short" }),
+      time: d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZoneName: "short" }),
+    };
+  } catch { return null; }
+}
+
+function AppointmentPreview({ appointments, colors, hasError }: { appointments: Appointment[]; colors: any; hasError?: boolean }) {
+  if (hasError) {
+    return (
+      <AnimatedCard index={2}>
+        <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+          <View style={styles.previewHeader}>
+            <View style={[styles.visitIconWrap, { backgroundColor: colors.primaryLight }]}>
+              <Feather name="calendar" size={18} color={colors.primary} />
+            </View>
+            <Text style={[styles.previewTitle, { color: colors.text }]}>Upcoming Appointment</Text>
+          </View>
+          <View style={styles.emptyState}>
+            <Feather name="wifi-off" size={28} color={colors.textTertiary} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Unable to load appointments</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>Pull down to refresh</Text>
+          </View>
+        </View>
+      </AnimatedCard>
+    );
+  }
+  const upcoming = appointments.find(
+    (a) => a.status?.toLowerCase() !== "cancelled" && a.appointmentDate
+  );
+  if (!upcoming) {
+    return (
+      <AnimatedCard index={2}>
+        <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+          <View style={styles.previewHeader}>
+            <View style={[styles.visitIconWrap, { backgroundColor: colors.primaryLight }]}>
+              <Feather name="calendar" size={18} color={colors.primary} />
+            </View>
+            <Text style={[styles.previewTitle, { color: colors.text }]}>Upcoming Appointment</Text>
+          </View>
+          <View style={styles.emptyState}>
+            <Feather name="calendar" size={32} color={colors.textTertiary} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No upcoming appointments</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>Schedule a visit with your care team</Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/appointments" as any);
+            }}
+          >
+            <Text style={styles.viewBtnText}>Schedule appointment</Text>
+          </Pressable>
+        </View>
+      </AnimatedCard>
+    );
+  }
+
+  const dt = formatAppointmentDate(upcoming.appointmentDate);
+  const typeName = (upcoming.appointmentType || "Office Visit").replace(/_/g, " ").toUpperCase();
+  const provider = upcoming.doctorName || upcoming.provider || "";
+  const location = upcoming.hospitalName || upcoming.location || "";
+
+  return (
+    <AnimatedCard index={2}>
+      <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+        <View style={styles.previewHeader}>
+          <View style={[styles.visitIconWrap, { backgroundColor: colors.primaryLight }]}>
+            <Feather name="calendar" size={18} color={colors.primary} />
+          </View>
+          <Text style={[styles.visitType, { color: colors.text }]}>{typeName}</Text>
+        </View>
+
+        <View style={styles.appointmentBody}>
+          {dt ? (
+            <View style={[styles.dateColumn, { backgroundColor: colors.primaryLight }]}>
+              <Text style={[styles.dateMonth, { color: colors.primary }]}>{dt.month}</Text>
+              <Text style={[styles.dateDay, { color: colors.primary }]}>{dt.day}</Text>
+              <Text style={[styles.dateWeekday, { color: colors.primary }]}>{dt.weekday}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.appointmentDetails}>
+            {dt ? (
+              <View style={styles.detailRow}>
+                <Feather name="clock" size={14} color={colors.textTertiary} />
+                <Text style={[styles.detailText, { color: colors.textSecondary }]}>Starts at {dt.time}</Text>
+              </View>
+            ) : null}
+            {location ? (
+              <View style={styles.detailRow}>
+                <Feather name="home" size={14} color={colors.textTertiary} />
+                <Text style={[styles.detailText, { color: colors.textSecondary }]}>{location}</Text>
+              </View>
+            ) : null}
+            {provider ? (
+              <View style={styles.detailRow}>
+                <Feather name="user" size={14} color={colors.textTertiary} />
+                <Text style={[styles.detailText, { color: colors.textSecondary }]}>With {provider}</Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push("/appointments" as any);
+          }}
+        >
+          <Text style={styles.viewBtnText}>View details</Text>
+        </Pressable>
+      </View>
     </AnimatedCard>
   );
 }
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { profile, isLoading, logout, refreshProfile } = useAuth();
+  const { profile, isLoading, refreshProfile } = useAuth();
   const { colors } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
+
+  const queryClient = useQueryClient();
+
+  const { data: messages, isError: messagesError } = useQuery({
+    queryKey: ["messages"],
+    queryFn: () => api.getMessages(),
+    enabled: !!profile,
+  });
+
+  const { data: appointments, isError: appointmentsError } = useQuery({
+    queryKey: ["appointments"],
+    queryFn: () => api.getAppointments(),
+    enabled: !!profile,
+  });
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await refreshProfile();
+    await Promise.all([
+      refreshProfile(),
+      queryClient.invalidateQueries({ queryKey: ["messages"] }),
+      queryClient.invalidateQueries({ queryKey: ["appointments"] }),
+    ]);
     setRefreshing(false);
   };
 
-  const handleLogout = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await logout();
-    router.replace("/login");
-  };
-
   const firstName = profile?.firstName || "Patient";
-  const lastName = profile?.lastName || "";
 
   if (isLoading && !profile) {
     return (
@@ -146,55 +349,33 @@ export default function HomeScreen() {
           end={{ x: 1, y: 1 }}
           style={[styles.headerGradient, { paddingTop: topPad + 16 }]}
         >
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.greetingWhite}>Good day,</Text>
-              <Text style={styles.patientNameWhite}>{`${firstName} ${lastName}`.trim()}</Text>
-            </View>
+          <View style={styles.headerRow}>
+            <Text style={styles.welcomeText}>Welcome, {firstName}!</Text>
             <Pressable
-              style={({ pressed }) => [styles.logoutBtn, pressed && { opacity: 0.7 }]}
-              onPress={handleLogout}
+              style={({ pressed }) => [styles.editProfileBtn, pressed && { opacity: 0.7 }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/(tabs)/profile" as any);
+              }}
             >
-              <Feather name="log-out" size={20} color="rgba(255,255,255,0.8)" />
+              <Feather name="edit-2" size={18} color="#fff" />
             </Pressable>
           </View>
         </LinearGradient>
 
-        <View style={styles.cardOverlap}>
-          <View style={[styles.patientCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-            <Avatar firstName={firstName} lastName={lastName} size={56} />
-            <View style={styles.patientInfo}>
-              <Text style={[styles.patientInfoName, { color: colors.text }]}>{`${firstName} ${lastName}`.trim()}</Text>
-              {profile?.dateOfBirth ? (
-                <Text style={[styles.patientInfoDetail, { color: colors.textSecondary }]}>DOB: {profile.dateOfBirth}</Text>
-              ) : null}
-              {profile?.bloodType ? (
-                <View style={styles.bloodTypeRow}>
-                  <Feather name="droplet" size={12} color={colors.danger} />
-                  <Text style={[styles.bloodTypeText, { color: colors.danger }]}>{profile.bloodType}</Text>
-                </View>
-              ) : null}
+        <AnimatedCard index={0}>
+          <View style={styles.tilesContainer}>
+            <View style={styles.tilesGrid}>
+              {QUICK_ACTIONS.map((item) => (
+                <QuickActionTile key={item.label} item={item} colors={colors} />
+              ))}
             </View>
           </View>
-        </View>
+        </AnimatedCard>
 
-        {profile?.allergies && profile.allergies.length > 0 ? (
-          <View style={[styles.allergyAlert, { backgroundColor: colors.dangerLight }]}>
-            <View style={styles.allergyIconRow}>
-              <Feather name="alert-triangle" size={16} color={colors.danger} />
-              <Text style={[styles.allergyTitle, { color: colors.danger }]}>Allergies on file</Text>
-            </View>
-            <Text style={styles.allergyText}>{profile.allergies.join(", ")}</Text>
-          </View>
-        ) : null}
-
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>My Health</Text>
-        </View>
-        <View style={styles.menuList}>
-          {MENU_ITEMS.map((item, i) => (
-            <MenuCard key={item.route} item={item} index={i} />
-          ))}
+        <View style={styles.cardsContainer}>
+          <MessagePreview messages={messages || []} colors={colors} hasError={messagesError} />
+          <AppointmentPreview appointments={appointments || []} colors={colors} hasError={appointmentsError} />
         </View>
 
         <View style={styles.footer}>
@@ -212,139 +393,211 @@ const styles = StyleSheet.create({
   },
   headerGradient: {
     paddingHorizontal: 20,
-    paddingBottom: 50,
+    paddingBottom: 24,
   },
-  headerTop: {
+  headerRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 16,
   },
-  greetingWhite: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.75)",
-  },
-  patientNameWhite: {
-    fontSize: 24,
+  welcomeText: {
+    fontSize: 22,
     fontFamily: "Inter_700Bold",
     color: "#fff",
   },
-  logoutBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.15)",
+  editProfileBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
-  cardOverlap: {
-    marginTop: -30,
-    paddingHorizontal: 20,
-    marginBottom: 8,
+  tilesContainer: {
+    marginTop: -8,
+    paddingHorizontal: 16,
   },
-  patientCard: {
+  tilesGrid: {
     flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 16,
-    padding: 16,
-    gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-  },
-  patientInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  patientInfoName: {
-    fontSize: 17,
-    fontFamily: "Inter_600SemiBold",
-  },
-  patientInfoDetail: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-  },
-  bloodTypeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
-  },
-  bloodTypeText: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-  },
-  allergyAlert: {
-    marginHorizontal: 20,
-    marginBottom: 8,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#fca5a5",
-    gap: 6,
-  },
-  allergyIconRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  allergyTitle: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-  },
-  allergyText: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: "#991b1b",
-  },
-  sectionHeader: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-  },
-  menuList: {
-    paddingHorizontal: 20,
+    flexWrap: "wrap",
     gap: 10,
+    justifyContent: "space-between",
   },
-  menuCard: {
-    flexDirection: "row",
+  tile: {
+    width: "31%",
     alignItems: "center",
     borderRadius: 16,
-    padding: 16,
-    gap: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    gap: 10,
     borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  menuIcon: {
-    width: 48,
-    height: 48,
+  tileIconWrap: {
+    width: 52,
+    height: 52,
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
   },
-  menuContent: {
+  tileLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    textAlign: "center",
+    lineHeight: 16,
+  },
+  cardsContainer: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+    gap: 14,
+  },
+  previewCard: {
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  previewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  previewIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewTitle: {
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
     flex: 1,
   },
-  menuLabel: {
-    fontSize: 16,
+  messageBody: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  senderAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  senderInitial: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+  },
+  messageContent: {
+    flex: 1,
+    gap: 3,
+  },
+  senderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  senderName: {
+    fontSize: 14,
     fontFamily: "Inter_600SemiBold",
   },
-  menuDesc: {
-    fontSize: 13,
+  messageDate: {
+    fontSize: 12,
     fontFamily: "Inter_400Regular",
-    marginTop: 2,
+  },
+  messagePreviewText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+  },
+  viewBtn: {
+    alignSelf: "center",
+    paddingHorizontal: 28,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  viewBtnText: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: "#fff",
+  },
+  divider: {
+    height: 1,
+  },
+  viewAllRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+  },
+  visitIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  visitType: {
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+    flex: 1,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  appointmentBody: {
+    flexDirection: "row",
+    gap: 14,
+  },
+  dateColumn: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    minWidth: 64,
+  },
+  dateMonth: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "capitalize",
+  },
+  dateDay: {
+    fontSize: 32,
+    fontFamily: "Inter_700Bold",
+    lineHeight: 36,
+  },
+  dateWeekday: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
+  appointmentDetails: {
+    flex: 1,
+    gap: 8,
+    justifyContent: "center",
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  detailText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    flex: 1,
   },
   footer: {
     flexDirection: "row",
@@ -357,5 +610,19 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 16,
+    gap: 6,
+  },
+  emptyText: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+  },
+  emptySubtext: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
   },
 });
