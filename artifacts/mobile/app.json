@@ -20,6 +20,9 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "buildNumber": "3"
     },
     "android": {
