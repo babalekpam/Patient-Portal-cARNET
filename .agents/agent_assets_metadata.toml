@@ -162,3 +162,51 @@ id = "enYCVK7X0rr044eg0xYSY"
 uri = "file://artifacts/mobile/store-screenshots/feature-graphic.png"
 type = "image"
 title = "Google Play Feature Graphic (1024x500)"
+
+[[outputs]]
+id = "s46h1ZLBHBa4vymoxB5Ac"
+uri = "file://artifacts/mobile/store-screenshots/feature-graphic-1.png"
+type = "image"
+title = "1 - CARNET Patient Portal"
+
+[[outputs]]
+id = "M0R0ittmsyjsI2wiPa1kt"
+uri = "file://artifacts/mobile/store-screenshots/feature-graphic-2.png"
+type = "image"
+title = "2 - Multi-EHR Access"
+
+[[outputs]]
+id = "k9Kb815TdmW_FEPbDhC3A"
+uri = "file://artifacts/mobile/store-screenshots/feature-graphic-3.png"
+type = "image"
+title = "3 - Medication Reminders"
+
+[[outputs]]
+id = "8uc8jGujzRqHDRafZ3Fvw"
+uri = "file://artifacts/mobile/store-screenshots/feature-graphic-4.png"
+type = "image"
+title = "4 - AI Health Assistant"
+
+[[outputs]]
+id = "vdqPRhToC6RzcbI-KcnQF"
+uri = "file://artifacts/mobile/store-screenshots/feature-graphic-5.png"
+type = "image"
+title = "5 - Telehealth"
+
+[[outputs]]
+id = "_gbIeYaGna_jzU_b7u8Yq"
+uri = "file://artifacts/mobile/store-screenshots/feature-graphic-6.png"
+type = "image"
+title = "6 - Family Health Hub"
+
+[[outputs]]
+id = "ug23na8R-Bru2kP13ygjs"
+uri = "file://artifacts/mobile/store-screenshots/feature-graphic-7.png"
+type = "image"
+title = "7 - Emergency Card"
+
+[[outputs]]
+id = "8O5nPzMEiGDqnIDDEM7ob"
+uri = "file://artifacts/mobile/store-screenshots/feature-graphic-8.png"
+type = "image"
+title = "8 - 10 Languages"
