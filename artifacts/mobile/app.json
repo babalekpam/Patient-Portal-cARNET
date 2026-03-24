@@ -19,7 +19,8 @@
       "appleTeamId": "Z82KB5AR7N",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "buildNumber": "2"
     },
     "android": {
       "package": "com.argilette.navimed",
