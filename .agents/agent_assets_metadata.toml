@@ -101,13 +101,13 @@ title = "Android - 8. Secure & Private"
 id = "IRCa3jpmhrtFm4FowAwwT"
 uri = "file://artifacts/mobile/store-screenshots/ios-screenshots.zip"
 type = "unspecified"
-title = "iOS App Store Screenshots (8 PNG images)"
+title = "iOS App Store Screenshots (8 images - 1290x2796)"
 
 [[outputs]]
 id = "_ru-zfM7mtbsKlfdQIMXb"
 uri = "file://artifacts/mobile/store-screenshots/android-screenshots.zip"
 type = "unspecified"
-title = "Google Play Store Screenshots (8 PNG images)"
+title = "Android Play Store Screenshots (8 images - 1080x1920)"
 
 [[outputs]]
 id = "iTWGvr6FYm1U4XNnikZHN"
