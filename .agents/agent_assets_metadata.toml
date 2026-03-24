@@ -150,3 +150,9 @@ id = "nOIhUvBy4cPXGh1h1935w"
 uri = "file://artifacts/mobile/assets/images/splash-icon.png"
 type = "image"
 title = "CARNET Splash Screen Icon"
+
+[[outputs]]
+id = "Bb1QgfWePgH23pVu3p4YR"
+uri = "file://artifacts/mobile/store-screenshots/google-play-icon.png"
+type = "image"
+title = "Google Play Store Icon (512x512)"
