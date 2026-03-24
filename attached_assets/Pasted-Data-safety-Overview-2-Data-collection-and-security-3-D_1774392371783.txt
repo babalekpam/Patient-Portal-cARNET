@@ -1,0 +1,78 @@
+Data safety
+
+Overview
+2
+Data collection and security
+3
+Data types
+4
+Data usage and handling
+5
+Preview
+Data collection and security
+Review the list of required user data types that you need to disclose. View required data types
+Does your app collect or share any of the required user data types?
+
+Yes
+Is all of the user data collected by your app encrypted in transit? Learn about how you should answer
+
+Yes
+
+No
+Which of the following methods of account creation does your app support? Select all that apply
+This includes accounts created entirely within your app, or by redirecting users to a webpage where they can create an account.
+
+Usernames include user IDs, email addresses, and phone numbers. Authentication includes two-factor, one-time password, biometric, or single sign-on authentication.
+
+
+Username and password
+
+Username and other authentication
+
+Username, password, and other authentication
+
+OAuth
+
+Other
+
+
+My app does not allow users to create an account
+
+Add a link that users can use to request that their account and associated data is deleted
+Delete account URL
+https://1efedfc6-3f0b-4bdd-a864-d58794b1a980-00-1eu63h5ubmyf3.riker.replit.dev/api-server/delete-account
+ 
+
+This link will be shown on your Google Play store listing and should:
+
+refer to your app or developer name that is shown on your store listing
+prominently feature the steps that users should take to request that their account is deleted
+specify the types of data that are deleted or kept, and any additional retention period
+Do you provide a way for users to request that some or all of their data is deleted, without requiring them to delete their account? (Optional)
+Providing this functionality gives users more control over their data. Learn more
+
+
+Yes
+Add a link that users can use to request that their data is deleted
+Delete data URL
+https://1efedfc6-3f0b-4bdd-a864-d58794b1a980-00-1eu63h5ubmyf3.riker.replit.dev/api-server/delete-account
+ 
+
+This link will be shown on your Google Play store listing and should:
+
+refer to your app or developer name that is shown on your store listing
+prominently feature the steps that users should take to request that their data is deleted
+specify the types of data that are deleted or kept, and any additional retention period
+
+No
+
+No, but user data is automatically deleted within 90 days
+
+No
+Additional badges
+You may be eligible to show additional badges on your store listing. Showing badges on your store listing can help differentiate your app, and increase user trust.
+Independent security review
+Have your app independently reviewed against a global security standard
+UPI Payments verified
+If you have a finance app operating in India which is utilizing the unified payments interface (UPI), you can have your app accredited by the National Payments Corporation of India (NPCI)
+Step 2 of 5, Data collection and security
