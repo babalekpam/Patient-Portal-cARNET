@@ -156,3 +156,9 @@ id = "Bb1QgfWePgH23pVu3p4YR"
 uri = "file://artifacts/mobile/store-screenshots/google-play-icon.png"
 type = "image"
 title = "Google Play Store Icon (512x512)"
+
+[[outputs]]
+id = "enYCVK7X0rr044eg0xYSY"
+uri = "file://artifacts/mobile/store-screenshots/feature-graphic.png"
+type = "image"
+title = "Google Play Feature Graphic (1024x500)"
