@@ -53,49 +53,49 @@ title = "iOS Screenshot 8 - Family Health Hub"
 id = "G24iVdjJqbb3WSsyGtEKw"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_1.png"
 type = "image"
-title = "Android - 1. Your Health, One App"
+title = "1 - Dashboard"
 
 [[outputs]]
 id = "AjxMS_N7ws-F-jg8ubwtI"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_2.png"
 type = "image"
-title = "Android - 2. Smart Dashboard"
+title = "2 - Medical Records"
 
 [[outputs]]
 id = "9gRUZt2etuuUvQuUr5FtQ"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_3.png"
 type = "image"
-title = "Android - 3. Medication Reminders"
+title = "3 - Medication Reminders"
 
 [[outputs]]
 id = "KzAmTDeuKkoxsVkgNVS53"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_4.png"
 type = "image"
-title = "Android - 4. Emergency Card"
+title = "4 - AI Health Assistant"
 
 [[outputs]]
 id = "bAYREZNgHL8DmQFh-0oCt"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_5.png"
 type = "image"
-title = "Android - 5. Health Timeline"
+title = "5 - Telehealth"
 
 [[outputs]]
 id = "FmkomTmFmx-TWLfPWZLmV"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_6.png"
 type = "image"
-title = "Android - 6. Symptom Checker"
+title = "6 - Emergency Card"
 
 [[outputs]]
 id = "7ineRAO-jn7FGgTiV0deC"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_7.png"
 type = "image"
-title = "Android - 7. 10 Languages"
+title = "7 - Health Analytics"
 
 [[outputs]]
 id = "rtxMWkINlc9vItAS8YByQ"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_8.png"
 type = "image"
-title = "Android - 8. Secure & Private"
+title = "8 - 10 Languages"
 
 [[outputs]]
 id = "IRCa3jpmhrtFm4FowAwwT"
