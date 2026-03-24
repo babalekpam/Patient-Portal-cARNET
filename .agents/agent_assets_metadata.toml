@@ -5,49 +5,49 @@ generated = []
 id = "nPAZsRwRjE2cw6TjaVlO6"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_1.png"
 type = "image"
-title = "iOS - 1. Your Health, One App"
+title = "iOS Screenshot 1 - Your Health, One App"
 
 [[outputs]]
 id = "_slavI3qKsx33IM4lSRUy"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_2.png"
 type = "image"
-title = "iOS - 2. Smart Dashboard"
+title = "iOS Screenshot 2 - Multi-EHR Access"
 
 [[outputs]]
 id = "boroX3LrHO1JhKyy82SYP"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_3.png"
 type = "image"
-title = "iOS - 3. Medication Reminders"
+title = "iOS Screenshot 3 - Medication Reminders"
 
 [[outputs]]
 id = "UYSFXvcyAMmB9SFxD-XM_"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_4.png"
 type = "image"
-title = "iOS - 4. Emergency Card"
+title = "iOS Screenshot 4 - AI Health Assistant"
 
 [[outputs]]
 id = "h8aSyUqr3pvfyMXq_Xh3t"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_5.png"
 type = "image"
-title = "iOS - 5. Health Timeline"
+title = "iOS Screenshot 5 - Secure and Private"
 
 [[outputs]]
 id = "QHE1daVt5LhSjrRxn_U79"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_6.png"
 type = "image"
-title = "iOS - 6. Symptom Checker"
+title = "iOS Screenshot 6 - 10 Languages"
 
 [[outputs]]
 id = "dGM9CmXjVayJNe9BfU9fj"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_7.png"
 type = "image"
-title = "iOS - 7. 10 Languages"
+title = "iOS Screenshot 7 - Telehealth Ready"
 
 [[outputs]]
 id = "7nyd3K13lGWKBQ_3QFsPT"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_8.png"
 type = "image"
-title = "iOS - 8. Secure & Private"
+title = "iOS Screenshot 8 - Family Health Hub"
 
 [[outputs]]
 id = "G24iVdjJqbb3WSsyGtEKw"
