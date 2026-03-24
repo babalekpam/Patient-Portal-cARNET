@@ -27,6 +27,20 @@ app.use(
 );
 app.use(cors());
 
+app.get("/delete-account", (_req: Request, res: Response) => {
+  res.send(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Delete Account - CARNET Patient Portal</title>
+<style>body{font-family:Arial,sans-serif;max-width:600px;margin:40px auto;padding:20px;color:#333;background:#f5f5f5}
+h1{color:#0A2540}a{color:#1a6fbf}.card{background:#fff;padding:30px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}</style>
+</head><body><div class="card"><h1>Delete Your Account</h1>
+<p>To request deletion of your CARNET - Patient Portal account and all associated data, please send an email to:</p>
+<p><strong><a href="mailto:support@argilette.com">support@argilette.com</a></strong></p>
+<p>Include your registered email address in the request. Your account and all associated health data will be permanently deleted within 30 days.</p>
+<p>Once deleted, this action cannot be undone.</p>
+<p style="margin-top:30px;color:#666;font-size:14px">&copy; 2026 Argilette LLC</p></div></body></html>`);
+});
+
 const NAVIMEDI_BASE = "https://navimedi.org/api";
 
 app.all("/api/navimedi/{*path}", async (req: Request, res: Response) => {
