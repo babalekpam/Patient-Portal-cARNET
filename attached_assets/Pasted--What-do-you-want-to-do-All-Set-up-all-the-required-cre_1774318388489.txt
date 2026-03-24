@@ -1,0 +1,63 @@
+                          
+✔ What do you want to do? › All: Set up all the required credentials to build your project
+
+✔ Bundle identifier registered com.argilette.navimed
+✔ Synced capabilities: No updates
+✔ Synced capability identifiers: No updates
+✔ Fetched Apple distribution certificates
+✔ Generate a new Apple Provisioning Profile? … yes
+✔ Created Apple provisioning profile
+✔ Created provisioning profile
+
+Project Credentials Configuration
+
+Project                   @argilette/navimed
+Bundle Identifier         com.argilette.navimed
+                          
+App Store Configuration   
+                          
+Distribution Certificate  
+Serial Number             28C98F3DD1D6FACD659616A57EE214BE
+Expiration Date           Tue, 23 Mar 2027 19:35:30 CDT
+Apple Team                Z82KB5AR7N (ARGILETTE LLC (Company/Organization))
+Updated                   41 minutes ago
+                          
+Provisioning Profile      
+Developer Portal ID       P9JUALKSKC
+Status                    active
+Expiration                Tue, 23 Mar 2027 19:35:30 CDT
+Apple Team                Z82KB5AR7N (ARGILETTE LLC (Company/Organization))
+Updated                   1 second ago
+                          
+All credentials are ready to build @argilette/navimed (com.argilette.navimed)
+
+Press any key to continue...
+
+
+iOS Credentials           
+Project                   @argilette/navimed
+Bundle Identifier         com.argilette.navimed
+                          
+                          
+App Store Configuration   
+                          
+Distribution Certificate  
+Serial Number             28C98F3DD1D6FACD659616A57EE214BE
+Expiration Date           Tue, 23 Mar 2027 19:35:30 CDT
+Apple Team                Z82KB5AR7N (ARGILETTE LLC (Company/Organization))
+Updated                   41 minutes ago
+                          
+Provisioning Profile      
+Developer Portal ID       P9JUALKSKC
+Status                    active
+Expiration                Tue, 23 Mar 2027 19:35:30 CDT
+Apple Team                Z82KB5AR7N (ARGILETTE LLC (Company/Organization))
+Updated                   7 seconds ago
+                          
+? What do you want to do? › - Use arrow-keys. Return to submit.
+❯   All: Set up all the required credentials to build your project
+    Distribution Certificate: Use an existing one for your project
+    Distribution Certificate: Add a new one to your account
+    Distribution Certificate: Delete one from your account
+    Provisioning Profile: Delete one from your project
+    Go back
