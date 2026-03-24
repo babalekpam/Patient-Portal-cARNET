@@ -16,6 +16,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.argilette.navimed",
+      "appleTeamId": "Z82KB5AR7N",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
