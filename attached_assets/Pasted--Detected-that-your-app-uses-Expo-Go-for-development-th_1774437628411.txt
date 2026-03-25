@@ -1,0 +1,72 @@
+    },
+  
+⚠️ Detected that your app uses Expo Go for development, this is not recommended when building production apps.
+Learn more: https://expo.fyi/why-not-build-expo-go-for-production
+To suppress this warning, set EAS_BUILD_NO_EXPO_GO_WARNING=true.
+
+The field "cli.appVersionSource" is not set, but it will be required in the future. Learn more: https://docs.expo.dev/build-reference/app-versions/
+Resolved "production" environment for the build. Learn more: https://docs.expo.dev/eas/environment-variables/#setting-the-environment-for-your-builds
+No environment variables with visibility "Plain text" and "Sensitive" found for the "production" environment on EAS.
+
+✔ iOS app only uses standard/exempt encryption? Learn more: https://developer.apple.com/documentation/Security/complying-with-encryption-export-regulations … no
+✔ Are you sure your app uses non-exempt encryption? Selecting 'Yes' will require annual self-classification reports for the US government. … yes
+You'll need to manually configure the encryption status in App Store Connect before your build can be tested.
+
+
+The field "cli.appVersionSource" is not set, but it will be required in the future. Learn more: https://docs.expo.dev/build-reference/app-versions/
+✔ EAS Build does not officially support building managed project with Expo SDK < 41. Do you want to proceed? … yes
+✔ Using remote iOS credentials (Expo server)
+
+If you provide your Apple account credentials we will be able to generate all necessary build credentials and fully validate them.
+This is optional, but without Apple account access you will need to provide all the missing values manually and we can only run minimal validation on them.
+✔ Do you want to log in to your Apple account? … yes
+
+› Log in to your Apple Developer account to continue
+✔ Apple ID: … babalekpam@gmail.com
+› Restoring session /Users/lekpamnkawula/.app-store/auth/babalekpam@gmail.com/cookie
+› Session expired Local session
+› Using password for babalekpam@gmail.com from your local Keychain
+  Learn more: https://docs.expo.dev/distribution/security#keychain
+✔ Logged in New session
+› Team ARGILETTE LLC (Z82KB5AR7N)
+› Provider ARGILETTE LLC (127698565)
+✔ Bundle identifier registered com.argilette.navimed
+✔ Synced capabilities: No updates
+✔ Synced capability identifiers: No updates
+✔ Fetched Apple distribution certificates
+✔ Fetched Apple provisioning profiles
+
+Project Credentials Configuration
+
+Project                   @argilette/navimed
+Bundle Identifier         com.argilette.navimed
+                          
+App Store Configuration   
+                          
+Distribution Certificate  
+Serial Number             28C98F3DD1D6FACD659616A57EE214BE
+Expiration Date           Tue, 23 Mar 2027 19:35:30 CDT
+Apple Team                Z82KB5AR7N (ARGILETTE LLC (Company/Organization))
+Updated                   1 day ago
+                          
+Provisioning Profile      
+Developer Portal ID       3596M7Z5GC
+Status                    active
+Expiration                Tue, 23 Mar 2027 19:35:30 CDT
+Apple Team                Z82KB5AR7N (ARGILETTE LLC (Company/Organization))
+Updated                   1 day ago
+                          
+All credentials are ready to build @argilette/navimed (com.argilette.navimed)
+
+
+Compressing project files and uploading to EAS Build. Learn more: https://expo.fyi/eas-build-archive
+✔ Uploaded to EAS 
+
+See logs: https://expo.dev/accounts/argilette/projects/navimed/builds/22c19d82-422a-4066-9e8a-f3335928b7e7
+
+Waiting for build to complete. You can press Ctrl+C to exit.
+✖ Build failed
+
+🍏 iOS build failed:
+Unknown error. See logs of the Prebuild build phase for more information.
+(base) lekpamnkawula@MacBookPro navimed-creds % 

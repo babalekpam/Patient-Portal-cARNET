@@ -26,7 +26,7 @@
       "entitlements": {
         "aps-environment": "production"
       },
-      "buildNumber": "5"
+      "buildNumber": "6"
     },
     "android": {
       "package": "com.argilette.navimed",
