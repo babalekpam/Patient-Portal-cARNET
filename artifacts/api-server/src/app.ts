@@ -27,6 +27,11 @@ app.use(
 );
 app.use(cors());
 
+app.get("/api/download-mobile", (_req: Request, res: Response) => {
+  const path = "/tmp/mobile-project.tar.gz";
+  res.download(path, "mobile-project.tar.gz");
+});
+
 app.get("/api/delete-account", (_req: Request, res: Response) => {
   res.send(`<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
