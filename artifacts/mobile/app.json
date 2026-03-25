@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "NaviMED",
+    "name": "CARNET",
     "slug": "navimed",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "navimed",
@@ -18,12 +18,15 @@
       "bundleIdentifier": "com.argilette.navimed",
       "appleTeamId": "Z82KB5AR7N",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "CARNET needs access to your camera to scan medical documents, prescriptions, and lab reports for easy upload to your health records.",
+        "NSPhotoLibraryUsageDescription": "CARNET needs access to your photo library to upload medical documents, insurance cards, and health-related images to your secure document vault.",
+        "NSPhotoLibraryAddUsageDescription": "CARNET needs permission to save medical documents and health records to your photo library."
       },
       "entitlements": {
         "aps-environment": "production"
       },
-      "buildNumber": "4"
+      "buildNumber": "5"
     },
     "android": {
       "package": "com.argilette.navimed",
