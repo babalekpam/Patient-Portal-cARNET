@@ -244,7 +244,7 @@ const en = {
   generating: "Generating...",
   exportFailed: "Failed to generate report. Please try again.",
   selectAtLeastOneSection: "Please select at least one section to export.",
-  exportDisclaimer: "This report is generated from your NaviMED health records. Verify all information with your healthcare provider.",
+  exportDisclaimer: "This report is generated from your CARNET health records. Verify all information with your healthcare provider.",
 
   telehealth: "Telehealth",
   waitingRoom: "Virtual Waiting Room",

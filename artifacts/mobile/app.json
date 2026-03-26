@@ -19,14 +19,14 @@
       "appleTeamId": "Z82KB5AR7N",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "CARNET needs access to your camera to scan medical documents, prescriptions, and lab reports for easy upload to your health records.",
-        "NSPhotoLibraryUsageDescription": "CARNET needs access to your photo library to upload medical documents, insurance cards, and health-related images to your secure document vault.",
-        "NSPhotoLibraryAddUsageDescription": "CARNET needs permission to save medical documents and health records to your photo library."
+        "NSCameraUsageDescription": "CARNET uses your camera in the Documents section to take a photo of a medical document such as a prescription label or lab report, so you can store it in your health records for easy access during doctor visits.",
+        "NSPhotoLibraryUsageDescription": "CARNET accesses your photo library in the Documents section so you can select an existing photo of a medical document, such as an insurance card or vaccination record, and upload it to your secure health vault for safekeeping.",
+        "NSPhotoLibraryAddUsageDescription": "CARNET saves copies of your medical documents, such as downloaded lab results or prescription records, to your photo library so you can access them offline or share them with your healthcare provider."
       },
       "entitlements": {
         "aps-environment": "production"
       },
-      "buildNumber": "6"
+      "buildNumber": "8"
     },
     "android": {
       "package": "com.argilette.navimed",

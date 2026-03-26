@@ -41,7 +41,7 @@ function ProviderCard({
     provider.type === "fhir"
       ? `FHIR ${provider.fhirVersion || "R4"}`
       : provider.type === "navimedi"
-        ? "NaviMED"
+        ? "CARNET"
         : "Custom";
 
   return (
