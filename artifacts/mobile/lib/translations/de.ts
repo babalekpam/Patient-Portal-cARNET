@@ -226,7 +226,7 @@ const de: Record<string, string> = {
   generating: "Wird generiert...",
   exportFailed: "Bericht konnte nicht erstellt werden. Bitte versuchen Sie es erneut.",
   selectAtLeastOneSection: "Bitte wählen Sie mindestens einen Abschnitt zum Exportieren.",
-  exportDisclaimer: "Dieser Bericht wird aus Ihren NaviMED-Gesundheitsdaten erstellt. Überprüfen Sie alle Informationen mit Ihrem Arzt.",
+  exportDisclaimer: "Dieser Bericht wird aus Ihren CARNET-Gesundheitsdaten erstellt. Überprüfen Sie alle Informationen mit Ihrem Arzt.",
   telehealth: "Telemedizin",
   waitingRoom: "Virtuelles Wartezimmer",
   waitingRoomText: "Ihr Arzt wird in Kürze bei Ihnen sein. Stellen Sie sicher, dass Kamera und Mikrofon funktionieren.",

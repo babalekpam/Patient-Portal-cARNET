@@ -226,7 +226,7 @@ const zh: Record<string, string> = {
   generating: "正在生成...",
   exportFailed: "生成报告失败。请重试。",
   selectAtLeastOneSection: "请至少选择一个要导出的部分。",
-  exportDisclaimer: "此报告是从您的NaviMED健康记录生成的。请与您的医疗保健提供者核实所有信息。",
+  exportDisclaimer: "此报告是从您的CARNET健康记录生成的。请与您的医疗保健提供者核实所有信息。",
   telehealth: "远程医疗",
   waitingRoom: "虚拟候诊室",
   waitingRoomText: "您的医生很快就会与您联系。请确保您的摄像头和麦克风正常工作。",

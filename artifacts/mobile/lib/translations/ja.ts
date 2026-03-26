@@ -226,7 +226,7 @@ const ja: Record<string, string> = {
   generating: "生成中...",
   exportFailed: "レポートの生成に失敗しました。もう一度お試しください。",
   selectAtLeastOneSection: "エクスポートするセクションを少なくとも1つ選択してください。",
-  exportDisclaimer: "このレポートはNaviMEDの健康記録から生成されています。すべての情報を医療提供者と確認してください。",
+  exportDisclaimer: "このレポートはCARNETの健康記録から生成されています。すべての情報を医療提供者と確認してください。",
   telehealth: "遠隔医療",
   waitingRoom: "バーチャル待合室",
   waitingRoomText: "まもなく医師が対応します。カメラとマイクが正常に動作していることを確認してください。",

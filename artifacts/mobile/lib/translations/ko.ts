@@ -226,7 +226,7 @@ const ko: Record<string, string> = {
   generating: "생성 중...",
   exportFailed: "보고서 생성에 실패했습니다. 다시 시도해 주세요.",
   selectAtLeastOneSection: "내보낼 섹션을 하나 이상 선택해 주세요.",
-  exportDisclaimer: "이 보고서는 NaviMED 건강 기록에서 생성되었습니다. 모든 정보를 의료 제공자와 확인하세요.",
+  exportDisclaimer: "이 보고서는 CARNET 건강 기록에서 생성되었습니다. 모든 정보를 의료 제공자와 확인하세요.",
   telehealth: "원격 의료",
   waitingRoom: "가상 대기실",
   waitingRoomText: "곧 의사가 연결됩니다. 카메라와 마이크가 작동하는지 확인하세요.",

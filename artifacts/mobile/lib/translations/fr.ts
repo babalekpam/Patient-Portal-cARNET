@@ -238,7 +238,7 @@ const fr: Record<string, string> = {
   generating: "Génération en cours...",
   exportFailed: "Échec de la génération du rapport. Veuillez réessayer.",
   selectAtLeastOneSection: "Veuillez sélectionner au moins une section à exporter.",
-  exportDisclaimer: "Ce rapport est généré à partir de vos dossiers de santé NaviMED. Vérifiez toutes les informations avec votre médecin.",
+  exportDisclaimer: "Ce rapport est généré à partir de vos dossiers de santé CARNET. Vérifiez toutes les informations avec votre médecin.",
   telehealth: "Télésanté",
   waitingRoom: "Salle d'attente virtuelle",
   waitingRoomText: "Votre médecin sera avec vous sous peu. Assurez-vous que votre caméra et votre microphone fonctionnent.",
