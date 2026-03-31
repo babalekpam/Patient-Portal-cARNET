@@ -30,6 +30,7 @@
     },
     "android": {
       "package": "com.argilette.navimed",
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0A2540"
