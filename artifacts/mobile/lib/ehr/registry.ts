@@ -7,7 +7,7 @@ const BUILT_IN_PROVIDERS: EHRProviderConfig[] = [
     id: "navimedi",
     name: "Navimedi",
     type: "navimedi",
-    baseUrl: "https://navimedi.org/api",
+    baseUrl: "https://www.navimedi.org/api",
     description: "Navimedi EHR Platform",
     icon: "server",
     supportsMessaging: true,

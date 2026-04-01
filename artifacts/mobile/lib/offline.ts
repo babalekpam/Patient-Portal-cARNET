@@ -22,7 +22,7 @@ export async function isOnline(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch("https://navimedi.org/api/health", {
+    const response = await fetch("https://www.navimedi.org/api/health", {
       method: "HEAD",
       signal: controller.signal,
     });

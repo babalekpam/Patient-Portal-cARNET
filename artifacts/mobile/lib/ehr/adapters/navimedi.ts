@@ -82,7 +82,7 @@ export class NavimediAdapter implements EHRAdapter {
       password: credentials.password,
     };
     if (credentials.tenantId) body.tenantId = credentials.tenantId;
-    const response = await fetch(`${this.getUrl()}/auth/login`, {
+    const response = await fetch(`${this.getUrl()}/auth/patient-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -108,7 +108,7 @@ export class NavimediAdapter implements EHRAdapter {
 
   async updateProfile(data: ProfileUpdateData): Promise<Profile> {
     const response = await fetch(`${this.getUrl()}/patient/profile`, {
-      method: "PUT",
+      method: "PATCH",
       headers: this.getHeaders(),
       body: JSON.stringify(data),
     });

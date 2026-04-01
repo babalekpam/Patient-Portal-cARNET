@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import type { EHRAdapter } from "@/lib/ehr/types";
 
-const DIRECT_URL = "https://navimedi.org/api";
+const DIRECT_URL = "https://www.navimedi.org/api";
 
 function getBaseUrl(): string {
   if (Platform.OS === "web") {
@@ -217,7 +217,7 @@ class ApiClient {
     if (credentials.tenantId) {
       body.tenantId = credentials.tenantId;
     }
-    const response = await fetch(`${getBaseUrl()}/auth/login`, {
+    const response = await fetch(`${getBaseUrl()}/auth/patient-login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -246,7 +246,7 @@ class ApiClient {
   async updateProfile(data: ProfileUpdateData): Promise<Profile> {
     if (this._adapter) return this._adapter.updateProfile(data);
     const response = await fetch(`${getBaseUrl()}/patient/profile`, {
-      method: "PUT",
+      method: "PATCH",
       headers: await this.getHeaders(),
       body: JSON.stringify(data),
     });

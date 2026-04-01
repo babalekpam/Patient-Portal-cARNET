@@ -46,7 +46,7 @@ h1{color:#0A2540}a{color:#1a6fbf}.card{background:#fff;padding:30px;border-radiu
 <p style="margin-top:30px;color:#666;font-size:14px">&copy; 2026 Argilette LLC</p></div></body></html>`);
 });
 
-const NAVIMEDI_BASE = "https://navimedi.org/api";
+const NAVIMEDI_BASE = "https://www.navimedi.org/api";
 
 app.all("/api/navimedi/{*path}", async (req: Request, res: Response) => {
   const targetPath = req.originalUrl.replace("/api/navimedi", "");
