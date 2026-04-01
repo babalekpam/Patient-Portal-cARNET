@@ -1,4 +1,3 @@
-import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
@@ -7,9 +6,8 @@ import { useTheme } from "@/context/ThemeContext";
 import { useI18n } from "@/lib/i18n";
 
 export default function TabLayout() {
-  const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const { t } = useI18n();
 
   return (
@@ -20,18 +18,18 @@ export default function TabLayout() {
         tabBarInactiveTintColor: colors.tabIconDefault,
         tabBarStyle: {
           position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.surface,
+          backgroundColor: colors.surface,
           borderTopWidth: isWeb ? 1 : 0,
           borderTopColor: colors.border,
           elevation: 0,
           ...(isWeb ? { height: 84 } : {}),
         },
         tabBarBackground: () =>
-          isIOS ? (
-            <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
-          ) : isWeb ? (
+          isWeb ? (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]} />
-          ) : null,
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface + "F2" }]} />
+          ),
       }}
     >
       <Tabs.Screen

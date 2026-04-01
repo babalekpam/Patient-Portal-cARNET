@@ -17,8 +17,6 @@ import { EHRProvider } from "@/context/EHRContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { I18nContext, useI18nProvider } from "@/lib/i18n";
 
-SplashScreen.preventAutoHideAsync();
-
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
@@ -69,8 +67,12 @@ export default function RootLayout() {
   const i18n = useI18nProvider();
 
   useEffect(() => {
+    SplashScreen.preventAutoHideAsync().catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded, fontError]);
 
