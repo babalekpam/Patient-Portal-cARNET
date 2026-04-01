@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -143,7 +143,7 @@ export default function SymptomCheckerScreen() {
                 <Pressable
                   key={area.key}
                   style={[styles.areaCard, { backgroundColor: selectedArea === area.key ? colors.primaryLight : colors.surface, borderColor: selectedArea === area.key ? colors.primary : colors.borderLight }]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSelectedArea(area.key); }}
+                  onPress={() => { impactLight(); setSelectedArea(area.key); }}
                 >
                   <View style={[styles.areaIcon, { backgroundColor: selectedArea === area.key ? colors.primary : colors.surfaceSecondary }]}>
                     <Feather name={area.icon} size={22} color={selectedArea === area.key ? "#fff" : colors.textSecondary} />
@@ -164,7 +164,7 @@ export default function SymptomCheckerScreen() {
                 <Pressable
                   key={s}
                   style={[styles.symptomChip, { backgroundColor: selectedSymptoms.includes(s) ? colors.primary : colors.surface, borderColor: selectedSymptoms.includes(s) ? colors.primary : colors.borderLight }]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleSymptom(s); }}
+                  onPress={() => { impactLight(); toggleSymptom(s); }}
                 >
                   <Text style={[styles.chipText, { color: selectedSymptoms.includes(s) ? "#fff" : colors.text }]}>{s}</Text>
                   {selectedSymptoms.includes(s) && <Feather name="check" size={14} color="#fff" />}
@@ -183,7 +183,7 @@ export default function SymptomCheckerScreen() {
                 <Pressable
                   key={s.key}
                   style={[styles.severityCard, { backgroundColor: severity === s.key ? s.color + "15" : colors.surface, borderColor: severity === s.key ? s.color : colors.borderLight }]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setSeverity(s.key); }}
+                  onPress={() => { impactLight(); setSeverity(s.key); }}
                 >
                   <View style={[styles.severityDot, { backgroundColor: s.color }]} />
                   <View style={styles.severityText}>
@@ -205,7 +205,7 @@ export default function SymptomCheckerScreen() {
                 <Pressable
                   key={d}
                   style={[styles.durationOption, { backgroundColor: duration === d ? colors.primaryLight : colors.surface, borderColor: duration === d ? colors.primary : colors.borderLight }]}
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setDuration(d); }}
+                  onPress={() => { impactLight(); setDuration(d); }}
                 >
                   <Text style={[styles.durationText, { color: duration === d ? colors.primary : colors.text }]}>{d}</Text>
                   {duration === d && <Feather name="check" size={18} color={colors.primary} />}
@@ -248,7 +248,7 @@ export default function SymptomCheckerScreen() {
             {result.level === "schedule" && (
               <Pressable
                 style={[styles.scheduleBtn, { backgroundColor: colors.primary }]}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/request-appointment" as any); }}
+                onPress={() => { impactMedium(); router.push("/request-appointment" as any); }}
               >
                 <Feather name="calendar" size={18} color="#fff" />
                 <Text style={styles.scheduleBtnText}>{t("scheduleAppointmentBtn")}</Text>
@@ -293,7 +293,7 @@ export default function SymptomCheckerScreen() {
             <Pressable
               style={[styles.nextBtn, { backgroundColor: canProceed ? colors.primary : colors.borderLight }]}
               disabled={!canProceed}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setStep(step + 1); }}
+              onPress={() => { impactMedium(); setStep(step + 1); }}
             >
               <Text style={[styles.nextBtnText, { color: canProceed ? "#fff" : colors.textTertiary }]}>{t("next")}</Text>
               <Feather name="arrow-right" size={18} color={canProceed ? "#fff" : colors.textTertiary} />
@@ -302,7 +302,7 @@ export default function SymptomCheckerScreen() {
             <Pressable
               style={[styles.nextBtn, { backgroundColor: canProceed ? colors.primary : colors.borderLight }]}
               disabled={!canProceed}
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); handleComplete(); }}
+              onPress={() => { impactHeavy(); handleComplete(); }}
             >
               <Text style={[styles.nextBtnText, { color: canProceed ? "#fff" : colors.textTertiary }]}>{t("getRecommendation")}</Text>
             </Pressable>

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import { router } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
@@ -56,7 +56,7 @@ function QuickActionTile({ item, colors }: { item: QuickAction; colors: any }) {
         pressed && { opacity: 0.8, transform: [{ scale: 0.96 }] },
       ]}
       onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        impactLight();
         router.push(item.route as any);
       }}
     >
@@ -114,7 +114,7 @@ function MessagePreview({ messages, colors, hasError }: { messages: Message[]; c
           <Pressable
             style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              impactLight();
               router.push("/messages" as any);
             }}
           >
@@ -157,7 +157,7 @@ function MessagePreview({ messages, colors, hasError }: { messages: Message[]; c
         <Pressable
           style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            impactLight();
             router.push("/messages" as any);
           }}
         >
@@ -169,7 +169,7 @@ function MessagePreview({ messages, colors, hasError }: { messages: Message[]; c
         <Pressable
           style={({ pressed }) => [styles.viewAllRow, pressed && { opacity: 0.7 }]}
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            impactLight();
             router.push("/messages" as any);
           }}
         >
@@ -236,7 +236,7 @@ function AppointmentPreview({ appointments, colors, hasError }: { appointments: 
           <Pressable
             style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              impactLight();
               router.push("/appointments" as any);
             }}
           >
@@ -296,7 +296,7 @@ function AppointmentPreview({ appointments, colors, hasError }: { appointments: 
         <Pressable
           style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            impactLight();
             router.push("/appointments" as any);
           }}
         >
@@ -370,7 +370,7 @@ export default function HomeScreen() {
             <Pressable
               style={({ pressed }) => [styles.editProfileBtn, pressed && { opacity: 0.7 }]}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                impactLight();
                 router.push("/(tabs)/profile" as any);
               }}
             >

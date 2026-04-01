@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
@@ -101,7 +101,7 @@ export default function LoginScreen() {
   const filteredProviders = providerSearch ? search(providerSearch) : providers;
 
   const handleSelectProvider = async (provider: EHRProviderConfig) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    impactLight();
     await selectProvider(provider);
     setShowProviderPicker(false);
     setProviderSearch("");
@@ -116,7 +116,7 @@ export default function LoginScreen() {
       Alert.alert(t("error"), t("ehrInvalidUrl"));
       return;
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    impactLight();
     const provider = addCustomFHIREndpoint(customName.trim(), customUrl.trim());
     await selectProvider(provider);
     setShowCustomForm(false);
@@ -134,10 +134,10 @@ export default function LoginScreen() {
     setError("");
     try {
       await api.forgotPassword(email);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      notificationSuccess();
       Alert.alert(t("resetLinkSent"), t("resetLinkSentText"), [{ text: "OK" }]);
     } catch (err: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      notificationError();
       setError(err.message || t("resetFailed"));
     } finally {
       setResetSending(false);
@@ -151,12 +151,12 @@ export default function LoginScreen() {
     }
     setLoading(true);
     setError("");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    impactLight();
     try {
       await login({ email, password, tenantId });
       router.replace("/(tabs)");
     } catch (err: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      notificationError();
       setError(err.message || t("loginFailed"));
     } finally {
       setLoading(false);
@@ -193,7 +193,7 @@ export default function LoginScreen() {
                 pressed && { opacity: 0.8 },
               ]}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                impactLight();
                 setShowProviderPicker(!showProviderPicker);
               }}
             >
@@ -245,7 +245,7 @@ export default function LoginScreen() {
                     pressed && { opacity: 0.8 },
                   ]}
                   onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    impactLight();
                     setShowCustomForm(!showCustomForm);
                   }}
                 >

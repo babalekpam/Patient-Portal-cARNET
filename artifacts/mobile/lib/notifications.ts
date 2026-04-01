@@ -16,36 +16,45 @@ export interface MedicationReminder {
   takenToday: Record<string, boolean>;
 }
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+let _initialized = false;
 
-if (Platform.OS === "android") {
-  Notifications.setNotificationChannelAsync("medication-reminders", {
-    name: "Medication Reminders",
-    importance: Notifications.AndroidImportance.HIGH,
-    vibrationPattern: [0, 250, 250, 250],
-    lightColor: "#1a6fbf",
-    sound: "default",
-  });
+function ensureInitialized() {
+  if (_initialized) return;
+  _initialized = true;
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+
+    if (Platform.OS === "android") {
+      Notifications.setNotificationChannelAsync("medication-reminders", {
+        name: "Medication Reminders",
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#1a6fbf",
+        sound: "default",
+      });
+    }
+  } catch {}
 }
 
 export async function registerForPushNotifications(): Promise<string | null> {
   if (Platform.OS === "web") return null;
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-  if (finalStatus !== "granted") return null;
   try {
+    ensureInitialized();
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== "granted") return null;
     const tokenData = await Notifications.getExpoPushTokenAsync();
     return tokenData.data;
   } catch {
@@ -55,10 +64,15 @@ export async function registerForPushNotifications(): Promise<string | null> {
 
 export async function requestNotificationPermissions(): Promise<boolean> {
   if (Platform.OS === "web") return false;
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  if (existing === "granted") return true;
-  const { status } = await Notifications.requestPermissionsAsync();
-  return status === "granted";
+  try {
+    ensureInitialized();
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    if (existing === "granted") return true;
+    const { status } = await Notifications.requestPermissionsAsync();
+    return status === "granted";
+  } catch {
+    return false;
+  }
 }
 
 export async function getReminders(): Promise<MedicationReminder[]> {
@@ -76,27 +90,30 @@ export async function saveReminders(reminders: MedicationReminder[]): Promise<vo
 }
 
 export async function scheduleReminder(reminder: MedicationReminder): Promise<string[]> {
+  ensureInitialized();
   const notificationIds: string[] = [];
 
   for (const time of reminder.times) {
     const [hours, minutes] = time.split(":").map(Number);
 
-    const id = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: `Time to take ${reminder.medicationName}`,
-        body: reminder.dosage
-          ? `${reminder.dosage}${reminder.instructions ? " - " + reminder.instructions : ""}`
-          : reminder.instructions || "Take your medication now",
-        data: { reminderId: reminder.id, prescriptionId: reminder.prescriptionId },
-        sound: true,
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: hours,
-        minute: minutes,
-      },
-    });
-    notificationIds.push(id);
+    try {
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `Time to take ${reminder.medicationName}`,
+          body: reminder.dosage
+            ? `${reminder.dosage}${reminder.instructions ? " - " + reminder.instructions : ""}`
+            : reminder.instructions || "Take your medication now",
+          data: { reminderId: reminder.id, prescriptionId: reminder.prescriptionId },
+          sound: true,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: hours,
+          minute: minutes,
+        },
+      });
+      notificationIds.push(id);
+    } catch {}
   }
 
   return notificationIds;
@@ -104,7 +121,9 @@ export async function scheduleReminder(reminder: MedicationReminder): Promise<st
 
 export async function cancelReminder(notificationIds: string[]): Promise<void> {
   for (const id of notificationIds) {
-    await Notifications.cancelScheduledNotificationAsync(id);
+    try {
+      await Notifications.cancelScheduledNotificationAsync(id);
+    } catch {}
   }
 }
 

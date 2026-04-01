@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useState } from "react";
@@ -99,7 +99,7 @@ export default function DocumentsScreen() {
 
   const handleSave = async () => {
     if (!capturedUri || !selectedCategory) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    impactMedium();
     const newDoc: ScannedDocument = {
       id: Date.now().toString(),
       name: docName || CATEGORIES.find((c) => c.key === selectedCategory)?.label || "Document",
@@ -131,7 +131,7 @@ export default function DocumentsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LogoWatermark />
-      <ScreenHeader title={t("documents")} subtitle={documents.length > 0 ? `${documents.length} ${t("documentsSaved")}` : undefined} rightIcon="plus" onRightPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleCapture(); }} />
+      <ScreenHeader title={t("documents")} subtitle={documents.length > 0 ? `${documents.length} ${t("documentsSaved")}` : undefined} rightIcon="plus" onRightPress={() => { impactLight(); handleCapture(); }} />
 
       <FlatList
         data={documents}

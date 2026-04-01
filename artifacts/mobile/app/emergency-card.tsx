@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import React from "react";
 import {
   Platform,
@@ -62,7 +62,7 @@ export default function EmergencyCardScreen() {
     ?.join(", ") || t("noneReported");
 
   const handleShare = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    impactMedium();
     const text = `${t("emergencyCard").toUpperCase()}\n\n${t("patient")}: ${fullName}\n${t("dateOfBirth")}: ${dob}\n${t("gender")}: ${gender}\n${t("bloodType")}: ${bloodType}\n${t("allergies")}: ${allergies}\n${t("medications")}: ${activeMeds}\n${t("emergencyContact")}: ${emergencyContact}${emergencyPhone ? ` (${emergencyPhone})` : ""}`;
     await Share.share({ message: text, title: t("emergencyCard") });
   };
@@ -76,7 +76,7 @@ export default function EmergencyCardScreen() {
       >
         <Pressable
           style={styles.backBtn}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.back(); }}
+          onPress={() => { impactLight(); router.back(); }}
         >
           <Feather name="arrow-left" size={22} color="#fff" />
         </Pressable>
