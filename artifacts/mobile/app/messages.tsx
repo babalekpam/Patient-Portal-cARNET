@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
@@ -105,7 +105,7 @@ function ComposeSheet({ onSend, sending, onClose, colors }: { onSend: (s: string
       <Pressable
         style={({ pressed }) => [styles.sendBtn, { backgroundColor: colors.primary }, !canSend && styles.sendBtnDisabled, pressed && { opacity: 0.85 }]}
         disabled={!canSend}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onSend(subject.trim(), message.trim()); }}
+        onPress={() => { impactMedium(); onSend(subject.trim(), message.trim()); }}
       >
         {sending ? <ActivityIndicator size="small" color="#fff" /> : (
           <>
@@ -146,7 +146,7 @@ export default function MessagesScreen() {
   const composeBtn = (
     <Pressable
       style={({ pressed }) => [styles.composeBtn, pressed && { opacity: 0.7 }]}
-      onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setComposing(true); }}
+      onPress={() => { impactLight(); setComposing(true); }}
     >
       <Feather name="edit-2" size={18} color="#fff" />
     </Pressable>

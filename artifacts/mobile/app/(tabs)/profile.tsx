@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -151,25 +151,25 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    impactMedium();
     await logout();
     router.replace("/login");
   };
 
   const cycleTheme = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    impactLight();
     const next = mode === "system" ? "light" : mode === "light" ? "dark" : "system";
     setMode(next);
   };
 
   const toggleBiometric = async (val: boolean) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    impactLight();
     await setBiometricEnabled(val);
     setBioEnabled(val);
   };
 
   const startEditing = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    impactLight();
     setEditing(true);
   };
 
@@ -182,11 +182,11 @@ export default function ProfileScreen() {
     setSaving(true);
     try {
       await api.updateProfile(editData);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      notificationSuccess();
       await refreshProfile();
       setEditing(false);
     } catch (err: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      notificationError();
       Alert.alert(t("updateFailed"), err.message || t("couldNotSave"));
     } finally {
       setSaving(false);
@@ -388,7 +388,7 @@ export default function ProfileScreen() {
                       pressed && { opacity: 0.8 },
                     ]}
                     onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      impactLight();
                       setShowLangPicker(!showLangPicker);
                     }}
                   >
@@ -418,7 +418,7 @@ export default function ProfileScreen() {
                               pressed && { opacity: 0.7 },
                             ]}
                             onPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              impactLight();
                               setLanguage(lang.code);
                               setShowLangPicker(false);
                             }}

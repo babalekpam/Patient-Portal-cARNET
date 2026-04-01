@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import NetInfo from "@react-native-community/netinfo";
 
 const CACHE_PREFIX = "offline_cache_";
 const PENDING_QUEUE_KEY = "offline_pending_queue";
@@ -20,14 +19,36 @@ interface PendingAction {
 }
 
 export async function isOnline(): Promise<boolean> {
-  const state = await NetInfo.fetch();
-  return state.isConnected === true;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch("https://navimedi.org/api/health", {
+      method: "HEAD",
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 export function subscribeToConnectivity(callback: (isConnected: boolean) => void) {
-  return NetInfo.addEventListener((state) => {
-    callback(state.isConnected === true);
-  });
+  let interval: ReturnType<typeof setInterval>;
+  let lastState: boolean | null = null;
+
+  const check = async () => {
+    const online = await isOnline();
+    if (online !== lastState) {
+      lastState = online;
+      callback(online);
+    }
+  };
+
+  check();
+  interval = setInterval(check, 30000);
+
+  return () => clearInterval(interval);
 }
 
 export async function cacheData(key: string, data: any): Promise<void> {

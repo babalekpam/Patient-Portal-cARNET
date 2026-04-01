@@ -2,7 +2,7 @@
   "expo": {
     "name": "CARNET",
     "slug": "navimed",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "navimed",
@@ -26,11 +26,11 @@
       "entitlements": {
         "aps-environment": "production"
       },
-      "buildNumber": "16"
+      "buildNumber": "18"
     },
     "android": {
       "package": "com.argilette.navimed",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0A2540"
@@ -41,7 +41,9 @@
         "USE_FINGERPRINT",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
-        "CAMERA"
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {

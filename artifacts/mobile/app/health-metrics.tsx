@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -132,7 +132,7 @@ export default function HealthMetricsScreen() {
 
   const handleSave = async () => {
     if (!addingMetric || !inputValue) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    impactMedium();
     const entry: MetricEntry = {
       id: Date.now().toString(),
       type: addingMetric.key,

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
@@ -210,7 +210,7 @@ export default function HealthTimelineScreen() {
               styles.filterChip,
               { backgroundColor: filter === opt.key ? colors.primary : colors.surfaceSecondary, borderColor: filter === opt.key ? colors.primary : colors.border },
             ]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilter(opt.key); }}
+            onPress={() => { impactLight(); setFilter(opt.key); }}
           >
             <Feather name={opt.icon} size={14} color={filter === opt.key ? "#fff" : colors.textSecondary} />
             <Text style={[styles.filterText, { color: filter === opt.key ? "#fff" : colors.textSecondary }]}>

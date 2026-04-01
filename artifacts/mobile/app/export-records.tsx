@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import { useQuery } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
@@ -150,7 +150,7 @@ export default function ExportRecordsScreen() {
     }
 
     setIsExporting(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    impactHeavy();
 
     try {
       const report = generateTextReport();
@@ -193,7 +193,7 @@ export default function ExportRecordsScreen() {
           <Pressable
             key={section.key}
             style={[styles.sectionRow, { backgroundColor: colors.surface, borderColor: selectedSections.includes(section.key) ? colors.primary : colors.borderLight }]}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleSection(section.key); }}
+            onPress={() => { impactLight(); toggleSection(section.key); }}
           >
             <View style={[styles.sectionIcon, { backgroundColor: selectedSections.includes(section.key) ? colors.primaryLight : colors.surfaceSecondary }]}>
               <Feather name={section.icon} size={18} color={selectedSections.includes(section.key) ? colors.primary : colors.textTertiary} />

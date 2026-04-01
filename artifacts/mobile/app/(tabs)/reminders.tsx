@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import React, { useState, useCallback, useEffect } from "react";
 import {
   Alert,
@@ -91,7 +91,7 @@ function TimePickerModal({
                 <Pressable
                   key={time}
                   onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    impactLight();
                     toggle(time);
                   }}
                   style={[
@@ -315,7 +315,7 @@ function ReminderCard({
                   <Pressable
                     style={[styles.takeBtn, { backgroundColor: colors.primary }]}
                     onPress={() => {
-                      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      notificationSuccess();
                       onMarkTaken(reminder.id, time);
                     }}
                   >
@@ -330,7 +330,7 @@ function ReminderCard({
         <Pressable
           style={[styles.deleteRow]}
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            impactMedium();
             if (Platform.OS === "web") {
               onDelete(reminder.id);
             } else {
@@ -372,7 +372,7 @@ function PrescriptionPickerItem({
       style={[styles.prescriptionItem, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
       onPress={() => {
         if (!hasReminder) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          impactLight();
           onSelect(prescription);
         }
       }}
@@ -487,7 +487,7 @@ export default function RemindersScreen() {
           <Pressable
             style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.7 }]}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              impactLight();
               setShowPrescriptions(true);
             }}
           >

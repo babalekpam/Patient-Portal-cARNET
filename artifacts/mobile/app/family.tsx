@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -73,7 +73,7 @@ export default function FamilyScreen() {
 
   const handleSave = async () => {
     if (!form.firstName || !form.relationship) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    impactMedium();
     if (editing) {
       const updated = members.map((m) => m.id === editing.id ? { ...m, ...form } as FamilyMember : m);
       await save(updated);

@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -79,7 +79,7 @@ function InCallView({ colors, t, onEnd }: { colors: any; t: any; onEnd: () => vo
       <View style={[styles.controls, { backgroundColor: colors.surface }]}>
         <Pressable
           style={[styles.controlBtn, { backgroundColor: isMuted ? colors.danger : colors.surfaceSecondary }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsMuted(!isMuted); }}
+          onPress={() => { impactLight(); setIsMuted(!isMuted); }}
         >
           <Feather name={isMuted ? "mic-off" : "mic"} size={22} color={isMuted ? "#fff" : colors.text} />
           <Text style={[styles.controlLabel, { color: isMuted ? "#fff" : colors.textSecondary }]}>{isMuted ? t("unmute") : t("mute")}</Text>
@@ -87,7 +87,7 @@ function InCallView({ colors, t, onEnd }: { colors: any; t: any; onEnd: () => vo
 
         <Pressable
           style={[styles.controlBtn, { backgroundColor: isCameraOff ? colors.danger : colors.surfaceSecondary }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setIsCameraOff(!isCameraOff); }}
+          onPress={() => { impactLight(); setIsCameraOff(!isCameraOff); }}
         >
           <Feather name={isCameraOff ? "video-off" : "video"} size={22} color={isCameraOff ? "#fff" : colors.text} />
           <Text style={[styles.controlLabel, { color: isCameraOff ? "#fff" : colors.textSecondary }]}>{t("camera")}</Text>
@@ -95,7 +95,7 @@ function InCallView({ colors, t, onEnd }: { colors: any; t: any; onEnd: () => vo
 
         <Pressable
           style={[styles.endCallBtn, { backgroundColor: "#dc2626" }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); onEnd(); }}
+          onPress={() => { impactHeavy(); onEnd(); }}
         >
           <Feather name="phone-off" size={22} color="#fff" />
           <Text style={[styles.controlLabel, { color: "#fff" }]}>{t("endCall")}</Text>
@@ -117,14 +117,14 @@ function PostCallView({ colors, t }: { colors: any; t: any }) {
       <View style={styles.postActions}>
         <Pressable
           style={[styles.postBtn, { backgroundColor: colors.primary }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/visit-summaries" as any); }}
+          onPress={() => { impactMedium(); router.push("/visit-summaries" as any); }}
         >
           <Feather name="clipboard" size={18} color="#fff" />
           <Text style={styles.postBtnText}>{t("viewVisitSummary")}</Text>
         </Pressable>
         <Pressable
           style={[styles.postBtn, { backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border }]}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/request-appointment" as any); }}
+          onPress={() => { impactLight(); router.push("/request-appointment" as any); }}
         >
           <Feather name="calendar" size={18} color={colors.text} />
           <Text style={[styles.postBtnTextAlt, { color: colors.text }]}>{t("scheduleFollowUp")}</Text>

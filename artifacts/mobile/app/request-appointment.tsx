@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -74,7 +74,7 @@ function OptionPicker({
                 },
               ]}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                impactLight();
                 onSelect(opt.value);
               }}
             >
@@ -136,7 +136,7 @@ function DateSelector({
                 },
               ]}
               onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                impactLight();
                 onChange(key);
               }}
             >
@@ -186,10 +186,10 @@ export default function RequestAppointmentScreen() {
         doctorPreference: doctorPreference.trim() || undefined,
         notes: notes.trim() || undefined,
       });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      notificationSuccess();
       setSubmitted(true);
     } catch (err: any) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      notificationError();
       Alert.alert(
         t("requestFailed"),
         err.message || t("couldNotSubmit")
