@@ -57,7 +57,7 @@ Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` 
 
 - Entry: `src/index.ts` — reads `PORT`, starts Express
 - App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- **Navimedi API Relay**: `app.all("/api/navimedi/{*path}")` proxies requests to `https://navimedi.org/api` with raw body passthrough (no JSON re-encoding). Supports all HTTP methods (GET, POST, PUT, DELETE). Placed before `express.json()` middleware to avoid body consumption.
+- **Navimedi API Relay**: `app.all("/api/navimedi/{*path}")` proxies requests to `https://www.navimedi.org/api` with raw body passthrough (no JSON re-encoding). Supports all HTTP methods (GET, POST, PUT, DELETE). Placed before `express.json()` middleware to avoid body consumption.
 - Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
 - Depends on: `@workspace/db`, `@workspace/api-zod`
 - `pnpm --filter @workspace/api-server run dev` — run the dev server
@@ -100,7 +100,7 @@ Expo React Native mobile app — NaviMED Patient Health Portal by Argilette. Mul
 - **Screens**: Login (with EHR provider selector), Home (Dashboard), Profile (editable), Appointments (with calendar sync), Prescriptions, Lab Results, Bills, Messages (with compose), Visit Summaries, Request Appointment, Emergency Card, Health Timeline, Symptom Checker, Documents (scanner), Family Members, Drug Interactions, Export Records, Telehealth, Health Metrics
 - **Auth**: `context/AuthContext.tsx` manages login/logout/profile state with AsyncStorage token persistence. Supports biometric auth on app resume and push notification registration on login.
 - **EHR Integration**: `lib/ehr/` — adapter pattern for multi-EHR support. `context/EHRContext.tsx` manages active provider. Built-in adapters: `NavimediAdapter` (Navimedi API), `FHIRAdapter` (any FHIR R4 server). Registry in `lib/ehr/registry.ts` with built-in providers (Navimedi, HAPI FHIR, SMART Health IT). Users can add custom FHIR endpoints.
-- **API Client**: `lib/api.ts` — typed API client that delegates to the active EHR adapter. Falls back to direct Navimedi API calls when no adapter is set. Includes `updateProfile()`, `getVisitSummaries()`, `requestAppointment()`.
+- **API Client**: `lib/api.ts` — typed API client that delegates to the active EHR adapter. Falls back to direct Navimedi API calls when no adapter is set. Base URL: `https://www.navimedi.org/api`. Login endpoint: `/auth/patient-login`. Profile update: `PATCH`. Includes `updateProfile()`, `getVisitSummaries()`, `requestAppointment()`.
 - **Proxy**: On web, API calls route through the API server's relay endpoint at `/api/navimedi/...` to avoid CORS restrictions from the Navimedi API
 - **Theme**: Dark mode support via `context/ThemeContext.tsx` with system/light/dark toggle. Colors defined in `constants/colors.ts` with full light/dark palettes. All screens use `useTheme()` hook.
 - **Data fetching**: React Query (`@tanstack/react-query`)

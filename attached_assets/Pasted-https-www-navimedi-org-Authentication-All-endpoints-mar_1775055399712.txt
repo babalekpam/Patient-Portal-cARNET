@@ -1,0 +1,60 @@
+https://www.navimedi.org
+Authentication
+All endpoints marked 🔒 require the header:
+
+Authorization: Bearer <token>
+The token is returned from the login endpoint.
+
+1. Auth
+Method	Endpoint	Description
+POST	/api/auth/patient-login	Login — returns token + user
+Login body:
+
+{ "email": "patient@email.com", "password": "password" }
+2. Profile 🔒
+Method	Endpoint	Description
+GET	/api/patient/profile	Get logged-in patient's profile
+PATCH	/api/patient/profile	Update name, phone, bio, profile photo
+3. Appointments 🔒
+Method	Endpoint	Description
+GET	/api/patient/appointments	List all patient appointments
+POST	/api/patient/appointments	Book a new appointment
+GET	/api/patient/doctors-list	List available doctors to book with
+4. Prescriptions 🔒
+Method	Endpoint	Description
+GET	/api/patient/prescriptions	List all patient prescriptions
+5. Lab Results 🔒
+Method	Endpoint	Description
+GET	/api/patient/lab-results	List all lab results
+GET	/api/patient/lab-results/:id/pdf	Download a specific lab result as PDF
+6. Visit Summaries 🔒
+Method	Endpoint	Description
+GET	/api/patient/visit-summaries	List all visit summaries (After-Visit Reports)
+POST	/api/patient/visit-summaries/:id/view	Mark a visit summary as viewed
+POST	/api/patient/visit-summaries/:id/acknowledge	Patient acknowledges the summary
+POST	/api/patient/visit-summaries/:id/download	Log a download event
+7. Billing 🔒
+Method	Endpoint	Description
+GET	/api/patient/bills	List all bills for the patient
+8. Privacy & Account 🔒
+Method	Endpoint	Description
+POST	/api/patient/account/deletion-request	Step 1 — generate a signed deletion token
+DELETE	/api/patient/account	Step 2 — confirm and execute account deletion
+GET	/api/patient/account/data-export	Export all personal data as JSON (GDPR Art. 20)
+9. Forgot Password (Public)
+Method	Endpoint	Description
+POST	/api/auth/forgot-password	Send password reset email
+POST	/api/auth/reset-password	Set new password using reset token
+Example — Login then fetch appointments
+// 1. Login
+const { token } = await fetch('https://www.navimedi.org/api/auth/patient-login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: 'demo.patient@navimedi.org', password: 'NaviTest2024!' })
+}).then(r => r.json());
+// 2. Use the token
+const appointments = await fetch('https://www.navimedi.org/api/patient/appointments', {
+  headers: { 'Authorization': `Bearer ${token}` }
+}).then(r => r.json());
+All responses are JSON. All dates are ISO 8601. Let me know if you need request/response schemas for any specific endpoint.
+
