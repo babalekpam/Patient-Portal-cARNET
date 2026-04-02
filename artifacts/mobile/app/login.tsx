@@ -82,8 +82,8 @@ export default function LoginScreen() {
   const { providers, activeProvider, selectProvider, addCustomFHIREndpoint, search } = useEHR();
   const { t } = useI18n();
 
-  const [email, setEmail] = useState("abel@argilette.com");
-  const [password, setPassword] = useState("Serrega1208@!!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [tenantId, setTenantId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

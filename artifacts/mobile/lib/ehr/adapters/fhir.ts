@@ -72,22 +72,40 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
-    const response = await fetch(`${this.baseUrl}/auth/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        grant_type: "password",
-        username: credentials.email,
-        password: credentials.password,
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/auth/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          grant_type: "password",
+          username: credentials.email,
+          password: credentials.password,
+        }),
+      });
+    } catch (err: any) {
+      throw new Error("Unable to connect to the FHIR server. Please check the endpoint URL and try again.");
+    }
+
+    if (response.status === 404) {
+      throw new Error("This endpoint does not support password authentication. Please verify the FHIR server URL.");
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("Invalid credentials. Please check your email and password.");
+    }
 
     if (!response.ok) {
-      throw new Error("Invalid credentials. Please check your email and password.");
+      const errorBody = await response.json().catch(() => ({}));
+      const msg = errorBody.message || errorBody.error_description || "";
+      throw new Error(msg || `Authentication failed (${response.status}). Please verify your endpoint and credentials.`);
     }
 
     const data = await response.json();
     const token = data.access_token || data.token;
+    if (!token) {
+      throw new Error("Server did not return an authentication token. This endpoint may not support this login method.");
+    }
     this.token = token;
     this.patientId = data.patient || null;
 

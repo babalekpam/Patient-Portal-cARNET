@@ -17,18 +17,27 @@ import { EHRProvider } from "@/context/EHRContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { I18nContext, useI18nProvider } from "@/lib/i18n";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30000,
+    },
+  },
+});
 
 function RootLayoutNav() {
   const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
     if (!isLoading) {
-      if (isAuthenticated) {
-        router.replace("/(tabs)");
-      } else {
-        router.replace("/login");
-      }
+      try {
+        if (isAuthenticated) {
+          router.replace("/(tabs)");
+        } else {
+          router.replace("/login");
+        }
+      } catch {}
     }
   }, [isAuthenticated, isLoading]);
 
@@ -79,22 +88,22 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider>
-      <ErrorBoundary>
-        <I18nContext.Provider value={i18n}>
-          <ThemeProvider>
-            <QueryClientProvider client={queryClient}>
-              <EHRProvider>
-              <AuthProvider>
-                <GestureHandlerRootView>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ErrorBoundary>
+          <I18nContext.Provider value={i18n}>
+            <ThemeProvider>
+              <QueryClientProvider client={queryClient}>
+                <EHRProvider>
+                  <AuthProvider>
                     <RootLayoutNav />
-                </GestureHandlerRootView>
-              </AuthProvider>
-              </EHRProvider>
-            </QueryClientProvider>
-          </ThemeProvider>
-        </I18nContext.Provider>
-      </ErrorBoundary>
-    </SafeAreaProvider>
+                  </AuthProvider>
+                </EHRProvider>
+              </QueryClientProvider>
+            </ThemeProvider>
+          </I18nContext.Provider>
+        </ErrorBoundary>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

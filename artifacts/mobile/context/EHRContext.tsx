@@ -38,20 +38,30 @@ export function EHRProvider({ children }: { children: React.ReactNode }) {
 
   const loadSavedProvider = async () => {
     try {
-      const customJson = await AsyncStorage.getItem(EHR_CUSTOM_PROVIDERS_KEY);
+      let customJson: string | null = null;
+      try {
+        customJson = await AsyncStorage.getItem(EHR_CUSTOM_PROVIDERS_KEY);
+      } catch {}
       if (customJson) {
-        const customs: EHRProviderConfig[] = JSON.parse(customJson);
-        customs.forEach((p) => addCustomProvider(p));
+        try {
+          const customs: EHRProviderConfig[] = JSON.parse(customJson);
+          customs.forEach((p) => addCustomProvider(p));
+        } catch {}
       }
 
-      const savedId = await AsyncStorage.getItem(EHR_PROVIDER_KEY);
+      let savedId: string | null = null;
+      try {
+        savedId = await AsyncStorage.getItem(EHR_PROVIDER_KEY);
+      } catch {}
       if (savedId) {
         const provider = getProviderById(savedId);
         if (provider) {
-          const newAdapter = createAdapter(provider);
-          setActiveProvider(provider);
-          setAdapter(newAdapter);
-          api.setAdapter(newAdapter);
+          try {
+            const newAdapter = createAdapter(provider);
+            setActiveProvider(provider);
+            setAdapter(newAdapter);
+            api.setAdapter(newAdapter);
+          } catch {}
         }
       }
     } catch {} finally {
