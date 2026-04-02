@@ -30,9 +30,9 @@
   "submit": {
     "production": {
       "ios": {
-        "ascApiKeyPath": "./credentials/AuthKey_KBYU722Y53.p8",
+        "ascApiKeyPath": "./credentials/AuthKey_PS2M4W334H.p8",
         "ascApiKeyIssuerId": "d6b6d45d-83aa-47cb-87e2-827015b47527",
-        "ascApiKeyId": "KBYU722Y53",
+        "ascApiKeyId": "PS2M4W334H",
         "ascAppId": "6761035416"
       }
     }
