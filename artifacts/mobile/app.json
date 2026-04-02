@@ -66,6 +66,12 @@
           "sounds": [],
           "defaultChannel": "medication-reminders"
         }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow CARNET to use Face ID for quick and secure access to your health records."
+        }
       ]
     ],
     "experiments": {

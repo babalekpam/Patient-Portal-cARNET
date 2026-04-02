@@ -42,18 +42,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const token = await getToken();
       if (token) {
-        const bioAvail = await isBiometricAvailable();
-        const bioOn = await isBiometricEnabled();
-        if (bioAvail && bioOn) {
-          const success = await authenticateWithBiometrics();
-          if (!success) {
+        let bioRequired = false;
+        try {
+          const bioAvail = await isBiometricAvailable();
+          const bioOn = await isBiometricEnabled();
+          bioRequired = bioAvail && bioOn;
+        } catch {}
+
+        if (bioRequired) {
+          try {
+            const success = await authenticateWithBiometrics();
+            if (!success) {
+              setIsLoading(false);
+              return;
+            }
+          } catch {
             setIsLoading(false);
             return;
           }
         }
 
         if (api.adapter) {
-          api.adapter.setToken(token);
+          try {
+            api.adapter.setToken(token);
+          } catch {}
         }
 
         setIsAuthenticated(true);

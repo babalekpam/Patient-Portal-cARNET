@@ -131,6 +131,7 @@ Expo React Native mobile app — NaviMED Patient Health Portal by Argilette. Mul
   - **Health Metrics** (`app/health-metrics.tsx`): Manual vital signs tracking (steps, heart rate, BP, weight, sleep, temperature, blood oxygen). Mini bar charts for trends.
   - **Offline Mode** (`lib/offline.ts`): NetInfo connectivity detection, data caching with TTL, pending action queue for sync when reconnected.
 - **Branding**: Powered by Argilette. App name is NaviMED. Logo subtitle reads "by Argilette".
+- **Critical Fix (April 2026)**: Fixed `react-native-worklets` version from 0.8.1 to 0.5.1 (compatible with Expo 54 / RN 0.81). The incompatible version caused native TurboModule initialization crashes (SIGSEGV/SIGABRT) on app startup. Also moved `GestureHandlerRootView` to outermost wrapper position and added robust error handling in EHR/Auth initialization to prevent crash loops. Added `expo-local-authentication` plugin to app.json. Removed hardcoded test credentials from login form. Improved FHIR adapter error messages for invalid endpoints.
 
 ### `scripts` (`@workspace/scripts`)
 
