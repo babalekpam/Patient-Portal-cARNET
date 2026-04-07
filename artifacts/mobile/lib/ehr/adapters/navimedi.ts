@@ -84,11 +84,18 @@ export class NavimediAdapter implements EHRAdapter {
     if (credentials.tenantId) body.tenantId = credentials.tenantId;
     let response: Response;
     try {
-      response = await fetch(`${this.getUrl()}/auth/patient-login`, {
+      response = await fetch(`${this.getUrl()}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      if (response.status === 404) {
+        response = await fetch(`${this.getUrl()}/auth/patient-login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      }
     } catch (err: any) {
       throw new Error("Unable to connect to the server. Please check your internet connection and try again.");
     }
