@@ -217,11 +217,18 @@ class ApiClient {
     if (credentials.tenantId) {
       body.tenantId = credentials.tenantId;
     }
-    const response = await fetch(`${getBaseUrl()}/auth/patient-login`, {
+    let response = await fetch(`${getBaseUrl()}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    if (response.status === 404) {
+      response = await fetch(`${getBaseUrl()}/auth/patient-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    }
     return this.handleResponse<LoginResponse>(response, true);
   }
 
