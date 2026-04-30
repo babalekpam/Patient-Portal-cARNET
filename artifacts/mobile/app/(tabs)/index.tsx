@@ -42,7 +42,6 @@ const QUICK_ACTIONS: QuickAction[] = [
   { labelKey: "familyMembers", icon: "users", route: "/family" },
   { labelKey: "interactionChecker", icon: "zap", route: "/interactions" },
   { labelKey: "exportRecords", icon: "share", route: "/export-records" },
-  { labelKey: "telehealth", icon: "video", route: "/telehealth" },
   { labelKey: "healthMetrics", icon: "activity", route: "/health-metrics" },
 ];
 
