@@ -1,0 +1,44 @@
+Hi Developers,
+
+Thanks for contacting the Google Play team.
+
+Status: App CARNET (com.argilette.navimed) not available on Google Play, pending your action
+
+I’m happy to report that we have conditionally accepted your appeal. I’ve included details below about what additional steps you’ll need to take to get your app back on Google Play.
+
+Step 1: Update your app
+
+During review, we found that your app violates the Misleading Claims of Deceptive Behavior policy:
+
+We don't allow apps that attempt to deceive users or enable dishonest behavior including but not limited to apps which are determined to be functionally impossible.
+We don’t allow apps that contain false or misleading information or claims, including in the description, title, icon, and screenshots. Apps that advertise a certain functionality in their title must provide the user with that functionality.
+You can read through the Deceptive Behavior policy page for more details and examples of common violations.
+
+For example, your app does not provide the functionalities which were mentioned in metadata. You can refer to the attached screenshot for additional information.
+
+Please update your app to fix this issue. You may also want to double check that your app complies with all other Developer Program Policies, as additional enforcement could occur if there are further policy violations.
+Step 2: Submit an update to your app
+
+Please allow three hours for our backend systems to update, then resubmit your app.
+
+To submit an update to your app’s store listing information:
+
+Sign in to your Play Console account.
+Select the app with the policy issue.
+Select Grow users > Store presence > Store listings.
+Make changes to bring your app into compliance.
+Click Save.
+To submit an updated app bundle or APK:
+
+Prepare your updates.
+Create a new release using the compliant app bundle or APK. Be sure to create the new release on the same track(s) as the noncompliant app bundle or APK, increment the version number, and set the release to 100% rollout.
+Follow the on-screen instructions to add APKs or app bundles, then review and roll out your release.
+If addressing the issue does not require a metadata or APK update and the submit button is grayed out, you can make a minor change to your store listing to activate the button. For example, add a space after your app title and then delete it. Once the button turns blue, you can submit your update.
+
+​​Kindly note that your changes aren't sent for review automatically. You must go to the Publishing overview page and click Send for review to submit your changes.
+
+Please note that after you submit an update to an existing app on your Play Console, it can take some time for your app to be processed for standard publishing on Google Play. To check your submission status, you may follow the steps below:
+
+Sign in to your Play Console account.
+Select your app.
+On the left menu, select Test and release > Production or Testing (select the track(s) you have released).
