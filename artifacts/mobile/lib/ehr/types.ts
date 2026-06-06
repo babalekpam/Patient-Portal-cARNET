@@ -9,6 +9,8 @@ import type {
   Prescription,
   Profile,
   ProfileUpdateData,
+  TelehealthAppointment,
+  TelehealthSession,
   VisitSummary,
 } from "@/lib/api";
 
@@ -30,6 +32,10 @@ export interface EHRAdapter {
   sendMessage(subject: string, message: string, recipientId?: string): Promise<any>;
   getVisitSummaries(): Promise<VisitSummary[]>;
   getBills(): Promise<Bill[]>;
+
+  getTelehealthAppointments(): Promise<TelehealthAppointment[]>;
+  createTelehealthSession(appointmentId: string): Promise<TelehealthSession>;
+  getTelehealthSession(appointmentId: string): Promise<TelehealthSession>;
 
   setToken(token: string): void;
   clearToken(): void;

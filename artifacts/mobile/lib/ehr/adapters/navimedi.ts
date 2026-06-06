@@ -11,6 +11,8 @@ import type {
   Prescription,
   Profile,
   ProfileUpdateData,
+  TelehealthAppointment,
+  TelehealthSession,
   VisitSummary,
 } from "@/lib/api";
 
@@ -190,5 +192,27 @@ export class NavimediAdapter implements EHRAdapter {
       headers: this.getHeaders(),
     });
     return this.handleResponse<Bill[]>(response);
+  }
+
+  async getTelehealthAppointments(): Promise<TelehealthAppointment[]> {
+    const response = await fetch(`${this.getUrl()}/patient/telehealth/appointments`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<TelehealthAppointment[]>(response);
+  }
+
+  async createTelehealthSession(appointmentId: string): Promise<TelehealthSession> {
+    const response = await fetch(`${this.getUrl()}/patient/telehealth/sessions/${appointmentId}`, {
+      method: "POST",
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<TelehealthSession>(response);
+  }
+
+  async getTelehealthSession(appointmentId: string): Promise<TelehealthSession> {
+    const response = await fetch(`${this.getUrl()}/patient/telehealth/sessions/${appointmentId}`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<TelehealthSession>(response);
   }
 }
