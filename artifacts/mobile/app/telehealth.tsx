@@ -2,9 +2,10 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { impactLight, impactMedium, notificationSuccess } from "@/lib/haptics";
 import { router } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import React, { useRef, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -12,7 +13,6 @@ import {
   StyleSheet,
   Text,
   View,
-  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import WebView from "react-native-webview";
@@ -20,33 +20,13 @@ import { AnimatedCard } from "@/components/AnimatedCard";
 import { ListSkeleton } from "@/components/SkeletonLoader";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useTheme } from "@/context/ThemeContext";
-import { useAuth } from "@/context/AuthContext";
-import { api, type Appointment } from "@/lib/api";
+import { api, type TelehealthAppointment, type TelehealthSession } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { LogoWatermark } from "@/components/LogoWatermark";
 
 type VisitPhase = "list" | "waiting" | "incall" | "ended";
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function isTelemedicine(apt: Appointment): boolean {
-  const type = (apt.appointmentType || "").toLowerCase();
-  const loc = (apt.location || "").toLowerCase();
-  return (
-    type.includes("telehealth") ||
-    type.includes("telemedicine") ||
-    type.includes("virtual") ||
-    type.includes("video") ||
-    loc.includes("virtual") ||
-    loc.includes("online") ||
-    loc.includes("telehealth")
-  );
-}
-
-function isUpcoming(apt: Appointment): boolean {
-  if (!apt.appointmentDate) return false;
-  try { return new Date(apt.appointmentDate) >= new Date(); } catch { return false; }
-}
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return null;
@@ -59,19 +39,9 @@ function formatDate(dateStr?: string) {
   } catch { return null; }
 }
 
-function buildJitsiUrl(appointment: Appointment, user: any): string {
-  const room = [
-    "carnet",
-    (user?.firstName || "patient").toLowerCase().replace(/\s+/g, ""),
-    Math.abs(appointment.id?.split("").reduce((a, c) => a + c.charCodeAt(0), 0) || 0) || Date.now() % 99999,
-  ].join("-");
-  return `https://meet.jit.si/${room}#config.prejoinPageEnabled=false&config.startWithAudioMuted=false&config.startWithVideoMuted=false&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.TOOLBAR_BUTTONS=[]`;
-}
-
-// JS injected into the WebView to toggle audio/video via Jitsi's postMessage API
-const JITSI_MUTE_AUDIO = `
+// JS injected into Jitsi WebView to toggle audio/video
+const JITSI_TOGGLE_AUDIO = `
   (function(){
-    try { window.JitsiMeetExternalAPI && window.JitsiMeetExternalAPI.prototype; } catch(e){}
     document.querySelectorAll('[aria-label*="mute" i],[aria-label*="audio" i],[data-testid*="audio" i]')[0]?.click();
   })(); true;
 `;
@@ -81,7 +51,7 @@ const JITSI_TOGGLE_VIDEO = `
   })(); true;
 `;
 
-// ─── Appointment card ────────────────────────────────────────────────────────
+// ─── Appointment card ─────────────────────────────────────────────────────────
 
 function AppointmentCard({
   item,
@@ -89,10 +59,10 @@ function AppointmentCard({
   colors,
   onJoin,
 }: {
-  item: Appointment;
+  item: TelehealthAppointment;
   index: number;
   colors: any;
-  onJoin: (apt: Appointment) => void;
+  onJoin: (apt: TelehealthAppointment) => void;
 }) {
   const { t } = useI18n();
   const dt = formatDate(item.appointmentDate);
@@ -113,7 +83,9 @@ function AppointmentCard({
           <View style={styles.cardMeta}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>{typeName}</Text>
             {item.doctorName || item.provider ? (
-              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>{item.doctorName || item.provider}</Text>
+              <Text style={[styles.cardSub, { color: colors.textSecondary }]}>
+                {item.doctorName || item.provider}
+              </Text>
             ) : null}
           </View>
         </View>
@@ -143,18 +115,22 @@ function AppointmentCard({
   );
 }
 
-// ─── Waiting room ────────────────────────────────────────────────────────────
+// ─── Waiting room ─────────────────────────────────────────────────────────────
 
 function WaitingRoom({
   appointment,
   colors,
   onStart,
   onBack,
+  isCreatingSession,
+  sessionError,
 }: {
-  appointment: Appointment;
+  appointment: TelehealthAppointment;
   colors: any;
   onStart: () => void;
   onBack: () => void;
+  isCreatingSession: boolean;
+  sessionError: string | null;
 }) {
   const { t } = useI18n();
   const checklist: { key: string; icon: React.ComponentProps<typeof Feather>["name"] }[] = [
@@ -167,6 +143,7 @@ function WaitingRoom({
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.waitingScroll} showsVerticalScrollIndicator={false}>
       <LogoWatermark />
+
       <LinearGradient colors={["#2563eb", "#1d4ed8", "#1e40af"]} style={styles.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <View style={styles.heroIconCircle}>
           <Feather name="video" size={40} color="#fff" />
@@ -194,13 +171,31 @@ function WaitingRoom({
         ))}
       </View>
 
+      {sessionError ? (
+        <View style={[styles.errorBanner, { backgroundColor: "#fef2f2", borderColor: "#fecaca" }]}>
+          <Feather name="alert-circle" size={16} color="#dc2626" />
+          <Text style={styles.errorBannerText}>{sessionError}</Text>
+        </View>
+      ) : null}
+
       <View style={styles.waitingActions}>
-        <Pressable style={({ pressed }) => [styles.startBtn, pressed && { opacity: 0.88 }]} onPress={onStart}>
+        <Pressable
+          style={({ pressed }) => [styles.startBtn, (isCreatingSession || !!sessionError) && { opacity: 0.6 }, pressed && { opacity: 0.88 }]}
+          onPress={onStart}
+          disabled={isCreatingSession}
+        >
           <LinearGradient colors={["#2563eb", "#1d4ed8"]} style={styles.startBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-            <Feather name="video" size={20} color="#fff" />
-            <Text style={styles.startBtnText}>{t("joinVisit")}</Text>
+            {isCreatingSession ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Feather name="video" size={20} color="#fff" />
+            )}
+            <Text style={styles.startBtnText}>
+              {isCreatingSession ? "Connecting..." : t("joinVisit")}
+            </Text>
           </LinearGradient>
         </Pressable>
+
         <Pressable
           style={({ pressed }) => [styles.backBtn, { borderColor: colors.borderLight }, pressed && { opacity: 0.7 }]}
           onPress={() => { impactLight(); onBack(); }}
@@ -212,17 +207,15 @@ function WaitingRoom({
   );
 }
 
-// ─── In-call screen ──────────────────────────────────────────────────────────
+// ─── In-call screen ───────────────────────────────────────────────────────────
 
 function InCallScreen({
-  appointment,
-  user,
+  session,
   colors,
   insets,
   onEnd,
 }: {
-  appointment: Appointment;
-  user: any;
+  session: TelehealthSession;
   colors: any;
   insets: any;
   onEnd: () => void;
@@ -232,11 +225,9 @@ function InCallScreen({
   const [muted, setMuted] = useState(false);
   const [cameraOff, setCameraOff] = useState(false);
 
-  const url = buildJitsiUrl(appointment, user);
-
   function toggleMute() {
     impactLight();
-    webviewRef.current?.injectJavaScript(JITSI_MUTE_AUDIO);
+    webviewRef.current?.injectJavaScript(JITSI_TOGGLE_AUDIO);
     setMuted((v) => !v);
   }
 
@@ -252,21 +243,31 @@ function InCallScreen({
     onEnd();
   }
 
+  // Append Jitsi config params if the roomUrl is a plain Jitsi URL
+  const callUrl = session.roomUrl.includes("?")
+    ? session.roomUrl
+    : `${session.roomUrl}#config.prejoinPageEnabled=false&interfaceConfig.TOOLBAR_BUTTONS=[]`;
+
   return (
     <View style={styles.callContainer}>
       {/* Status bar */}
-      <LinearGradient colors={["#1e3a8a", "#1d4ed8"]} style={[styles.callStatus, { paddingTop: insets.top + 4 }]}>
+      <LinearGradient
+        colors={["#1e3a8a", "#1d4ed8"]}
+        style={[styles.callStatus, { paddingTop: insets.top + 4 }]}
+      >
         <View style={styles.callStatusLeft}>
           <View style={styles.liveDot} />
           <Text style={styles.callStatusText}>{t("inProgress")}</Text>
         </View>
-        <Text style={styles.callProviderText}>{appointment.doctorName || appointment.provider || "Your Provider"}</Text>
+        <Text style={styles.callProviderText}>
+          {session.providerName || "Your Provider"}
+        </Text>
       </LinearGradient>
 
-      {/* Video WebView */}
+      {/* Video session via Navimed room URL */}
       <WebView
         ref={webviewRef}
-        source={{ uri: url }}
+        source={{ uri: callUrl }}
         style={styles.webview}
         mediaPlaybackRequiresUserAction={false}
         allowsInlineMediaPlayback
@@ -279,9 +280,12 @@ function InCallScreen({
 
       {/* Control bar */}
       <View style={[styles.controlBar, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 12 }]}>
-        {/* Mute */}
         <Pressable
-          style={({ pressed }) => [styles.ctrlBtn, { backgroundColor: muted ? "#ef4444" : colors.surfaceSecondary }, pressed && { opacity: 0.8 }]}
+          style={({ pressed }) => [
+            styles.ctrlBtn,
+            { backgroundColor: muted ? "#ef4444" : colors.surfaceSecondary },
+            pressed && { opacity: 0.8 },
+          ]}
           onPress={toggleMute}
         >
           <Feather name={muted ? "mic-off" : "mic"} size={22} color={muted ? "#fff" : colors.text} />
@@ -290,20 +294,19 @@ function InCallScreen({
           </Text>
         </Pressable>
 
-        {/* End call */}
-        <Pressable
-          style={({ pressed }) => [styles.endCallBtn, pressed && { opacity: 0.88 }]}
-          onPress={handleEnd}
-        >
+        <Pressable style={({ pressed }) => [styles.endCallBtn, pressed && { opacity: 0.88 }]} onPress={handleEnd}>
           <LinearGradient colors={["#dc2626", "#b91c1c"]} style={styles.endCallGrad}>
             <Feather name="phone-off" size={26} color="#fff" />
           </LinearGradient>
           <Text style={[styles.ctrlLabel, { color: "#dc2626" }]}>{t("endCall")}</Text>
         </Pressable>
 
-        {/* Camera */}
         <Pressable
-          style={({ pressed }) => [styles.ctrlBtn, { backgroundColor: cameraOff ? "#ef4444" : colors.surfaceSecondary }, pressed && { opacity: 0.8 }]}
+          style={({ pressed }) => [
+            styles.ctrlBtn,
+            { backgroundColor: cameraOff ? "#ef4444" : colors.surfaceSecondary },
+            pressed && { opacity: 0.8 },
+          ]}
           onPress={toggleCamera}
         >
           <Feather name={cameraOff ? "video-off" : "video"} size={22} color={cameraOff ? "#fff" : colors.text} />
@@ -316,7 +319,7 @@ function InCallScreen({
   );
 }
 
-// ─── Visit ended ─────────────────────────────────────────────────────────────
+// ─── Visit ended ──────────────────────────────────────────────────────────────
 
 function VisitEnded({ colors, onViewSummary, onSchedule }: { colors: any; onViewSummary: () => void; onSchedule: () => void }) {
   const { t } = useI18n();
@@ -346,39 +349,56 @@ function VisitEnded({ colors, onViewSummary, onSchedule }: { colors: any; onView
   );
 }
 
-// ─── Root screen ─────────────────────────────────────────────────────────────
+// ─── Root screen ──────────────────────────────────────────────────────────────
 
 export default function TelehealthScreen() {
   const { colors } = useTheme();
   const { t } = useI18n();
-  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [phase, setPhase] = useState<VisitPhase>("list");
-  const [selectedApt, setSelectedApt] = useState<Appointment | null>(null);
+  const [selectedApt, setSelectedApt] = useState<TelehealthAppointment | null>(null);
+  const [activeSession, setActiveSession] = useState<TelehealthSession | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
+  // GET /patient/telehealth/appointments
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ["appointments"],
-    queryFn: () => api.getAppointments(),
+    queryKey: ["telehealthAppointments"],
+    queryFn: () => api.getTelehealthAppointments(),
   });
 
-  const telehealthApts = React.useMemo(() => {
-    if (!data) return [];
-    const virtual = data.filter(isTelemedicine).filter(isUpcoming);
-    if (virtual.length > 0) return virtual.sort((a, b) =>
-      new Date(a.appointmentDate || 0).getTime() - new Date(b.appointmentDate || 0).getTime()
-    );
-    return data.filter(isUpcoming).slice(0, 3);
-  }, [data]);
+  // POST /patient/telehealth/sessions/:appointmentId
+  const sessionMutation = useMutation({
+    mutationFn: (appointmentId: string) => api.createTelehealthSession(appointmentId),
+    onSuccess: (session) => {
+      setActiveSession(session);
+      setSessionError(null);
+      setPhase("incall");
+    },
+    onError: (err: Error) => {
+      setSessionError(err.message || "Unable to start session. Please try again.");
+    },
+  });
 
-  // In-call: full-screen, skip header/list layout
-  if (phase === "incall" && selectedApt) {
+  function handleJoin(apt: TelehealthAppointment) {
+    setSelectedApt(apt);
+    setSessionError(null);
+    setPhase("waiting");
+  }
+
+  function handleStartCall() {
+    if (!selectedApt?.id) return;
+    impactMedium();
+    sessionMutation.mutate(selectedApt.id);
+  }
+
+  // In-call: full-screen, no header
+  if (phase === "incall" && activeSession) {
     return (
       <InCallScreen
-        appointment={selectedApt}
-        user={user}
+        session={activeSession}
         colors={colors}
         insets={insets}
-        onEnd={() => setPhase("ended")}
+        onEnd={() => { setActiveSession(null); setPhase("ended"); }}
       />
     );
   }
@@ -403,8 +423,10 @@ export default function TelehealthScreen() {
         <WaitingRoom
           appointment={selectedApt}
           colors={colors}
-          onStart={() => { impactMedium(); setPhase("incall"); }}
-          onBack={() => setPhase("list")}
+          onStart={handleStartCall}
+          onBack={() => { setPhase("list"); setSessionError(null); sessionMutation.reset(); }}
+          isCreatingSession={sessionMutation.isPending}
+          sessionError={sessionError}
         />
       </View>
     );
@@ -435,12 +457,14 @@ export default function TelehealthScreen() {
     );
   }
 
+  const apts = data || [];
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LogoWatermark />
-      <ScreenHeader title={t("telehealth")} subtitle={`${telehealthApts.length} upcoming`} />
+      <ScreenHeader title={t("telehealth")} subtitle={`${apts.length} upcoming`} />
 
-      {telehealthApts.length === 0 ? (
+      {apts.length === 0 ? (
         <View style={styles.centered}>
           <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceSecondary }]}>
             <Feather name="monitor" size={36} color={colors.textTertiary} />
@@ -459,15 +483,10 @@ export default function TelehealthScreen() {
         </View>
       ) : (
         <FlatList
-          data={telehealthApts}
-          keyExtractor={(_, i) => i.toString()}
+          data={apts}
+          keyExtractor={(item, i) => item.id || i.toString()}
           renderItem={({ item, index }) => (
-            <AppointmentCard
-              item={item}
-              index={index}
-              colors={colors}
-              onJoin={(apt) => { setSelectedApt(apt); setPhase("waiting"); }}
-            />
+            <AppointmentCard item={item} index={index} colors={colors} onJoin={handleJoin} />
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
@@ -478,7 +497,7 @@ export default function TelehealthScreen() {
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -534,6 +553,12 @@ const styles = StyleSheet.create({
   },
   checkItemIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   checkItemText: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+  errorBanner: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    marginHorizontal: 16, marginTop: 12,
+    padding: 12, borderRadius: 10, borderWidth: 1,
+  },
+  errorBannerText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: "#dc2626" },
   waitingActions: { padding: 16, gap: 12, marginTop: 8 },
   startBtn: { borderRadius: 14, overflow: "hidden" },
   startBtnGrad: {
@@ -559,10 +584,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-around",
     paddingTop: 16, paddingHorizontal: 20,
   },
-  ctrlBtn: {
-    width: 72, alignItems: "center", gap: 6,
-    paddingVertical: 12, borderRadius: 16,
-  },
+  ctrlBtn: { width: 72, alignItems: "center", gap: 6, paddingVertical: 12, borderRadius: 16 },
   ctrlLabel: { fontSize: 11, fontFamily: "Inter_500Medium" },
   endCallBtn: { alignItems: "center", gap: 6 },
   endCallGrad: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center" },

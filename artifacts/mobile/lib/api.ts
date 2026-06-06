@@ -146,6 +146,27 @@ export interface Profile {
   insurancePolicyNumber?: string;
 }
 
+export interface TelehealthAppointment {
+  id: string;
+  appointmentDate?: string;
+  appointmentType?: string;
+  doctorName?: string;
+  provider?: string;
+  status?: string;
+  notes?: string;
+  sessionId?: string;
+}
+
+export interface TelehealthSession {
+  sessionId: string;
+  appointmentId: string;
+  roomUrl: string;
+  token?: string;
+  status: "scheduled" | "waiting" | "in-progress" | "ended";
+  providerName?: string;
+  expiresAt?: string;
+}
+
 export interface ProfileUpdateData {
   firstName?: string;
   lastName?: string;
@@ -331,6 +352,31 @@ class ApiClient {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<Bill[]>(response);
+  }
+
+  async getTelehealthAppointments(): Promise<TelehealthAppointment[]> {
+    if (this._adapter) return this._adapter.getTelehealthAppointments();
+    const response = await fetch(`${getBaseUrl()}/patient/telehealth/appointments`, {
+      headers: await this.getHeaders(),
+    });
+    return this.handleResponse<TelehealthAppointment[]>(response);
+  }
+
+  async createTelehealthSession(appointmentId: string): Promise<TelehealthSession> {
+    if (this._adapter) return this._adapter.createTelehealthSession(appointmentId);
+    const response = await fetch(`${getBaseUrl()}/patient/telehealth/sessions/${appointmentId}`, {
+      method: "POST",
+      headers: await this.getHeaders(),
+    });
+    return this.handleResponse<TelehealthSession>(response);
+  }
+
+  async getTelehealthSession(appointmentId: string): Promise<TelehealthSession> {
+    if (this._adapter) return this._adapter.getTelehealthSession(appointmentId);
+    const response = await fetch(`${getBaseUrl()}/patient/telehealth/sessions/${appointmentId}`, {
+      headers: await this.getHeaders(),
+    });
+    return this.handleResponse<TelehealthSession>(response);
   }
 }
 
