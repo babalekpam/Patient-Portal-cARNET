@@ -60,6 +60,7 @@ function RootLayoutNav() {
       <Stack.Screen name="interactions" options={{ headerShown: false }} />
       <Stack.Screen name="export-records" options={{ headerShown: false }} />
       <Stack.Screen name="health-metrics" options={{ headerShown: false }} />
+      <Stack.Screen name="telehealth" options={{ headerShown: false }} />
     </Stack>
   );
 }
