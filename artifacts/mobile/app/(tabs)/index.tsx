@@ -29,6 +29,7 @@ interface QuickAction {
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
+  { labelKey: "telehealth", icon: "video", route: "/telehealth" },
   { labelKey: "scheduleAppointment", icon: "calendar", route: "/request-appointment" },
   { labelKey: "messages", icon: "mail", route: "/messages" },
   { labelKey: "visits", icon: "clipboard", route: "/visit-summaries" },
