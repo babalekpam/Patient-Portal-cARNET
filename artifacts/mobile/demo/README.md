@@ -1,4 +1,13 @@
-# App Demo Video
+# App Demo & Ad Videos
+
+`CARNET-ad-with-demo.mp4` — the full advertising video (3 min 21 s), ready to
+upload to YouTube: a branded animated ad intro ("Innovation at the center of
+healthcare management" / "Patient records, fully digitalized"), crossfading
+into the complete app walkthrough, and closing with a CARNET end card
+(App Store / Google Play / www.navimedi.org). The intro/outro animations are
+`ad/intro.html` and `ad/outro.html`, recorded via `ad/record-ad.js` and
+stitched with ffmpeg crossfades.
+
 
 `NaviMED-app-demo.mp4` — a 2 min 51 s screen recording of the real app (Expo web build)
 walking through the full patient journey:
