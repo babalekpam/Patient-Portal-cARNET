@@ -28,3 +28,14 @@ rejecting a workflow-file update because the token lacked `workflow`.
 unavoidable, request it only through Replit Secrets, keep its scope and lifetime
 minimal, never embed it in a remote URL, and have the user revoke it immediately
 after the verified push.
+
+History rewrites cannot update GitHub-managed `refs/pull/*` references.
+
+**Why:** Rewriting and force-updating every normal branch can still leave a
+merged pull request advertising the old secret-bearing commit. A fresh mirror
+clone is required to detect this residual reference.
+
+**How to apply:** After a sensitive-data rewrite, verify every advertised ref
+from a fresh server clone. If a pull-request ref remains, GitHub Support must
+dereference the affected PR, run server garbage collection, and remove cached
+views before the data is fully purged from GitHub.
