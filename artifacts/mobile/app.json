@@ -25,11 +25,11 @@
       "entitlements": {
         "aps-environment": "production"
       },
-      "buildNumber": "35"
+      "buildNumber": "36"
     },
     "android": {
       "package": "com.argilette.navimed",
-      "versionCode": 10,
+      "versionCode": 11,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0A2540"
