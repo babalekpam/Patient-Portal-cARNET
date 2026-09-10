@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, type ViewStyle } from "react-native";
+import { useReducedMotion } from "@/lib/useReducedMotion";
 
 interface AnimatedCardProps {
   index: number;
@@ -8,12 +9,23 @@ interface AnimatedCardProps {
 }
 
 export function AnimatedCard({ index, children, style }: AnimatedCardProps) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(20)).current;
+  const reducedMotion = useReducedMotion();
+  const opacity = useRef(new Animated.Value(1)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
+  const didEnter = useRef(false);
 
   useEffect(() => {
+    if (reducedMotion) {
+      opacity.setValue(1);
+      translateY.setValue(0);
+      return;
+    }
+    if (didEnter.current) return;
+    didEnter.current = true;
     const delay = Math.min(index * 80, 600);
-    Animated.parallel([
+    // Cards stay visible to assistive technology while animating position only.
+    translateY.setValue(12);
+    const animation = Animated.parallel([
       Animated.timing(opacity, {
         toValue: 1,
         duration: 400,
@@ -26,8 +38,10 @@ export function AnimatedCard({ index, children, style }: AnimatedCardProps) {
         delay,
         useNativeDriver: true,
       }),
-    ]).start();
-  }, [index, opacity, translateY]);
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [index, opacity, translateY, reducedMotion]);
 
   return (
     <Animated.View style={[style, { opacity, transform: [{ translateY }] }]}>

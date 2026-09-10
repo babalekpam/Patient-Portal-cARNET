@@ -6,207 +6,270 @@ id = "nPAZsRwRjE2cw6TjaVlO6"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_1.png"
 type = "image"
 title = "iOS Screenshot 1 - Your Health, One App"
+logical_id = "4be298ae-3ddb-480a-92ee-7e30388f6e2d"
 
 [[outputs]]
 id = "_slavI3qKsx33IM4lSRUy"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_2.png"
 type = "image"
 title = "iOS Screenshot 2 - Multi-EHR Access"
+logical_id = "12b1c70a-2617-4a92-b571-d3eca087eae6"
 
 [[outputs]]
 id = "boroX3LrHO1JhKyy82SYP"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_3.png"
 type = "image"
 title = "iOS Screenshot 3 - Medication Reminders"
+logical_id = "0901dfe1-5b07-4316-ad0f-2299c6582b8d"
 
 [[outputs]]
 id = "UYSFXvcyAMmB9SFxD-XM_"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_4.png"
 type = "image"
 title = "iOS Screenshot 4 - AI Health Assistant"
+logical_id = "8c713f9e-9be5-49a6-9af8-dd85bd7a8fd5"
 
 [[outputs]]
 id = "h8aSyUqr3pvfyMXq_Xh3t"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_5.png"
 type = "image"
 title = "iOS Screenshot 5 - Secure and Private"
+logical_id = "2518fdbc-1f1f-479f-92fa-122a1766c5fd"
 
 [[outputs]]
 id = "QHE1daVt5LhSjrRxn_U79"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_6.png"
 type = "image"
 title = "iOS Screenshot 6 - 10 Languages"
+logical_id = "7199c096-bdfb-4919-91e1-784cbaa1c3a6"
 
 [[outputs]]
 id = "dGM9CmXjVayJNe9BfU9fj"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_7.png"
 type = "image"
 title = "iOS Screenshot 7 - Telehealth Ready"
+logical_id = "30626d4a-9d06-422f-9f8f-11e3c30a813a"
 
 [[outputs]]
 id = "7nyd3K13lGWKBQ_3QFsPT"
 uri = "file://artifacts/mobile/store-screenshots/ios/screenshot_8.png"
 type = "image"
 title = "iOS Screenshot 8 - Family Health Hub"
+logical_id = "8bd8be8a-6d71-4d90-837c-354707a8750d"
 
 [[outputs]]
 id = "G24iVdjJqbb3WSsyGtEKw"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_1.png"
 type = "image"
 title = "1 - Dashboard"
+logical_id = "ea3d8292-c531-4462-a315-8523a4843bb3"
 
 [[outputs]]
 id = "AjxMS_N7ws-F-jg8ubwtI"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_2.png"
 type = "image"
 title = "2 - Medical Records"
+logical_id = "2e0b4d27-448c-4274-9049-6c3439f8089c"
 
 [[outputs]]
 id = "9gRUZt2etuuUvQuUr5FtQ"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_3.png"
 type = "image"
 title = "3 - Medication Reminders"
+logical_id = "0e53edc7-0608-49b5-b754-938207ce545d"
 
 [[outputs]]
 id = "KzAmTDeuKkoxsVkgNVS53"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_4.png"
 type = "image"
 title = "4 - AI Health Assistant"
+logical_id = "3781a503-5636-498b-ad7e-d235ba385113"
 
 [[outputs]]
 id = "bAYREZNgHL8DmQFh-0oCt"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_5.png"
 type = "image"
 title = "5 - Telehealth"
+logical_id = "d4796e5e-d814-4bdf-9387-38e9dce167df"
 
 [[outputs]]
 id = "FmkomTmFmx-TWLfPWZLmV"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_6.png"
 type = "image"
 title = "6 - Emergency Card"
+logical_id = "774082d4-ed7e-4daa-97e7-c32638d60c43"
 
 [[outputs]]
 id = "7ineRAO-jn7FGgTiV0deC"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_7.png"
 type = "image"
 title = "7 - Health Analytics"
+logical_id = "7a03b377-ad03-4f97-8b9a-b77bc673e503"
 
 [[outputs]]
 id = "rtxMWkINlc9vItAS8YByQ"
 uri = "file://artifacts/mobile/store-screenshots/android/screenshot_8.png"
 type = "image"
 title = "8 - 10 Languages"
+logical_id = "1c025567-92ad-49ac-a3bc-35b0046c105d"
 
 [[outputs]]
 id = "IRCa3jpmhrtFm4FowAwwT"
 uri = "file://artifacts/mobile/store-screenshots/ios-screenshots.zip"
 type = "unspecified"
 title = "iOS Screenshots - 1284x2778px (App Store Ready)"
+logical_id = "f9f92678-ec11-4e1d-b1ce-e9e71e3a0659"
 
 [[outputs]]
 id = "_ru-zfM7mtbsKlfdQIMXb"
 uri = "file://artifacts/mobile/store-screenshots/android-screenshots.zip"
 type = "unspecified"
 title = "Android Play Store Screenshots (8 images - 1080x1920)"
+logical_id = "0faceecc-3c64-4402-b991-8d691dc085b4"
 
 [[outputs]]
 id = "iTWGvr6FYm1U4XNnikZHN"
 uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
 title = "CARNET App Icon (1024x1024)"
+logical_id = "e8349108-a33f-43b1-9f3c-75ab1dd49e6a"
 
 [[outputs]]
 id = "hQWq2uVuT3ylxHpLaUjuZ"
 uri = "file://artifacts/mobile/assets/images/navimed-icon-only.png"
 type = "image"
 title = "NaviMed Icon Only - transparent"
+logical_id = "ecf237eb-5080-446a-8dc1-c574a2913584"
 
 [[outputs]]
 id = "UkBslVQtsAzLyeRlTJJPn"
 uri = "file://artifacts/mobile/assets/images/navimed-logo-watermark.jpeg"
 type = "image"
 title = "NaviMed Full Logo (with name)"
+logical_id = "89f7f766-1f16-4ede-9318-a89f7f2df458"
 
 [[outputs]]
 id = "N49qMOoBMOUTNLEHJvcza"
 uri = "file://artifacts/mobile/assets/images/adaptive-icon.png"
 type = "image"
 title = "CARNET Android Adaptive Icon"
+logical_id = "777aca24-8c62-4c7d-94a8-3aa513e1395d"
 
 [[outputs]]
 id = "k-j9rF17VC0C1cFapGezz"
 uri = "file://artifacts/mobile/assets/images/carnet-feature-graphic.png"
 type = "image"
 title = "CARNET Feature Graphic (1024x500) - Google Play"
+logical_id = "a2f7baa2-d5cc-4db5-b98f-e8ebb8d62ed2"
 
 [[outputs]]
 id = "vl-NeJpG2zqA65yiGoDQu"
 uri = "file://artifacts/mobile/assets/images/carnet-logo-square.png"
 type = "image"
 title = "NaviMed Logo Square (512x512)"
+logical_id = "81443ca7-af74-4466-81d3-72dbf528233c"
 
 [[outputs]]
 id = "nOIhUvBy4cPXGh1h1935w"
 uri = "file://artifacts/mobile/assets/images/splash-icon.png"
 type = "image"
 title = "CARNET Splash Screen Icon"
+logical_id = "370f6e75-2f5d-4a0a-a76a-a9945f1cce80"
 
 [[outputs]]
 id = "Bb1QgfWePgH23pVu3p4YR"
 uri = "file://artifacts/mobile/store-screenshots/google-play-icon.png"
 type = "image"
 title = "Google Play Store Icon (512x512)"
+logical_id = "ecdfe765-727d-4223-88a1-47dd8f4dfd03"
 
 [[outputs]]
 id = "enYCVK7X0rr044eg0xYSY"
 uri = "file://artifacts/mobile/store-screenshots/feature-graphic.png"
 type = "image"
 title = "Google Play Feature Graphic (1024x500)"
+logical_id = "ec0d50d4-d6c0-43f2-985d-5f4a68ca1a4c"
 
 [[outputs]]
 id = "s46h1ZLBHBa4vymoxB5Ac"
 uri = "file://artifacts/mobile/store-screenshots/feature-graphic-1.png"
 type = "image"
 title = "1 - CARNET Patient Portal"
+logical_id = "d35bb950-7ed4-436d-b82e-65e858642154"
 
 [[outputs]]
 id = "M0R0ittmsyjsI2wiPa1kt"
 uri = "file://artifacts/mobile/store-screenshots/feature-graphic-2.png"
 type = "image"
 title = "2 - Multi-EHR Access"
+logical_id = "0a533e1e-fd80-45f6-8aeb-d6bbce25206c"
 
 [[outputs]]
 id = "k9Kb815TdmW_FEPbDhC3A"
 uri = "file://artifacts/mobile/store-screenshots/feature-graphic-3.png"
 type = "image"
 title = "3 - Medication Reminders"
+logical_id = "1b22b097-f103-4ba6-8cc7-42935465d0bf"
 
 [[outputs]]
 id = "8uc8jGujzRqHDRafZ3Fvw"
 uri = "file://artifacts/mobile/store-screenshots/feature-graphic-4.png"
 type = "image"
 title = "4 - AI Health Assistant"
+logical_id = "2ee8f753-3b81-48ab-bc18-ba49a699a3c4"
 
 [[outputs]]
 id = "vdqPRhToC6RzcbI-KcnQF"
 uri = "file://artifacts/mobile/store-screenshots/feature-graphic-5.png"
 type = "image"
 title = "5 - Telehealth"
+logical_id = "3330f81d-b84c-42a8-8a94-72436f12887c"
 
 [[outputs]]
 id = "_gbIeYaGna_jzU_b7u8Yq"
 uri = "file://artifacts/mobile/store-screenshots/feature-graphic-6.png"
 type = "image"
 title = "6 - Family Health Hub"
+logical_id = "3a5bc710-1dbc-4e7a-bf53-3248f0ba0c31"
 
 [[outputs]]
 id = "ug23na8R-Bru2kP13ygjs"
 uri = "file://artifacts/mobile/store-screenshots/feature-graphic-7.png"
 type = "image"
 title = "7 - Emergency Card"
+logical_id = "85ab87a9-dfeb-4da6-a026-b207c3821228"
 
 [[outputs]]
 id = "8O5nPzMEiGDqnIDDEM7ob"
 uri = "file://artifacts/mobile/store-screenshots/feature-graphic-8.png"
 type = "image"
 title = "8 - 10 Languages"
+logical_id = "3bddcd42-e9f0-43b1-9405-54e573d6f0f6"
+
+[[outputs]]
+id = "kEF6EU_h8ntxmxgwjZ6LD"
+uri = "file://screenshots/carnet-landing-preview.jpg"
+type = "image"
+title = "CARNET by NaviMED opening screen"
+description = "Exact 402 × 874 capture from the running app. It automatically transitions to Sign In after 1.8 seconds, or immediately when Continue to sign in is pressed."
+logical_id = "05aac458-5ca5-4f38-b415-a17b614e3f0a"
+content_hash = "sha256:4a1bb5f82f2e2369096c34197b2401c2924356682676de37d45feb128d3271ed"
+size = 12544
+mtime_ms = 1788911890664
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:1efedfc6-3f0b-4bdd-a864-d58794b1a980/05aac458-5ca5-4f38-b415-a17b614e3f0a/884f1a7f-c781-44e9-adb3-80b050d7fe8b"
+storage_version_token = "1788911900175633"
+content_type = "image/jpeg"
+
+[[outputs]]
+id = "4jRwkioPm5etfbQB2QmsS"
+uri = "file://screenshots/carnet-animated-landing-final.jpg"
+type = "image"
+title = "Animated CARNET by NaviMED landing"
+description = "Exact running-app frame at 402 × 874. Clouds drift, the car travels toward the clinic, the wordmark reveals, then the app moves to Sign In after 3.2 seconds."
+logical_id = "c4916d96-9afe-4204-a1c9-5608557eb8fd"
+content_hash = "sha256:0c2b6e121422c30a055aebc48e72bfa336d487b452791494b37729e2cc42f32c"
+size = 20515
+mtime_ms = 1788912394833
+storage_uri = "gcs://replit-rams-assets-picard/rams/assets/repl:1efedfc6-3f0b-4bdd-a864-d58794b1a980/c4916d96-9afe-4204-a1c9-5608557eb8fd/24f4a5f2-efa7-488c-a5bd-49469c66be08"
+storage_version_token = "1788912410784148"
+content_type = "image/jpeg"

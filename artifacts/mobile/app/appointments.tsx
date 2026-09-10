@@ -3,12 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { AccessiblePressable as Pressable } from "@/components/AccessiblePressable";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SearchBar } from "@/components/SearchBar";
@@ -123,6 +124,7 @@ type ViewMode = "calendar" | "list";
 
 export default function AppointmentsScreen() {
   const { colors } = useTheme();
+  const a11y = useAccessibilityLabels();
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -168,6 +170,9 @@ export default function AppointmentsScreen() {
 
   const viewToggle = (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={viewMode === "calendar" ? "Show appointment list" : "Show appointment calendar"}
+      accessibilityHint="Changes the appointment view"
       style={({ pressed }) => [styles.viewToggle, pressed && { opacity: 0.7 }]}
       onPress={toggleViewMode}
     >
@@ -179,7 +184,7 @@ export default function AppointmentsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ScreenHeader title="Appointments" rightElement={viewToggle} />
-        <ListSkeleton />
+        <View accessibilityRole="progressbar" accessibilityLabel={a11y.loading} aria-busy={true}><ListSkeleton /></View>
       </View>
     );
   }
@@ -190,10 +195,10 @@ export default function AppointmentsScreen() {
         <ScreenHeader title="Appointments" rightElement={viewToggle} />
         <View style={styles.centered}>
           <Feather name="wifi-off" size={36} color={colors.textTertiary} />
-          <Text style={[styles.errorTitle, { color: colors.text }]}>Unable to Load</Text>
-          <Text style={[styles.errorText, { color: colors.textSecondary }]}>{(error as Error).message}</Text>
-          <Pressable style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()}>
-            <Text style={styles.retryText}>Try Again</Text>
+          <Text accessibilityRole="header" style={[styles.errorTitle, { color: colors.text }]}>Unable to Load</Text>
+          <Text accessibilityRole="alert" aria-live="assertive" style={[styles.errorText, { color: colors.textSecondary }]}>{(error as Error).message}</Text>
+          <Pressable accessibilityLabel={a11y.refresh} style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()}>
+            <Text style={[styles.retryText, { color: colors.onPrimary }]}>Try Again</Text>
           </Pressable>
         </View>
       </View>
@@ -234,7 +239,7 @@ export default function AppointmentsScreen() {
           </View>
         }
         ListEmptyComponent={<EmptyState forDate={viewMode === "calendar"} colors={colors} />}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl accessibilityLabel={a11y.refresh} refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
       />
     </View>
   );
@@ -267,7 +272,7 @@ const styles = StyleSheet.create({
   detailItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   detailText: { fontSize: 13, fontFamily: "Inter_400Regular" },
   viewToggle: {
-    width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.2)",
+    width: 44, height: 44, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center", justifyContent: "center",
   },
   emptyState: { alignItems: "center", paddingTop: 60, gap: 12 },

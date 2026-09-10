@@ -4,12 +4,13 @@ import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificati
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { AccessiblePressable as Pressable } from "@/components/AccessiblePressable";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { AnimatedCard } from "@/components/AnimatedCard";
 import { ListSkeleton } from "@/components/SkeletonLoader";
@@ -31,13 +32,6 @@ interface TimelineEvent {
   iconColor: string;
   iconBg: string;
 }
-
-const EVENT_CONFIG: Record<EventType, { icon: React.ComponentProps<typeof Feather>["name"]; color: string; bg: string }> = {
-  appointment: { icon: "calendar", color: "#1a6fbf", bg: "#e8f2fd" },
-  prescription: { icon: "package", color: "#7c3aed", bg: "#ede9fe" },
-  lab: { icon: "bar-chart-2", color: "#059669", bg: "#d1fae5" },
-  message: { icon: "mail", color: "#d97706", bg: "#fef3c7" },
-};
 
 const FILTER_OPTIONS: Array<{ key: EventType | "all"; icon: React.ComponentProps<typeof Feather>["name"] }> = [
   { key: "all", icon: "layers" },
@@ -74,14 +68,14 @@ function TimelineCard({ event, index, colors, isLast }: { event: TimelineEvent; 
         </View>
         <View style={[styles.eventCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
           <View style={styles.eventHeader}>
-            <Text style={[styles.eventTitle, { color: colors.text }]} numberOfLines={1}>{event.title}</Text>
+            <Text style={[styles.eventTitle, { color: colors.text }]}>{event.title}</Text>
             {event.status && (
               <View style={[styles.statusPill, { backgroundColor: event.iconBg }]}>
                 <Text style={[styles.statusText, { color: event.iconColor }]}>{event.status}</Text>
               </View>
             )}
           </View>
-          {event.subtitle && <Text style={[styles.eventSubtitle, { color: colors.textSecondary }]} numberOfLines={2}>{event.subtitle}</Text>}
+          {event.subtitle && <Text style={[styles.eventSubtitle, { color: colors.textSecondary }]}>{event.subtitle}</Text>}
           <Text style={[styles.eventDate, { color: colors.textTertiary }]}>{dt.full}{dt.time ? ` · ${dt.time}` : ""}</Text>
         </View>
       </View>
@@ -92,6 +86,7 @@ function TimelineCard({ event, index, colors, isLast }: { event: TimelineEvent; 
 export default function HealthTimelineScreen() {
   const { colors } = useTheme();
   const { t } = useI18n();
+  const a11y = useAccessibilityLabels();
   const [filter, setFilter] = useState<EventType | "all">("all");
 
   const { data: appointments, isLoading: loadingAppts, refetch: refetchAppts } = useQuery({
@@ -118,7 +113,12 @@ export default function HealthTimelineScreen() {
 
   const events = useMemo(() => {
     const items: TimelineEvent[] = [];
-    const cfg = EVENT_CONFIG;
+    const cfg: Record<EventType, { icon: React.ComponentProps<typeof Feather>["name"]; color: string; bg: string }> = {
+      appointment: { icon: "calendar", color: colors.primary, bg: colors.primaryLight },
+      prescription: { icon: "package", color: colors.info, bg: colors.infoLight },
+      lab: { icon: "bar-chart-2", color: colors.success, bg: colors.successLight },
+      message: { icon: "mail", color: colors.warning, bg: colors.warningLight },
+    };
 
     appointments?.forEach((a, i) => {
       items.push({
@@ -177,7 +177,7 @@ export default function HealthTimelineScreen() {
 
     items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return items;
-  }, [appointments, prescriptions, labs, messages, t]);
+  }, [appointments, prescriptions, labs, messages, t, colors]);
 
   const filtered = filter === "all" ? events : events.filter((e) => e.type === filter);
 
@@ -192,7 +192,7 @@ export default function HealthTimelineScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ScreenHeader title={t("healthTimeline")} />
-        <ListSkeleton />
+        <View accessibilityRole="progressbar" accessibilityLabel={a11y.loading} aria-busy={true}><ListSkeleton /></View>
       </View>
     );
   }
@@ -206,14 +206,16 @@ export default function HealthTimelineScreen() {
         {FILTER_OPTIONS.map((opt) => (
           <Pressable
             key={opt.key}
+            accessibilityLabel={`Filter timeline by ${opt.key === "all" ? t("all") : t(opt.key === "appointment" ? "appointments" : opt.key === "prescription" ? "prescriptions" : opt.key === "lab" ? "labResults" : "messages")}`}
+            accessibilityState={{ selected: filter === opt.key }}
             style={[
               styles.filterChip,
               { backgroundColor: filter === opt.key ? colors.primary : colors.surfaceSecondary, borderColor: filter === opt.key ? colors.primary : colors.border },
             ]}
             onPress={() => { impactLight(); setFilter(opt.key); }}
           >
-            <Feather name={opt.icon} size={14} color={filter === opt.key ? "#fff" : colors.textSecondary} />
-            <Text style={[styles.filterText, { color: filter === opt.key ? "#fff" : colors.textSecondary }]}>
+            <Feather name={opt.icon} size={14} color={filter === opt.key ? colors.onPrimary : colors.textSecondary} />
+            <Text style={[styles.filterText, { color: filter === opt.key ? colors.onPrimary : colors.textSecondary }]}>
               {opt.key === "all" ? t("all") : t(opt.key === "appointment" ? "appointments" : opt.key === "prescription" ? "prescriptions" : opt.key === "lab" ? "labResults" : "messages")}
             </Text>
           </Pressable>
@@ -226,7 +228,7 @@ export default function HealthTimelineScreen() {
         renderItem={({ item, index }) => <TimelineCard event={item} index={index} colors={colors} isLast={index === filtered.length - 1} />}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={false} onRefresh={handleRefresh} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl accessibilityLabel={a11y.refresh} refreshing={false} onRefresh={handleRefresh} tintColor={colors.primary} />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Feather name="clock" size={40} color={colors.textTertiary} />
@@ -242,7 +244,7 @@ export default function HealthTimelineScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   filterRow: { flexDirection: "row", paddingHorizontal: 16, gap: 8, paddingBottom: 8, flexWrap: "wrap" },
-  filterChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  filterChip: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 22, borderWidth: 1 },
   filterText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   listContent: { padding: 16, paddingTop: 8 },
   timelineRow: { flexDirection: "row", gap: 12, marginBottom: 4 },

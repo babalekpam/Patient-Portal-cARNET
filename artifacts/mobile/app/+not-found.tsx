@@ -12,7 +12,7 @@ export default function NotFoundScreen() {
         <View style={[styles.iconWrap, { backgroundColor: colors.surfaceSecondary }]}>
           <Feather name="map" size={32} color={colors.textTertiary} />
         </View>
-        <Text style={[styles.title, { color: colors.text }]}>Page not found</Text>
+        <Text accessibilityRole="header" style={[styles.title, { color: colors.text }]}>Page not found</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>This screen doesn&apos;t exist.</Text>
         <Link href="/" style={[styles.link, { backgroundColor: colors.primaryLight }]}>
           <Text style={[styles.linkText, { color: colors.primary }]}>Go to home screen</Text>
@@ -48,9 +48,11 @@ const styles = StyleSheet.create({
   },
   link: {
     marginTop: 15,
+    minHeight: 44,
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 12,
+    justifyContent: "center",
   },
   linkText: {
     fontSize: 15,

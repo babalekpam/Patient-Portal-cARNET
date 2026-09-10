@@ -1,4 +1,5 @@
 import React from "react";
+import { Platform } from "react-native";
 import Svg, {
   Defs,
   LinearGradient,
@@ -18,7 +19,7 @@ interface NavimedLogoProps {
 
 export default function NavimedLogo({ size = 120 }: NavimedLogoProps) {
   return (
-    <Svg viewBox="0 0 512 512" width={size} height={size}>
+    <Svg viewBox="0 0 512 512" width={size} height={size} {...(Platform.OS === "web" ? { role: "img" as const, "aria-label": "CARNET by NaviMED" } : { accessible: true, accessibilityRole: "image" as const, accessibilityLabel: "CARNET by NaviMED" })}>
       <Defs>
         <LinearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
           <Stop offset="0%" stopColor="#0A2540" stopOpacity={1} />
@@ -72,7 +73,7 @@ export default function NavimedLogo({ size = 120 }: NavimedLogoProps) {
         <Rect x={334} y={234} width={24} height={60} rx={6} fill="white" />
       </G>
       <SvgText x={256} y={463} fontFamily="Georgia, serif" fontSize={38} fontWeight="700" letterSpacing={2} textAnchor="middle" fill="white" opacity={0.95}>CARNET</SvgText>
-      <SvgText x={256} y={490} fontFamily="Arial, sans-serif" fontSize={14} fontWeight="400" letterSpacing={4} textAnchor="middle" fill="#1A8FE3" opacity={0.9}>by Argilette</SvgText>
+      <SvgText x={256} y={490} fontFamily="Arial, sans-serif" fontSize={14} fontWeight="400" letterSpacing={4} textAnchor="middle" fill="#1A8FE3" opacity={0.9}>by NaviMED</SvgText>
       <Line x1={196} y1={497} x2={316} y2={497} stroke="#1A8FE3" strokeWidth={1.5} opacity={0.5} />
     </Svg>
   );

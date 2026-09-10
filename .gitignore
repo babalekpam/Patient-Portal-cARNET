@@ -47,3 +47,9 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Leaked Google Play service-account key (use artifacts/mobile/credentials/ instead)
+attached_assets/carnet-498712-*.json
+
+# Apple private keys must not be committed.
+*.p8

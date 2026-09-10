@@ -8,7 +8,7 @@ const ko: Record<string, string> = {
   hospitalOptional: "병원/클리닉 (선택사항)",
   yourHospitalName: "병원 이름",
   accessRecords: "의료 기록에 안전하게 접근하세요",
-  dataEncrypted: "데이터는 암호화되어 안전합니다",
+  dataEncrypted: "암호화된 연결입니다. 작업을 마치면 로그아웃하세요.",
   home: "홈",
   profile: "프로필",
   appointments: "예약",

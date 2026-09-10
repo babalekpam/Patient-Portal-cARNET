@@ -8,7 +8,7 @@ const pt: Record<string, string> = {
   hospitalOptional: "Hospital / Clínica (opcional)",
   yourHospitalName: "Nome do seu hospital",
   accessRecords: "Acesse seus registros médicos com segurança",
-  dataEncrypted: "Seus dados estão criptografados e seguros",
+  dataEncrypted: "Conexão criptografada. Saia quando terminar.",
   home: "Início",
   profile: "Perfil",
   appointments: "Consultas",

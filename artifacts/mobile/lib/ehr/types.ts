@@ -1,5 +1,6 @@
 import type {
   Appointment,
+  AppointmentBookingData,
   AppointmentRequest,
   Bill,
   LabResult,
@@ -16,6 +17,7 @@ import type {
 
 export interface EHRAdapter {
   readonly providerId: string;
+  readonly sessionKey: string;
 
   login(credentials: LoginCredentials): Promise<LoginResponse>;
   forgotPassword(email: string): Promise<any>;
@@ -24,6 +26,7 @@ export interface EHRAdapter {
   updateProfile(data: ProfileUpdateData): Promise<Profile>;
 
   getAppointments(): Promise<Appointment[]>;
+  bookAppointment(data: AppointmentBookingData): Promise<Appointment>;
   requestAppointment(data: AppointmentRequest): Promise<any>;
 
   getPrescriptions(): Promise<Prescription[]>;
@@ -38,6 +41,7 @@ export interface EHRAdapter {
   getTelehealthSession(appointmentId: string): Promise<TelehealthSession>;
 
   setToken(token: string): void;
+  setLoginContext(response: LoginResponse): void;
   clearToken(): void;
 }
 

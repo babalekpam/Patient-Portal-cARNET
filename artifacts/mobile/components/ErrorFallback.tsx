@@ -2,9 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { reloadAppAsync } from "expo";
 import React, { useState } from "react";
 import {
-  Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +10,8 @@ import {
   useColorScheme,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Modal } from "@/components/AccessibleModal";
+import { Pressable } from "@/components/AccessiblePressable";
 
 export type ErrorFallbackProps = {
   error: Error;
@@ -28,8 +28,8 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
     backgroundSecondary: isDark ? "#1C1C1E" : "#F2F2F7",
     text: isDark ? "#FFFFFF" : "#000000",
     textSecondary: isDark ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.7)",
-    link: "#007AFF",
-    buttonText: "#FFFFFF",
+    link: isDark ? "#409CFF" : "#005FCC",
+    buttonText: isDark ? "#061626" : "#FFFFFF",
   };
 
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -105,6 +105,7 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
 
       {__DEV__ ? (
         <Modal
+          accessibilityLabel="Error details"
           visible={isModalVisible}
           animationType="slide"
           transparent={true}

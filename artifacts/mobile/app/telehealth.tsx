@@ -7,13 +7,14 @@ import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { Pressable } from "@/components/AccessiblePressable";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import WebView from "react-native-webview";
 import { AnimatedCard } from "@/components/AnimatedCard";
@@ -72,8 +73,8 @@ function AppointmentCard({
     <AnimatedCard index={index}>
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
         <LinearGradient colors={["#2563eb", "#1d4ed8"]} style={styles.badge} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-          <Feather name="video" size={12} color="#fff" />
-          <Text style={styles.badgeText}>Virtual Visit</Text>
+          <Feather name="video" size={12} color={colors.whiteText} />
+          <Text style={[styles.badgeText, { color: colors.whiteText }]}>Virtual Visit</Text>
         </LinearGradient>
 
         <View style={styles.cardRow}>
@@ -106,9 +107,10 @@ function AppointmentCard({
         <Pressable
           style={({ pressed }) => [styles.joinBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
           onPress={() => { impactMedium(); onJoin(item); }}
+          accessibilityRole="button"
         >
-          <Feather name="video" size={16} color="#fff" />
-          <Text style={styles.joinBtnText}>{t("joinVisit")}</Text>
+          <Feather name="video" size={16} color={colors.onPrimary} />
+          <Text style={[styles.joinBtnText, { color: colors.onPrimary }]}>{t("joinVisit")}</Text>
         </Pressable>
       </View>
     </AnimatedCard>
@@ -146,14 +148,14 @@ function WaitingRoom({
 
       <LinearGradient colors={["#2563eb", "#1d4ed8", "#1e40af"]} style={styles.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
         <View style={styles.heroIconCircle}>
-          <Feather name="video" size={40} color="#fff" />
+          <Feather name="video" size={40} color={colors.whiteText} />
         </View>
-        <Text style={styles.heroTitle}>{t("waitingRoom")}</Text>
-        <Text style={styles.heroSub}>{t("waitingRoomText")}</Text>
+        <Text style={[styles.heroTitle, { color: colors.whiteText }]}>{t("waitingRoom")}</Text>
+        <Text style={[styles.heroSub, { color: colors.onPrimaryMuted }]}>{t("waitingRoomText")}</Text>
         {appointment.doctorName || appointment.provider ? (
           <View style={styles.providerPill}>
-            <Feather name="user" size={13} color="#fff" />
-            <Text style={styles.providerPillText}>{appointment.doctorName || appointment.provider}</Text>
+            <Feather name="user" size={13} color={colors.whiteText} />
+            <Text style={[styles.providerPillText, { color: colors.whiteText }]}>{appointment.doctorName || appointment.provider}</Text>
           </View>
         ) : null}
       </LinearGradient>
@@ -172,9 +174,9 @@ function WaitingRoom({
       </View>
 
       {sessionError ? (
-        <View style={[styles.errorBanner, { backgroundColor: "#fef2f2", borderColor: "#fecaca" }]}>
-          <Feather name="alert-circle" size={16} color="#dc2626" />
-          <Text style={styles.errorBannerText}>{sessionError}</Text>
+        <View style={[styles.errorBanner, { backgroundColor: colors.dangerLight, borderColor: colors.danger }]} accessibilityRole="alert" accessibilityLiveRegion="assertive" aria-live="assertive">
+          <Feather name="alert-circle" size={16} color={colors.danger} />
+          <Text style={[styles.errorBannerText, { color: colors.danger }]}>{sessionError}</Text>
         </View>
       ) : null}
 
@@ -183,22 +185,25 @@ function WaitingRoom({
           style={({ pressed }) => [styles.startBtn, (isCreatingSession || !!sessionError) && { opacity: 0.6 }, pressed && { opacity: 0.88 }]}
           onPress={onStart}
           disabled={isCreatingSession}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: isCreatingSession, busy: isCreatingSession }}
         >
           <LinearGradient colors={["#2563eb", "#1d4ed8"]} style={styles.startBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
             {isCreatingSession ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={colors.whiteText} size="small" />
             ) : (
-              <Feather name="video" size={20} color="#fff" />
+              <Feather name="video" size={20} color={colors.whiteText} />
             )}
-            <Text style={styles.startBtnText}>
+            <Text style={[styles.startBtnText, { color: colors.whiteText }]}>
               {isCreatingSession ? "Connecting..." : t("joinVisit")}
             </Text>
           </LinearGradient>
         </Pressable>
 
         <Pressable
-          style={({ pressed }) => [styles.backBtn, { borderColor: colors.borderLight }, pressed && { opacity: 0.7 }]}
+          style={({ pressed }) => [styles.backBtn, { borderColor: colors.controlBorder }, pressed && { opacity: 0.7 }]}
           onPress={() => { impactLight(); onBack(); }}
+          accessibilityRole="button"
         >
           <Text style={[styles.backBtnText, { color: colors.textSecondary }]}>Go Back</Text>
         </Pressable>
@@ -227,13 +232,17 @@ function InCallScreen({
 
   function toggleMute() {
     impactLight();
-    webviewRef.current?.injectJavaScript(JITSI_TOGGLE_AUDIO);
+    if (Platform.OS !== "web") {
+      webviewRef.current?.injectJavaScript(JITSI_TOGGLE_AUDIO);
+    }
     setMuted((v) => !v);
   }
 
   function toggleCamera() {
     impactLight();
-    webviewRef.current?.injectJavaScript(JITSI_TOGGLE_VIDEO);
+    if (Platform.OS !== "web") {
+      webviewRef.current?.injectJavaScript(JITSI_TOGGLE_VIDEO);
+    }
     setCameraOff((v) => !v);
   }
 
@@ -243,10 +252,37 @@ function InCallScreen({
     onEnd();
   }
 
-  // Append Jitsi config params if the roomUrl is a plain Jitsi URL
+  // Validate the server-provided room URL: only allow secure (https) origins.
+  let roomOrigin: string | null = null;
+  try {
+    const parsed = new URL(session.roomUrl);
+    if (parsed.protocol === "https:") {
+      roomOrigin = parsed.origin;
+    }
+  } catch {
+    roomOrigin = null;
+  }
+
+  // On native we hide Jitsi's own toolbar and drive controls from the native
+  // control bar via injected JS. On web we keep Jitsi's in-iframe controls,
+  // since cross-origin scripting of the iframe is not possible.
   const callUrl = session.roomUrl.includes("?")
     ? session.roomUrl
-    : `${session.roomUrl}#config.prejoinPageEnabled=false&interfaceConfig.TOOLBAR_BUTTONS=[]`;
+    : Platform.OS === "web"
+      ? `${session.roomUrl}#config.prejoinPageEnabled=false`
+      : `${session.roomUrl}#config.prejoinPageEnabled=false&interfaceConfig.TOOLBAR_BUTTONS=[]`;
+
+  if (!roomOrigin) {
+    return (
+      <View style={[styles.callContainer, styles.callInvalid, { backgroundColor: colors.background }]}>
+        <Feather name="alert-triangle" size={40} color="#dc2626" />
+        <Text style={[styles.callInvalidText, { color: colors.text }]}>{t("error")}</Text>
+        <Pressable style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={handleEnd} accessibilityRole="button">
+          <Text style={[styles.retryText, { color: colors.onPrimary }]}>{t("endCall")}</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.callContainer}>
@@ -257,63 +293,81 @@ function InCallScreen({
       >
         <View style={styles.callStatusLeft}>
           <View style={styles.liveDot} />
-          <Text style={styles.callStatusText}>{t("inProgress")}</Text>
+          <Text style={[styles.callStatusText, { color: colors.whiteText }]}>{t("inProgress")}</Text>
         </View>
-        <Text style={styles.callProviderText}>
+        <Text style={[styles.callProviderText, { color: colors.onPrimaryMuted }]}>
           {session.providerName || "Your Provider"}
         </Text>
       </LinearGradient>
 
       {/* Video session via Navimed room URL */}
-      <WebView
-        ref={webviewRef}
-        source={{ uri: callUrl }}
-        style={styles.webview}
-        mediaPlaybackRequiresUserAction={false}
-        allowsInlineMediaPlayback
-        javaScriptEnabled
-        domStorageEnabled
-        mediaCapturePermissionGrantType="grant"
-        originWhitelist={["*"]}
-        allowsFullscreenVideo
-      />
+      {Platform.OS === "web" ? (
+        <iframe
+          src={callUrl}
+          style={{ flex: 1, border: "none", width: "100%", height: "100%" }}
+          allow="camera; microphone; fullscreen; display-capture; autoplay"
+          title="Telehealth video visit"
+        />
+      ) : (
+        <WebView
+          ref={webviewRef}
+          source={{ uri: callUrl }}
+          style={styles.webview}
+          mediaPlaybackRequiresUserAction={false}
+          allowsInlineMediaPlayback
+          javaScriptEnabled
+          domStorageEnabled
+          mediaCapturePermissionGrantType="grant"
+          originWhitelist={[roomOrigin]}
+          allowsFullscreenVideo
+        />
+      )}
 
-      {/* Control bar */}
+      {/* Control bar. On web the call's own (Jitsi) controls are used for
+          mute/camera, so we only surface End Call here. */}
       <View style={[styles.controlBar, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 12 }]}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.ctrlBtn,
-            { backgroundColor: muted ? "#ef4444" : colors.surfaceSecondary },
-            pressed && { opacity: 0.8 },
-          ]}
-          onPress={toggleMute}
-        >
-          <Feather name={muted ? "mic-off" : "mic"} size={22} color={muted ? "#fff" : colors.text} />
-          <Text style={[styles.ctrlLabel, { color: muted ? "#fff" : colors.textSecondary }]}>
-            {muted ? t("unmute") : t("mute")}
-          </Text>
-        </Pressable>
+        {Platform.OS !== "web" && (
+          <Pressable
+            style={({ pressed }) => [
+              styles.ctrlBtn,
+              { backgroundColor: muted ? colors.danger : colors.surfaceSecondary },
+              pressed && { opacity: 0.8 },
+            ]}
+            onPress={toggleMute}
+            accessibilityRole="button"
+            accessibilityState={{ selected: muted }}
+          >
+            <Feather name={muted ? "mic-off" : "mic"} size={22} color={muted ? colors.onPrimary : colors.text} />
+            <Text style={[styles.ctrlLabel, { color: muted ? colors.onPrimary : colors.textSecondary }]}>
+              {muted ? t("unmute") : t("mute")}
+            </Text>
+          </Pressable>
+        )}
 
-        <Pressable style={({ pressed }) => [styles.endCallBtn, pressed && { opacity: 0.88 }]} onPress={handleEnd}>
+        <Pressable style={({ pressed }) => [styles.endCallBtn, pressed && { opacity: 0.88 }]} onPress={handleEnd} accessibilityRole="button">
           <LinearGradient colors={["#dc2626", "#b91c1c"]} style={styles.endCallGrad}>
-            <Feather name="phone-off" size={26} color="#fff" />
+            <Feather name="phone-off" size={26} color={colors.whiteText} />
           </LinearGradient>
           <Text style={[styles.ctrlLabel, { color: "#dc2626" }]}>{t("endCall")}</Text>
         </Pressable>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.ctrlBtn,
-            { backgroundColor: cameraOff ? "#ef4444" : colors.surfaceSecondary },
-            pressed && { opacity: 0.8 },
-          ]}
-          onPress={toggleCamera}
-        >
-          <Feather name={cameraOff ? "video-off" : "video"} size={22} color={cameraOff ? "#fff" : colors.text} />
-          <Text style={[styles.ctrlLabel, { color: cameraOff ? "#fff" : colors.textSecondary }]}>
-            {t("camera")}
-          </Text>
-        </Pressable>
+        {Platform.OS !== "web" && (
+          <Pressable
+            style={({ pressed }) => [
+              styles.ctrlBtn,
+              { backgroundColor: cameraOff ? colors.danger : colors.surfaceSecondary },
+              pressed && { opacity: 0.8 },
+            ]}
+            onPress={toggleCamera}
+            accessibilityRole="button"
+            accessibilityState={{ selected: cameraOff }}
+          >
+            <Feather name={cameraOff ? "video-off" : "video"} size={22} color={cameraOff ? colors.onPrimary : colors.text} />
+            <Text style={[styles.ctrlLabel, { color: cameraOff ? colors.onPrimary : colors.textSecondary }]}>
+              {t("camera")}
+            </Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -327,20 +381,22 @@ function VisitEnded({ colors, onViewSummary, onSchedule }: { colors: any; onView
     <View style={[styles.endedWrap, { backgroundColor: colors.background }]}>
       <LogoWatermark />
       <View style={styles.endedContent}>
-        <LinearGradient colors={["#22c55e", "#16a34a"]} style={styles.endedIcon}>
-          <Feather name="check" size={44} color="#fff" />
+        <LinearGradient colors={[colors.success, colors.success]} style={styles.endedIcon}>
+          <Feather name="check" size={44} color={colors.onPrimary} />
         </LinearGradient>
         <Text style={[styles.endedTitle, { color: colors.text }]}>{t("visitEnded")}</Text>
         <Text style={[styles.endedSub, { color: colors.textSecondary }]}>{t("visitEndedText")}</Text>
         <Pressable
           style={({ pressed }) => [styles.endedBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
           onPress={onViewSummary}
+          accessibilityRole="button"
         >
-          <Text style={styles.endedBtnText}>{t("viewVisitSummary")}</Text>
+          <Text style={[styles.endedBtnText, { color: colors.onPrimary }]}>{t("viewVisitSummary")}</Text>
         </Pressable>
         <Pressable
           style={({ pressed }) => [styles.endedBtnOutline, { borderColor: colors.primary }, pressed && { opacity: 0.7 }]}
           onPress={onSchedule}
+          accessibilityRole="button"
         >
           <Text style={[styles.endedBtnOutlineText, { color: colors.primary }]}>{t("scheduleFollowUp")}</Text>
         </Pressable>
@@ -434,7 +490,7 @@ export default function TelehealthScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]} accessibilityState={{ busy: true }} aria-busy={true}>
         <ScreenHeader title={t("telehealth")} />
         <ListSkeleton />
       </View>
@@ -449,8 +505,8 @@ export default function TelehealthScreen() {
           <Feather name="wifi-off" size={36} color={colors.textTertiary} />
           <Text style={[styles.errorTitle, { color: colors.text }]}>Unable to Load</Text>
           <Text style={[styles.errorText, { color: colors.textSecondary }]}>{(error as Error).message}</Text>
-          <Pressable style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()}>
-            <Text style={styles.retryText}>Try Again</Text>
+          <Pressable style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()} accessibilityRole="button">
+            <Text style={[styles.retryText, { color: colors.onPrimary }]}>Try Again</Text>
           </Pressable>
         </View>
       </View>
@@ -476,9 +532,10 @@ export default function TelehealthScreen() {
           <Pressable
             style={({ pressed }) => [styles.scheduleBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
             onPress={() => router.push("/request-appointment")}
+            accessibilityRole="button"
           >
-            <Feather name="plus" size={16} color="#fff" />
-            <Text style={styles.scheduleBtnText}>Schedule Visit</Text>
+            <Feather name="plus" size={16} color={colors.onPrimary} />
+            <Text style={[styles.scheduleBtnText, { color: colors.onPrimary }]}>Schedule Visit</Text>
           </Pressable>
         </View>
       ) : (
@@ -514,7 +571,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 5,
     alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
   },
-  badgeText: { color: "#fff", fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   cardRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   iconBox: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   cardMeta: { flex: 1, gap: 2 },
@@ -527,7 +584,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 8, borderRadius: 12, paddingVertical: 12,
   },
-  joinBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  joinBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
 
   // waiting room
   waitingScroll: { paddingBottom: 40 },
@@ -537,14 +594,14 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center", justifyContent: "center",
   },
-  heroTitle: { color: "#fff", fontSize: 22, fontFamily: "Inter_700Bold", textAlign: "center" },
-  heroSub: { color: "rgba(255,255,255,0.85)", fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
+  heroTitle: { fontSize: 22, fontFamily: "Inter_700Bold", textAlign: "center" },
+  heroSub: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
   providerPill: {
     flexDirection: "row", alignItems: "center", gap: 6,
     backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 20,
     paddingHorizontal: 12, paddingVertical: 6, marginTop: 4,
   },
-  providerPillText: { color: "#fff", fontSize: 13, fontFamily: "Inter_500Medium" },
+  providerPillText: { fontSize: 13, fontFamily: "Inter_500Medium", flexShrink: 1 },
   checklistWrap: { paddingHorizontal: 16, gap: 10 },
   checklistTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", marginBottom: 4 },
   checkItem: {
@@ -565,7 +622,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 10, paddingVertical: 16,
   },
-  startBtnText: { color: "#fff", fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  startBtnText: { fontSize: 17, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
   backBtn: { alignItems: "center", paddingVertical: 14, borderRadius: 14, borderWidth: 1 },
   backBtnText: { fontSize: 15, fontFamily: "Inter_500Medium" },
 
@@ -577,8 +634,8 @@ const styles = StyleSheet.create({
   },
   callStatusLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#22c55e" },
-  callStatusText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  callProviderText: { color: "rgba(255,255,255,0.8)", fontSize: 13, fontFamily: "Inter_400Regular" },
+  callStatusText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  callProviderText: { fontSize: 13, fontFamily: "Inter_400Regular", flexShrink: 1 },
   webview: { flex: 1 },
   controlBar: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-around",
@@ -596,7 +653,7 @@ const styles = StyleSheet.create({
   endedTitle: { fontSize: 24, fontFamily: "Inter_700Bold" },
   endedSub: { fontSize: 15, fontFamily: "Inter_400Regular", textAlign: "center" },
   endedBtn: { width: "100%", alignItems: "center", paddingVertical: 14, borderRadius: 14 },
-  endedBtnText: { color: "#fff", fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  endedBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
   endedBtnOutline: { width: "100%", alignItems: "center", paddingVertical: 14, borderRadius: 14, borderWidth: 1.5 },
   endedBtnOutlineText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
 
@@ -608,9 +665,11 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 4,
   },
-  scheduleBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  scheduleBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
   errorTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
   errorText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
   retryBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
-  retryText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  retryText: { fontSize: 15, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
+  callInvalid: { alignItems: "center", justifyContent: "center", gap: 16, padding: 24 },
+  callInvalidText: { fontSize: 16, fontFamily: "Inter_600SemiBold", textAlign: "center" },
 });

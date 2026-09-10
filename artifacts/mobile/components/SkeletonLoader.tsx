@@ -1,12 +1,18 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
 import { useTheme } from "@/context/ThemeContext";
+import { useReducedMotion } from "@/lib/useReducedMotion";
 
 function ShimmerBlock({ style }: { style?: ViewStyle | ViewStyle[] }) {
   const { colors } = useTheme();
   const shimmer = useRef(new Animated.Value(0)).current;
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reducedMotion) {
+      shimmer.setValue(0);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(shimmer, { toValue: 1, duration: 1000, useNativeDriver: true }),
@@ -15,14 +21,14 @@ function ShimmerBlock({ style }: { style?: ViewStyle | ViewStyle[] }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [shimmer]);
+  }, [shimmer, reducedMotion]);
 
   const opacity = shimmer.interpolate({
     inputRange: [0, 1],
     outputRange: [0.3, 0.7],
   });
 
-  return <Animated.View style={[styles.block, { backgroundColor: colors.surfaceSecondary }, style, { opacity }]} />;
+  return <Animated.View accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.block, { backgroundColor: colors.surfaceSecondary }, style, { opacity }]} />;
 }
 
 export function CardSkeleton() {

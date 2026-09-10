@@ -8,7 +8,7 @@ const ja: Record<string, string> = {
   hospitalOptional: "病院/クリニック（任意）",
   yourHospitalName: "病院名",
   accessRecords: "医療記録に安全にアクセス",
-  dataEncrypted: "データは暗号化され安全です",
+  dataEncrypted: "暗号化された接続です。終了したらサインアウトしてください。",
   home: "ホーム",
   profile: "プロフィール",
   appointments: "予約",

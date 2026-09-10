@@ -3,21 +3,25 @@ import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificati
 import { useQuery } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
-  Alert,
   Platform,
-  Pressable,
   ScrollView,
   Share,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { Pressable } from "@/components/AccessiblePressable";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { LogoWatermark } from "@/components/LogoWatermark";
+import { router } from "expo-router";
+import { assertPatientDataEpoch, capturePatientDataEpoch, getSecureItem, isPatientDataEpochCurrent } from "@/lib/secureStorage";
+import { confirmAppAction, showAppAlert } from "@/lib/privacyAlerts";
+
+const ALLOW_SHARING_KEY = "carnet_allow_sharing";
 
 const SECTIONS = [
   { key: "personal", icon: "user" as const, label: "personalInfo" },
@@ -144,34 +148,61 @@ export default function ExportRecordsScreen() {
   };
 
   const handleExport = async () => {
+    const expectedEpoch = capturePatientDataEpoch();
     if (selectedSections.length === 0) {
-      Alert.alert(t("error"), t("selectAtLeastOneSection"));
+      showAppAlert(t("error"), t("selectAtLeastOneSection"));
+      return;
+    }
+
+    try {
+      const sharingAllowed = (await getSecureItem(ALLOW_SHARING_KEY)) === "true";
+      assertPatientDataEpoch(expectedEpoch);
+      if (!sharingAllowed) {
+        const openSettings = await confirmAppAction(
+          "Sharing is off",
+          "Enable export and sharing in Security & Privacy before creating a copy outside CARNET.",
+          "Open privacy settings",
+          "Cancel",
+        );
+        if (openSettings && isPatientDataEpochCurrent(expectedEpoch)) {
+          router.push("/security-privacy" as any);
+        }
+        return;
+      }
+    } catch {
+      if (!isPatientDataEpochCurrent(expectedEpoch)) return;
+      showAppAlert("Sharing unavailable", "CARNET could not verify your secure sharing preference. Sharing remains off.");
       return;
     }
 
     setIsExporting(true);
     impactHeavy();
 
+    let objectUrl: string | null = null;
     try {
       const report = generateTextReport();
+      assertPatientDataEpoch(expectedEpoch);
 
       if (Platform.OS === "web") {
         const blob = new Blob([report], { type: "text/plain" });
-        const url = URL.createObjectURL(blob);
+        objectUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url;
+        a.href = objectUrl;
         a.download = `CARNET_Health_Report_${new Date().toISOString().split("T")[0]}.txt`;
+        assertPatientDataEpoch(expectedEpoch);
         a.click();
-        URL.revokeObjectURL(url);
       } else {
+        assertPatientDataEpoch(expectedEpoch);
         await Share.share({
           message: report,
           title: "CARNET Health Report",
         });
       }
     } catch (e) {
-      Alert.alert(t("error"), t("exportFailed"));
+      if (!isPatientDataEpochCurrent(expectedEpoch)) return;
+      showAppAlert(t("error"), t("exportFailed"));
     } finally {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
       setIsExporting(false);
     }
   };
@@ -194,13 +225,16 @@ export default function ExportRecordsScreen() {
             key={section.key}
             style={[styles.sectionRow, { backgroundColor: colors.surface, borderColor: selectedSections.includes(section.key) ? colors.primary : colors.borderLight }]}
             onPress={() => { impactLight(); toggleSection(section.key); }}
+            accessibilityRole="checkbox"
+            accessibilityLabel={t(section.label as any)}
+            accessibilityState={{ checked: selectedSections.includes(section.key) }}
           >
             <View style={[styles.sectionIcon, { backgroundColor: selectedSections.includes(section.key) ? colors.primaryLight : colors.surfaceSecondary }]}>
               <Feather name={section.icon} size={18} color={selectedSections.includes(section.key) ? colors.primary : colors.textTertiary} />
             </View>
             <Text style={[styles.sectionLabel, { color: colors.text }]}>{t(section.label as any)}</Text>
             <View style={[styles.checkbox, { backgroundColor: selectedSections.includes(section.key) ? colors.primary : "transparent", borderColor: selectedSections.includes(section.key) ? colors.primary : colors.border }]}>
-              {selectedSections.includes(section.key) && <Feather name="check" size={14} color="#fff" />}
+              {selectedSections.includes(section.key) && <Feather name="check" size={14} color={colors.onPrimary} />}
             </View>
           </Pressable>
         ))}
@@ -211,6 +245,7 @@ export default function ExportRecordsScreen() {
             if (selectedSections.length === SECTIONS.length) setSelectedSections([]);
             else setSelectedSections(SECTIONS.map((s) => s.key));
           }}
+          accessibilityRole="button"
         >
           <Text style={[styles.selectAllText, { color: colors.primary }]}>
             {selectedSections.length === SECTIONS.length ? t("deselectAll") : t("selectAll")}
@@ -221,14 +256,19 @@ export default function ExportRecordsScreen() {
           style={[styles.exportBtn, { backgroundColor: selectedSections.length > 0 ? colors.primary : colors.borderLight }]}
           disabled={selectedSections.length === 0 || isExporting}
           onPress={handleExport}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: selectedSections.length === 0 || isExporting, busy: isExporting }}
         >
-          <Feather name="share" size={20} color={selectedSections.length > 0 ? "#fff" : colors.textTertiary} />
-          <Text style={[styles.exportBtnText, { color: selectedSections.length > 0 ? "#fff" : colors.textTertiary }]}>
+          <Feather name="share" size={20} color={selectedSections.length > 0 ? colors.onPrimary : colors.textTertiary} />
+          <Text style={[styles.exportBtnText, { color: selectedSections.length > 0 ? colors.onPrimary : colors.textTertiary }]}>
             {isExporting ? t("generating") : t("exportAndShare")}
           </Text>
         </Pressable>
 
         <Text style={[styles.disclaimer, { color: colors.textTertiary }]}>{t("exportDisclaimer")}</Text>
+        <Text style={[styles.disclaimer, { color: colors.textTertiary }]}>
+          Copies saved or shared outside CARNET are not protected by CARNET. Confirm the recipient and destination before sharing.
+        </Text>
       </ScrollView>
     </View>
   );
@@ -242,9 +282,9 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontFamily: "Inter_700Bold", marginTop: 4 },
   sectionRow: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1.5 },
   sectionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  sectionLabel: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  sectionLabel: { flex: 1, flexShrink: 1, fontSize: 15, fontFamily: "Inter_600SemiBold" },
   checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  selectAllBtn: { alignSelf: "center", padding: 8 },
+  selectAllBtn: { alignSelf: "center", paddingHorizontal: 12, minHeight: 44, justifyContent: "center" },
   selectAllText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   exportBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, padding: 16, borderRadius: 14 },
   exportBtnText: { fontSize: 16, fontFamily: "Inter_700Bold" },

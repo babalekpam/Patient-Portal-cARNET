@@ -10,8 +10,12 @@ import type {
   Prescription,
   Profile,
   ProfileUpdateData,
+  TelehealthAppointment,
+  TelehealthSession,
   VisitSummary,
 } from "@/lib/api";
+import { assertSession, notifySessionEnd, sessionGeneration } from "@/lib/session";
+import { fhirPatientReference, requireFhirPatientContext } from "@/lib/sessionFHIR";
 
 interface FHIRBundle {
   resourceType: "Bundle";
@@ -21,6 +25,7 @@ interface FHIRBundle {
 
 export class FHIRAdapter implements EHRAdapter {
   readonly providerId: string;
+  readonly sessionKey: string;
   private baseUrl: string;
   private token: string | null = null;
   private patientId: string | null = null;
@@ -28,10 +33,23 @@ export class FHIRAdapter implements EHRAdapter {
   constructor(providerId: string, baseUrl: string) {
     this.providerId = providerId;
     this.baseUrl = baseUrl.replace(/\/$/, "");
+    const issuer = new URL(baseUrl);
+    issuer.username = "";
+    issuer.password = "";
+    issuer.search = "";
+    issuer.hash = "";
+    issuer.pathname = issuer.pathname.replace(/\/+$/, "");
+    this.sessionKey = `${providerId}|${issuer.toString().replace(/\/$/, "")}`;
   }
 
   setToken(token: string): void {
     this.token = token;
+  }
+
+  setLoginContext(response: LoginResponse): void {
+    const patientId = requireFhirPatientContext({ patient: response.patientContext });
+    this.token = response.token;
+    this.patientId = patientId;
   }
 
   clearToken(): void {
@@ -40,6 +58,7 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   private getHeaders(): HeadersInit {
+    assertSession(this.sessionKey);
     const headers: HeadersInit = {
       "Content-Type": "application/fhir+json",
       Accept: "application/fhir+json",
@@ -51,20 +70,27 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   private async request<T>(path: string, options?: RequestInit): Promise<T> {
+    const generation = sessionGeneration();
+    assertSession(this.sessionKey, generation);
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...options,
       headers: { ...this.getHeaders(), ...(options?.headers || {}) },
     });
+    assertSession(this.sessionKey, generation);
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
+      assertSession(this.sessionKey, generation);
       const issue = body?.issue?.[0]?.diagnostics || body?.message;
       if (response.status === 401) {
         this.token = null;
+        notifySessionEnd("unauthorized");
         throw new Error(issue || "Session expired. Please log in again.");
       }
       throw new Error(issue || `FHIR request failed (${response.status})`);
     }
-    return response.json();
+    const body = await response.json();
+    assertSession(this.sessionKey, generation);
+    return body;
   }
 
   private extractResources<T>(bundle: FHIRBundle): T[] {
@@ -106,13 +132,14 @@ export class FHIRAdapter implements EHRAdapter {
     if (!token) {
       throw new Error("Server did not return an authentication token. This endpoint may not support this login method.");
     }
-    this.token = token;
-    this.patientId = data.patient || null;
-
+    const patientId = requireFhirPatientContext(data);
     return {
       token,
-      user: { id: this.patientId, email: credentials.email },
+      user: { id: patientId, email: credentials.email },
       tenant: null,
+      patientContext: patientId,
+      expires_in: data.expires_in,
+      expires_at: data.expires_at,
     };
   }
 
@@ -121,18 +148,18 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   async getProfile(): Promise<Profile> {
-    if (!this.patientId) {
-      const bundle = await this.request<FHIRBundle>("/Patient?_count=1");
-      const patients = this.extractResources<any>(bundle);
-      if (patients.length > 0) {
-        this.patientId = patients[0].id;
-      } else {
-        throw new Error("Patient record not found.");
-      }
-    }
-
-    const patient = await this.request<any>(`/Patient/${this.patientId}`);
+    const patientReference = this.getPatientReference();
+    const patient = await this.request<any>(`/${patientReference}`);
     return this.mapPatientToProfile(patient);
+  }
+
+  private getPatientReference(): string {
+    if (!this.patientId) {
+      // A restored bearer token is insufficient: patient context is deliberately
+      // not guessed or decoded. Cold-restored FHIR sessions require fresh login.
+      throw new Error("A fresh FHIR sign in is required to establish patient context.");
+    }
+    return fhirPatientReference(this.patientId);
   }
 
   private mapPatientToProfile(patient: any): Profile {
@@ -166,9 +193,9 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   async updateProfile(data: ProfileUpdateData): Promise<Profile> {
-    if (!this.patientId) throw new Error("No patient ID available.");
+    const patientReference = this.getPatientReference();
 
-    const current = await this.request<any>(`/Patient/${this.patientId}`);
+    const current = await this.request<any>(`/${patientReference}`);
 
     if (data.firstName || data.lastName) {
       current.name = current.name || [{}];
@@ -192,7 +219,7 @@ export class FHIRAdapter implements EHRAdapter {
     if (data.gender) current.gender = data.gender;
     if (data.dateOfBirth) current.birthDate = data.dateOfBirth;
 
-    const updated = await this.request<any>(`/Patient/${this.patientId}`, {
+    const updated = await this.request<any>(`/${patientReference}`, {
       method: "PUT",
       body: JSON.stringify(current),
     });
@@ -201,8 +228,9 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   async getAppointments(): Promise<Appointment[]> {
+    const patientReference = this.getPatientReference();
     const bundle = await this.request<FHIRBundle>(
-      `/Appointment?patient=${this.patientId}&_sort=-date&_count=50`
+      `/Appointment?patient=${patientReference}&_sort=-date&_count=50`
     );
     return this.extractResources<any>(bundle).map((appt) => ({
       id: appt.id,
@@ -225,6 +253,7 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   async requestAppointment(data: AppointmentRequest): Promise<any> {
+    const patientReference = this.getPatientReference();
     const resource = {
       resourceType: "Appointment",
       status: "proposed",
@@ -236,7 +265,7 @@ export class FHIRAdapter implements EHRAdapter {
       comment: [data.doctorPreference, data.notes].filter(Boolean).join(" | "),
       participant: [
         {
-          actor: { reference: `Patient/${this.patientId}` },
+          actor: { reference: patientReference },
           status: "accepted",
         },
       ],
@@ -248,8 +277,9 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   async getPrescriptions(): Promise<Prescription[]> {
+    const patientReference = this.getPatientReference();
     const bundle = await this.request<FHIRBundle>(
-      `/MedicationRequest?patient=${this.patientId}&_sort=-date&_count=50`
+      `/MedicationRequest?patient=${patientReference}&_sort=-date&_count=50`
     );
     return this.extractResources<any>(bundle).map((med) => ({
       id: med.id,
@@ -268,8 +298,9 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   async getLabResults(): Promise<LabResult[]> {
+    const patientReference = this.getPatientReference();
     const bundle = await this.request<FHIRBundle>(
-      `/DiagnosticReport?patient=${this.patientId}&_sort=-date&_count=50`
+      `/DiagnosticReport?patient=${patientReference}&_sort=-date&_count=50`
     );
     return this.extractResources<any>(bundle).map((report) => ({
       id: report.id,
@@ -287,8 +318,9 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   async getMessages(): Promise<Message[]> {
+    const patientReference = this.getPatientReference();
     const bundle = await this.request<FHIRBundle>(
-      `/Communication?patient=${this.patientId}&_sort=-sent&_count=50`
+      `/Communication?patient=${patientReference}&_sort=-sent&_count=50`
     );
     return this.extractResources<any>(bundle).map((comm) => ({
       id: comm.id,
@@ -305,10 +337,11 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   async sendMessage(subject: string, message: string, recipientId?: string): Promise<any> {
+    const patientReference = this.getPatientReference();
     const resource = {
       resourceType: "Communication",
       status: "completed",
-      subject: { reference: `Patient/${this.patientId}` },
+      subject: { reference: patientReference },
       topic: { text: subject },
       payload: [{ contentString: message }],
       ...(recipientId && { recipient: [{ reference: recipientId }] }),
@@ -320,8 +353,9 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   async getVisitSummaries(): Promise<VisitSummary[]> {
+    const patientReference = this.getPatientReference();
     const bundle = await this.request<FHIRBundle>(
-      `/Encounter?patient=${this.patientId}&_sort=-date&_count=50`
+      `/Encounter?patient=${patientReference}&_sort=-date&_count=50`
     );
     return this.extractResources<any>(bundle).map((enc) => ({
       id: enc.id,
@@ -337,9 +371,10 @@ export class FHIRAdapter implements EHRAdapter {
   }
 
   async getBills(): Promise<Bill[]> {
+    const patientReference = this.getPatientReference();
     try {
       const bundle = await this.request<FHIRBundle>(
-        `/Claim?patient=${this.patientId}&_sort=-created&_count=50`
+        `/Claim?patient=${patientReference}&_sort=-created&_count=50`
       );
       return this.extractResources<any>(bundle).map((claim) => ({
         id: claim.id,
@@ -351,5 +386,21 @@ export class FHIRAdapter implements EHRAdapter {
     } catch {
       return [];
     }
+  }
+
+  async bookAppointment(): Promise<Appointment> {
+    throw new Error("Appointment booking is not supported by the FHIR provider");
+  }
+
+  async getTelehealthAppointments(): Promise<TelehealthAppointment[]> {
+    throw new Error("Telehealth is not supported by the FHIR provider");
+  }
+
+  async createTelehealthSession(_appointmentId: string): Promise<TelehealthSession> {
+    throw new Error("Telehealth is not supported by the FHIR provider");
+  }
+
+  async getTelehealthSession(_appointmentId: string): Promise<TelehealthSession> {
+    throw new Error("Telehealth is not supported by the FHIR provider");
   }
 }

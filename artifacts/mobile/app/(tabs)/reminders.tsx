@@ -5,9 +5,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import {
   Alert,
   FlatList,
-  Modal,
   Platform,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -34,6 +32,16 @@ import {
   requestNotificationPermissions,
 } from "@/lib/notifications";
 import { LogoWatermark } from "@/components/LogoWatermark";
+import {
+  assertPatientDataEpoch,
+  capturePatientDataEpoch,
+  isPatientDataEpochCurrent,
+  subscribeToPatientDataClear,
+} from "@/lib/secureStorage";
+import { showAppAlert } from "@/lib/privacyAlerts";
+import { Pressable } from "@/components/AccessiblePressable";
+import { Modal } from "@/components/AccessibleModal";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 
 const TIME_OPTIONS = [
   "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30",
@@ -60,6 +68,7 @@ function TimePickerModal({
 }) {
   const [selected, setSelected] = useState<string[]>(selectedTimes);
   const insets = useSafeAreaInsets();
+  const a11y = useAccessibilityLabels();
 
   useEffect(() => {
     if (visible) setSelected(selectedTimes);
@@ -72,12 +81,12 @@ function TimePickerModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="slide" transparent accessibilityLabel={t("selectReminderTimes")} onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>{t("selectReminderTimes")}</Text>
-            <Pressable onPress={onClose}>
+            <Text accessibilityRole="header" style={[styles.modalTitle, { color: colors.text }]}>{t("selectReminderTimes")}</Text>
+            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={a11y.closeDialog}>
               <Feather name="x" size={24} color={colors.textSecondary} />
             </Pressable>
           </View>
@@ -101,8 +110,11 @@ function TimePickerModal({
                       borderColor: isSelected ? colors.primary : colors.border,
                     },
                   ]}
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={formatTime(time)}
+                  accessibilityState={{ checked: isSelected }}
                 >
-                  <Text style={[styles.timeChipText, { color: isSelected ? "#fff" : colors.text }]}>
+                  <Text style={[styles.timeChipText, { color: isSelected ? colors.onPrimary : colors.text }]}>
                     {formatTime(time)}
                   </Text>
                 </Pressable>
@@ -118,8 +130,11 @@ function TimePickerModal({
               }
             }}
             disabled={selected.length === 0}
+            accessibilityRole="button"
+            accessibilityLabel={t("setReminders")}
+            accessibilityState={{ disabled: selected.length === 0 }}
           >
-            <Text style={styles.confirmBtnText}>
+            <Text style={[styles.confirmBtnText, { color: colors.onPrimary }]}>
               {t("setReminders")} ({selected.length})
             </Text>
           </Pressable>
@@ -148,22 +163,26 @@ function SetupReminderModal({
   const [times, setTimes] = useState<string[]>(suggestedTimes);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const insets = useSafeAreaInsets();
+  const a11y = useAccessibilityLabels();
 
   useEffect(() => {
     if (visible && prescription) {
       setTimes(parseFrequencyToTimes(prescription.frequency));
+    } else if (!visible) {
+      setTimes([]);
+      setShowTimePicker(false);
     }
   }, [visible, prescription]);
 
   if (!prescription) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
+    <Modal visible={visible} animationType="slide" transparent accessibilityLabel={t("setupReminder")} onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>{t("setupReminder")}</Text>
-            <Pressable onPress={onClose}>
+            <Text accessibilityRole="header" style={[styles.modalTitle, { color: colors.text }]}>{t("setupReminder")}</Text>
+            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={a11y.closeDialog}>
               <Feather name="x" size={24} color={colors.textSecondary} />
             </Pressable>
           </View>
@@ -198,14 +217,20 @@ function SetupReminderModal({
                   onPress={() => {
                     if (times.length > 1) setTimes(times.filter((t) => t !== time));
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t("remove")} ${formatTime(time)}`}
+                  accessibilityState={{ disabled: times.length <= 1 }}
+                  disabled={times.length <= 1}
                 >
                   <Feather name="x" size={14} color={colors.success} />
                 </Pressable>
               </View>
             ))}
             <Pressable
-              style={[styles.addTimeBtn, { borderColor: colors.border }]}
+              style={[styles.addTimeBtn, { borderColor: colors.controlBorder }]}
               onPress={() => setShowTimePicker(true)}
+              accessibilityRole="button"
+              accessibilityLabel={t("editTimes")}
             >
               <Feather name="plus" size={16} color={colors.primary} />
               <Text style={[styles.addTimeBtnText, { color: colors.primary }]}>{t("editTimes")}</Text>
@@ -215,9 +240,11 @@ function SetupReminderModal({
           <Pressable
             style={[styles.confirmBtn, { backgroundColor: colors.primary }]}
             onPress={() => onSave(times)}
+            accessibilityRole="button"
+            accessibilityLabel={t("enableReminder")}
           >
-            <Feather name="bell" size={18} color="#fff" />
-            <Text style={styles.confirmBtnText}>{t("enableReminder")}</Text>
+                  <Feather name="bell" size={18} color={colors.onPrimary} />
+            <Text style={[styles.confirmBtnText, { color: colors.onPrimary }]}>{t("enableReminder")}</Text>
           </Pressable>
         </View>
       </View>
@@ -276,6 +303,8 @@ function ReminderCard({
             onValueChange={(val) => onToggle(reminder.id, val)}
             trackColor={{ false: colors.border, true: colors.primaryLight }}
             thumbColor={reminder.enabled ? colors.primary : colors.textTertiary}
+            accessibilityLabel={reminder.medicationName}
+            accessibilityState={{ checked: reminder.enabled }}
           />
         </View>
 
@@ -315,11 +344,12 @@ function ReminderCard({
                   <Pressable
                     style={[styles.takeBtn, { backgroundColor: colors.primary }]}
                     onPress={() => {
-                      notificationSuccess();
                       onMarkTaken(reminder.id, time);
                     }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t("markTaken")}, ${formatTime(time)}`}
                   >
-                    <Text style={styles.takeBtnText}>{t("markTaken")}</Text>
+                    <Text style={[styles.takeBtnText, { color: colors.onPrimary }]}>{t("markTaken")}</Text>
                   </Pressable>
                 )}
               </View>
@@ -344,6 +374,8 @@ function ReminderCard({
               );
             }
           }}
+          accessibilityRole="button"
+          accessibilityLabel={t("removeReminder")}
         >
           <Feather name="trash-2" size={14} color={colors.danger} />
           <Text style={[styles.deleteText, { color: colors.danger }]}>{t("removeReminder")}</Text>
@@ -377,6 +409,9 @@ function PrescriptionPickerItem({
         }
       }}
       disabled={hasReminder}
+      accessibilityRole="button"
+      accessibilityLabel={prescription.medicationName || "Medication"}
+      accessibilityState={{ disabled: hasReminder }}
     >
       <View style={styles.prescriptionInfo}>
         <Text style={[styles.prescriptionName, { color: hasReminder ? colors.textTertiary : colors.text }]}>
@@ -404,6 +439,7 @@ function PrescriptionPickerItem({
 export default function RemindersScreen() {
   const { colors } = useTheme();
   const { t } = useI18n();
+  const a11y = useAccessibilityLabels();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [reminders, setReminders] = useState<MedicationReminder[]>([]);
@@ -416,53 +452,122 @@ export default function RemindersScreen() {
     queryFn: () => api.getPrescriptions(),
   });
 
-  const loadReminders = useCallback(async () => {
+  const loadReminders = useCallback(async (expectedEpoch = capturePatientDataEpoch()) => {
     const loaded = await getReminders();
+    assertPatientDataEpoch(expectedEpoch);
     setReminders(loaded);
   }, []);
 
   useEffect(() => {
-    loadReminders();
-  }, [loadReminders]);
+    const expectedEpoch = capturePatientDataEpoch();
+    loadReminders(expectedEpoch).catch(() => {
+      if (isPatientDataEpochCurrent(expectedEpoch)) {
+        showAppAlert(t("error"), "CARNET could not load reminders from secure storage.");
+      }
+    });
+  }, [loadReminders, t]);
+
+  useEffect(() => subscribeToPatientDataClear(() => {
+    setReminders([]);
+    setSetupModal(null);
+    setShowPrescriptions(false);
+    setRefreshing(false);
+    try {
+      const cancellation = queryClient.cancelQueries();
+      queryClient.clear();
+      void cancellation.finally(() => queryClient.clear()).catch(() => {});
+    } catch {
+      try { queryClient.clear(); } catch {}
+    }
+  }), [queryClient]);
 
   const handleRefresh = async () => {
+    const expectedEpoch = capturePatientDataEpoch();
     setRefreshing(true);
-    await Promise.all([
-      loadReminders(),
-      queryClient.invalidateQueries({ queryKey: ["prescriptions"] }),
-    ]);
-    setRefreshing(false);
+    try {
+      await Promise.all([
+        loadReminders(expectedEpoch),
+        queryClient.invalidateQueries({ queryKey: ["prescriptions"] }),
+      ]);
+      assertPatientDataEpoch(expectedEpoch);
+    } catch {
+      if (isPatientDataEpochCurrent(expectedEpoch)) {
+        showAppAlert(t("error"), "CARNET could not refresh reminders.");
+      }
+    } finally {
+      if (isPatientDataEpochCurrent(expectedEpoch)) setRefreshing(false);
+    }
   };
 
   const existingReminderIds = new Set(reminders.map((r) => r.prescriptionId));
 
   const handleAddReminder = async (times: string[]) => {
     if (!setupModal) return;
-    await addReminder(
-      setupModal.id || `presc_${Date.now()}`,
-      setupModal.medicationName || "Medication",
-      setupModal.dosage || "",
-      setupModal.instructions || "",
-      times
-    );
-    await loadReminders();
-    setSetupModal(null);
-    setShowPrescriptions(false);
+    const expectedEpoch = capturePatientDataEpoch();
+    const prescription = setupModal;
+    try {
+      await addReminder(
+        prescription.id || `presc_${Date.now()}`,
+        prescription.medicationName || "Medication",
+        prescription.dosage || "",
+        prescription.instructions || "",
+        times
+      );
+      assertPatientDataEpoch(expectedEpoch);
+      await loadReminders(expectedEpoch);
+      assertPatientDataEpoch(expectedEpoch);
+      setSetupModal(null);
+      setShowPrescriptions(false);
+      notificationSuccess();
+    } catch {
+      if (isPatientDataEpochCurrent(expectedEpoch)) {
+        notificationError();
+        showAppAlert(t("error"), "The reminder could not be saved. Please try again.");
+      }
+    }
   };
 
   const handleToggle = async (id: string, enabled: boolean) => {
-    await toggleReminder(id, enabled);
-    await loadReminders();
+    const expectedEpoch = capturePatientDataEpoch();
+    try {
+      await toggleReminder(id, enabled);
+      assertPatientDataEpoch(expectedEpoch);
+      await loadReminders(expectedEpoch);
+    } catch {
+      if (isPatientDataEpochCurrent(expectedEpoch)) {
+        notificationError();
+        showAppAlert(t("error"), "The reminder setting could not be changed.");
+      }
+    }
   };
 
   const handleDelete = async (id: string) => {
-    await removeReminder(id);
-    await loadReminders();
+    const expectedEpoch = capturePatientDataEpoch();
+    try {
+      await removeReminder(id);
+      assertPatientDataEpoch(expectedEpoch);
+      await loadReminders(expectedEpoch);
+    } catch {
+      if (isPatientDataEpochCurrent(expectedEpoch)) {
+        notificationError();
+        showAppAlert(t("error"), "The reminder could not be removed.");
+      }
+    }
   };
 
   const handleMarkTaken = async (id: string, time: string) => {
-    await markTaken(id, time);
-    await loadReminders();
+    const expectedEpoch = capturePatientDataEpoch();
+    try {
+      await markTaken(id, time);
+      assertPatientDataEpoch(expectedEpoch);
+      await loadReminders(expectedEpoch);
+      notificationSuccess();
+    } catch {
+      if (isPatientDataEpochCurrent(expectedEpoch)) {
+        notificationError();
+        showAppAlert(t("error"), "Adherence could not be saved. No change was made.");
+      }
+    }
   };
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
@@ -477,8 +582,8 @@ export default function RemindersScreen() {
       >
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.headerTitle}>{t("medicationReminders")}</Text>
-            <Text style={styles.headerSubtitle}>
+            <Text style={[styles.headerTitle, { color: colors.whiteText }]}>{t("medicationReminders")}</Text>
+            <Text style={[styles.headerSubtitle, { color: colors.onPrimaryMuted }]}>
               {reminders.length > 0
                 ? t("activeReminders", { count: String(reminders.length) })
                 : t("noRemindersYet")}
@@ -490,8 +595,10 @@ export default function RemindersScreen() {
               impactLight();
               setShowPrescriptions(true);
             }}
+            accessibilityRole="button"
+            accessibilityLabel={t("addMedicationReminder")}
           >
-            <Feather name="plus" size={22} color="#fff" />
+            <Feather name="plus" size={22} color={colors.whiteText} />
           </Pressable>
         </View>
       </LinearGradient>
@@ -508,9 +615,11 @@ export default function RemindersScreen() {
       <Pressable
         style={[styles.emptyBtn, { backgroundColor: colors.primary }]}
         onPress={() => setShowPrescriptions(true)}
+        accessibilityRole="button"
+        accessibilityLabel={t("addMedicationReminder")}
       >
-        <Feather name="plus" size={18} color="#fff" />
-        <Text style={styles.emptyBtnText}>{t("addMedicationReminder")}</Text>
+        <Feather name="plus" size={18} color={colors.onPrimary} />
+        <Text style={[styles.emptyBtnText, { color: colors.onPrimary }]}>{t("addMedicationReminder")}</Text>
       </Pressable>
     </View>
   );
@@ -539,12 +648,18 @@ export default function RemindersScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
       />
 
-      <Modal visible={showPrescriptions} animationType="slide" transparent>
+      <Modal
+        visible={showPrescriptions}
+        animationType="slide"
+        transparent
+        accessibilityLabel={t("selectMedication")}
+        onRequestClose={() => setShowPrescriptions(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.surface, paddingBottom: insets.bottom + 16 }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>{t("selectMedication")}</Text>
-              <Pressable onPress={() => setShowPrescriptions(false)}>
+              <Text accessibilityRole="header" style={[styles.modalTitle, { color: colors.text }]}>{t("selectMedication")}</Text>
+              <Pressable onPress={() => setShowPrescriptions(false)} accessibilityRole="button" accessibilityLabel={a11y.closeDialog}>
                 <Feather name="x" size={24} color={colors.textSecondary} />
               </Pressable>
             </View>
@@ -552,7 +667,12 @@ export default function RemindersScreen() {
               {t("selectMedicationDesc")}
             </Text>
             {prescLoading ? (
-              <View style={styles.loadingState}>
+              <View
+                style={styles.loadingState}
+                accessibilityLabel={a11y.loading}
+                accessibilityState={{ busy: true }}
+                aria-busy
+              >
                 <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{t("loadingMedications")}</Text>
               </View>
             ) : !prescriptions || prescriptions.length === 0 ? (
@@ -594,8 +714,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   headerGradient: { paddingHorizontal: 20, paddingBottom: 24 },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  headerTitle: { fontSize: 22, fontFamily: "Inter_700Bold", color: "#fff" },
-  headerSubtitle: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 4 },
+  headerTitle: { fontSize: 22, fontFamily: "Inter_700Bold" },
+  headerSubtitle: { fontSize: 14, fontFamily: "Inter_400Regular", marginTop: 4 },
   addBtn: {
     width: 44, height: 44, borderRadius: 22,
     backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center",
@@ -625,16 +745,16 @@ const styles = StyleSheet.create({
   takenText: { textDecorationLine: "line-through", opacity: 0.6 },
   takenBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   takenBadgeText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  takeBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 },
-  takeBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
-  deleteRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingTop: 4 },
+  takeBtn: { paddingHorizontal: 14, paddingVertical: 6, minHeight: 44, borderRadius: 8, justifyContent: "center" },
+  takeBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  deleteRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingTop: 4, minHeight: 44 },
   deleteText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   emptyState: { alignItems: "center", paddingTop: 40, paddingHorizontal: 32, gap: 12 },
   emptyIcon: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center" },
   emptyTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
   emptyBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 8 },
-  emptyBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  emptyBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "80%" },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
@@ -659,12 +779,12 @@ const styles = StyleSheet.create({
   timesRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   timeTag: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10 },
   timeTagText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  addTimeBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderStyle: "dashed" },
+  addTimeBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, minHeight: 44, borderRadius: 10, borderWidth: 1, borderStyle: "dashed" },
   addTimeBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   confirmBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: 12, marginTop: 16 },
-  confirmBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  confirmBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   timeGrid: { maxHeight: 300 },
   timeGridContent: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  timeChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  timeChip: { paddingHorizontal: 14, paddingVertical: 10, minHeight: 44, justifyContent: "center", borderRadius: 10, borderWidth: 1 },
   timeChipText: { fontSize: 14, fontFamily: "Inter_500Medium" },
 });

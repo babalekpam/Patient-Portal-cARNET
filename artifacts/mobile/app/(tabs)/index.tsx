@@ -1,644 +1,85 @@
 import { Feather } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
-import { router } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
 import React, { useState } from "react";
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  Platform,
-} from "react-native";
+import { Platform, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { AccessiblePressable as Pressable } from "@/components/AccessiblePressable";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
-import { AnimatedCard } from "@/components/AnimatedCard";
 import { HomeSkeleton } from "@/components/SkeletonLoader";
-import { api, type Message, type Appointment } from "@/lib/api";
+import { api, type Appointment, type Message } from "@/lib/api";
+import { impactLight } from "@/lib/haptics";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
-import { LogoWatermark } from "@/components/LogoWatermark";
 
-interface QuickAction {
-  labelKey: TranslationKey;
-  icon: React.ComponentProps<typeof Feather>["name"];
-  route: string;
-}
-
-const QUICK_ACTIONS: QuickAction[] = [
-  { labelKey: "telehealth", icon: "video", route: "/telehealth" },
-  { labelKey: "scheduleAppointment", icon: "calendar", route: "/request-appointment" },
-  { labelKey: "messages", icon: "mail", route: "/messages" },
-  { labelKey: "visits", icon: "clipboard", route: "/visit-summaries" },
-  { labelKey: "testResults", icon: "bar-chart-2", route: "/lab-results" },
-  { labelKey: "medications", icon: "package", route: "/prescriptions" },
-  { labelKey: "accountSummary", icon: "credit-card", route: "/bills" },
-  { labelKey: "emergencyCard", icon: "alert-circle", route: "/emergency-card" },
-  { labelKey: "healthTimeline", icon: "clock", route: "/health-timeline" },
-  { labelKey: "symptomChecker", icon: "thermometer", route: "/symptom-checker" },
-  { labelKey: "documents", icon: "camera", route: "/documents" },
-  { labelKey: "familyMembers", icon: "users", route: "/family" },
-  { labelKey: "interactionChecker", icon: "zap", route: "/interactions" },
-  { labelKey: "exportRecords", icon: "share", route: "/export-records" },
-  { labelKey: "healthMetrics", icon: "activity", route: "/health-metrics" },
+type Icon = React.ComponentProps<typeof Feather>["name"];
+type Action = { labelKey: TranslationKey; icon: Icon; route: string; tone: "primaryLight" | "infoLight" | "warningLight" | "successLight" | "dangerLight" };
+const ACTIONS: Action[] = [
+  { labelKey: "telehealth", icon: "video", route: "/telehealth", tone: "infoLight" },
+  { labelKey: "scheduleAppointment", icon: "calendar", route: "/request-appointment", tone: "dangerLight" },
+  { labelKey: "messages", icon: "message-circle", route: "/messages", tone: "primaryLight" },
+  { labelKey: "testResults", icon: "bar-chart-2", route: "/lab-results", tone: "successLight" },
+  { labelKey: "medications", icon: "package", route: "/prescriptions", tone: "warningLight" },
+  { labelKey: "accountSummary", icon: "credit-card", route: "/bills", tone: "dangerLight" },
+  { labelKey: "documents", icon: "file-text", route: "/documents", tone: "primaryLight" },
+  { labelKey: "familyMembers", icon: "users", route: "/family", tone: "primaryLight" },
+  { labelKey: "emergencyCard", icon: "alert-circle", route: "/emergency-card", tone: "dangerLight" },
+  { labelKey: "healthTimeline", icon: "clock", route: "/health-timeline", tone: "infoLight" },
+  { labelKey: "symptomChecker", icon: "thermometer", route: "/symptom-checker", tone: "dangerLight" },
+  { labelKey: "interactionChecker", icon: "zap", route: "/interactions", tone: "warningLight" },
+  { labelKey: "exportRecords", icon: "share", route: "/export-records", tone: "primaryLight" },
+  { labelKey: "healthMetrics", icon: "activity", route: "/health-metrics", tone: "successLight" },
+  { labelKey: "visits", icon: "clipboard", route: "/visit-summaries", tone: "infoLight" },
 ];
 
-function QuickActionTile({ item, colors }: { item: QuickAction; colors: any }) {
+const go = (route: string) => { impactLight(); router.push(route as any); };
+const formatDate = (value?: string) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return { month: date.toLocaleDateString("en-US", { month: "short" }), day: String(date.getDate()), weekday: date.toLocaleDateString("en-US", { weekday: "short" }), time: date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }) };
+};
+
+function IconButton({ icon, label, onPress, color }: { icon: Icon; label: string; onPress: () => void; color: string }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} hitSlop={6} onPress={onPress} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}><Feather name={icon} size={20} color={color} /></Pressable>;
+}
+
+function AppointmentCard({ appointments, error, colors }: { appointments: Appointment[]; error: boolean; colors: any }) {
   const { t } = useI18n();
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.tile,
-        { backgroundColor: colors.surface, borderColor: colors.borderLight },
-        pressed && { opacity: 0.8, transform: [{ scale: 0.96 }] },
-      ]}
-      onPress={() => {
-        impactLight();
-        router.push(item.route as any);
-      }}
-    >
-      <View style={[styles.tileIconWrap, { backgroundColor: colors.primaryLight }]}>
-        <Feather name={item.icon} size={28} color={colors.primary} />
-      </View>
-      <Text style={[styles.tileLabel, { color: colors.text }]} numberOfLines={2}>{t(item.labelKey)}</Text>
-    </Pressable>
-  );
+  const appointment = appointments.find((item) => item.status?.toLowerCase() !== "cancelled" && item.appointmentDate);
+  const date = formatDate(appointment?.appointmentDate);
+  if (error || !appointment || !date) return <View style={[styles.appointment, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}><Text style={[styles.eyebrow, { color: colors.textTertiary }]}>{t("upcomingAppointment")}</Text><View style={styles.empty}><Feather name={error ? "wifi-off" : "calendar"} size={30} color={colors.textTertiary} /><Text style={[styles.emptyText, { color: colors.textSecondary }]}>{error ? t("unableToLoadAppointments") : t("noUpcomingAppointments")}</Text></View><Pressable accessibilityRole="button" onPress={() => go("/request-appointment")} style={[styles.primaryButton, { backgroundColor: colors.primary }]}><Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>{t("scheduleAppointmentBtn")}</Text></Pressable></View>;
+  const provider = appointment.doctorName || appointment.provider || "Your care team";
+  const place = appointment.hospitalName || appointment.location;
+  return <View style={[styles.appointment, { backgroundColor: colors.brand }]}><View style={styles.orbOne} /><View style={styles.orbTwo} /><View style={styles.relative}><View style={styles.upNext}><Feather name="calendar" size={16} color={colors.brandLight} /><Text style={[styles.eyebrow, { color: colors.brandLight }]}>{t("upcomingAppointment")}</Text></View><View style={styles.appointmentInfo}><View style={[styles.dateBadge, { backgroundColor: colors.surface }]}><Text style={[styles.dateMonth, { color: colors.brand }]}>{date.month}</Text><Text style={[styles.dateDay, { color: colors.brand }]}>{date.day}</Text><Text style={[styles.dateMonth, { color: colors.brand }]}>{date.weekday}</Text></View><View style={styles.appointmentCopy}><Text style={[styles.time, { color: colors.brandLight }]}>{date.time}</Text><Text style={[styles.appointmentTitle, { color: colors.onPrimary }]}>{(appointment.appointmentType || "Office visit").replace(/_/g, " ")}{"\n"}with {provider}</Text>{place ? <View style={styles.location}><Feather name="home" size={14} color={colors.brandLight} /><Text style={[styles.locationText, { color: colors.brandLight }]}>{place}</Text></View> : null}</View></View><View style={styles.buttonRow}><Pressable accessibilityRole="button" onPress={() => go("/appointments")} style={[styles.detailsButton, { backgroundColor: colors.surface }]}><Text style={[styles.detailsText, { color: colors.brand }]}>{t("viewDetails")}</Text></Pressable><Pressable accessibilityRole="button" onPress={() => go("/request-appointment")} style={[styles.reschedule, { borderColor: colors.brandLight }]}><Text style={[styles.detailsText, { color: colors.onPrimary }]}>Reschedule</Text></Pressable></View></View></View>;
 }
 
-function formatMessageDate(dateStr?: string) {
-  if (!dateStr) return "";
-  try {
-    return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  } catch { return ""; }
+function MessageCard({ messages, error, colors }: { messages: Message[]; error: boolean; colors: any }) {
+  const { t } = useI18n(); const message = messages[0];
+  return <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}><View style={styles.cardTitleRow}><View style={[styles.smallIcon, { backgroundColor: colors.primaryLight }]}><Feather name="message-circle" size={19} color={colors.primary} /></View><View style={styles.flex}><Text style={[styles.cardTitle, { color: colors.text }]}>{t("messages")}</Text><Text style={[styles.unread, { color: colors.danger }]}>{messages.length ? `${messages.length} unread` : ""}</Text></View><Pressable accessibilityRole="button" onPress={() => go("/messages")}><Text style={[styles.link, { color: colors.primary }]}>{t("viewAll")}</Text></Pressable></View>{error ? <Empty icon="wifi-off" text={t("unableToLoadMessages")} colors={colors} /> : !message ? <Empty icon="inbox" text={t("noNewMessages")} colors={colors} /> : <Pressable accessibilityRole="button" onPress={() => go("/messages")} style={[styles.message, { borderTopColor: colors.borderLight }]}><View style={[styles.avatar, { backgroundColor: colors.surfaceSecondary }]}><Text style={[styles.avatarText, { color: colors.primary }]}>{(message.sender || "C").charAt(0).toUpperCase()}</Text></View><View style={styles.flex}><View style={styles.senderRow}><Text style={[styles.sender, { color: colors.text }]} numberOfLines={1}>{message.originalContent?.subject || message.type?.replace(/_/g, " ") || "Message"}</Text><Text style={[styles.messageDate, { color: colors.textTertiary }]}>{message.createdAt ? new Date(message.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""}</Text></View><Text style={[styles.senderName, { color: colors.textSecondary }]}>{message.sender || "Care Team"}</Text><Text numberOfLines={1} style={[styles.preview, { color: colors.textTertiary }]}>{message.originalContent?.message}</Text></View></Pressable>}</View>;
 }
-
-function MessagePreview({ messages, colors, hasError }: { messages: Message[]; colors: any; hasError?: boolean }) {
-  const { t } = useI18n();
-  if (hasError) {
-    return (
-      <AnimatedCard index={1}>
-        <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-          <View style={styles.previewHeader}>
-            <View style={[styles.previewIconWrap, { backgroundColor: colors.primaryLight }]}>
-              <Feather name="mail" size={20} color={colors.primary} />
-            </View>
-            <Text style={[styles.previewTitle, { color: colors.text }]}>{t("messages")}</Text>
-          </View>
-          <View style={styles.emptyState}>
-            <Feather name="wifi-off" size={28} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("unableToLoadMessages")}</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>{t("pullToRefresh")}</Text>
-          </View>
-        </View>
-      </AnimatedCard>
-    );
-  }
-  if (!messages || messages.length === 0) {
-    return (
-      <AnimatedCard index={1}>
-        <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-          <View style={styles.previewHeader}>
-            <View style={[styles.previewIconWrap, { backgroundColor: colors.primaryLight }]}>
-              <Feather name="mail" size={20} color={colors.primary} />
-            </View>
-            <Text style={[styles.previewTitle, { color: colors.text }]}>{t("messages")}</Text>
-          </View>
-          <View style={styles.emptyState}>
-            <Feather name="inbox" size={32} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("noNewMessages")}</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>{t("careTeamMessages")}</Text>
-          </View>
-          <Pressable
-            style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
-            onPress={() => {
-              impactLight();
-              router.push("/messages" as any);
-            }}
-          >
-            <Text style={styles.viewBtnText}>{t("sendMessage")}</Text>
-          </Pressable>
-        </View>
-      </AnimatedCard>
-    );
-  }
-  const latest = messages[0];
-  const subject = latest.originalContent?.subject || latest.type?.replace(/_/g, " ") || "Message";
-  const body = latest.originalContent?.message || "";
-  const sender = latest.sender || "Care Team";
-  const dateStr = formatMessageDate(latest.createdAt);
-  const initial = sender.charAt(0).toUpperCase();
-
-  return (
-    <AnimatedCard index={1}>
-      <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-        <View style={styles.previewHeader}>
-          <View style={[styles.previewIconWrap, { backgroundColor: colors.primaryLight }]}>
-            <Feather name="mail" size={20} color={colors.primary} />
-          </View>
-          <Text style={[styles.previewTitle, { color: colors.text }]}>{subject}</Text>
-        </View>
-
-        <View style={styles.messageBody}>
-          <View style={[styles.senderAvatar, { backgroundColor: colors.surfaceSecondary }]}>
-            <Text style={[styles.senderInitial, { color: colors.primary }]}>{initial}</Text>
-          </View>
-          <View style={styles.messageContent}>
-            <View style={styles.senderRow}>
-              <Text style={[styles.senderName, { color: colors.text }]}>{sender}</Text>
-              {dateStr ? <Text style={[styles.messageDate, { color: colors.textTertiary }]}>{dateStr}</Text> : null}
-            </View>
-            {body ? <Text style={[styles.messagePreviewText, { color: colors.textSecondary }]} numberOfLines={1}>{body}</Text> : null}
-          </View>
-        </View>
-
-        <Pressable
-          style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
-          onPress={() => {
-            impactLight();
-            router.push("/messages" as any);
-          }}
-        >
-          <Text style={styles.viewBtnText}>{t("viewMessage")}</Text>
-        </Pressable>
-
-        <View style={[styles.divider, { backgroundColor: colors.borderLight }]} />
-
-        <Pressable
-          style={({ pressed }) => [styles.viewAllRow, pressed && { opacity: 0.7 }]}
-          onPress={() => {
-            impactLight();
-            router.push("/messages" as any);
-          }}
-        >
-          <Feather name="mail" size={16} color={colors.textSecondary} />
-          <Text style={[styles.viewAllText, { color: colors.textSecondary }]}>{t("viewAll")} ({messages.length})</Text>
-        </Pressable>
-      </View>
-    </AnimatedCard>
-  );
-}
-
-function formatAppointmentDate(dateStr?: string) {
-  if (!dateStr) return null;
-  try {
-    const d = new Date(dateStr);
-    return {
-      month: d.toLocaleDateString("en-US", { month: "short" }),
-      day: d.getDate().toString(),
-      weekday: d.toLocaleDateString("en-US", { weekday: "short" }),
-      time: d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZoneName: "short" }),
-    };
-  } catch { return null; }
-}
-
-function AppointmentPreview({ appointments, colors, hasError }: { appointments: Appointment[]; colors: any; hasError?: boolean }) {
-  const { t } = useI18n();
-  if (hasError) {
-    return (
-      <AnimatedCard index={2}>
-        <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-          <View style={styles.previewHeader}>
-            <View style={[styles.visitIconWrap, { backgroundColor: colors.primaryLight }]}>
-              <Feather name="calendar" size={18} color={colors.primary} />
-            </View>
-            <Text style={[styles.previewTitle, { color: colors.text }]}>{t("upcomingAppointment")}</Text>
-          </View>
-          <View style={styles.emptyState}>
-            <Feather name="wifi-off" size={28} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("unableToLoadAppointments")}</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>{t("pullToRefresh")}</Text>
-          </View>
-        </View>
-      </AnimatedCard>
-    );
-  }
-  const upcoming = appointments.find(
-    (a) => a.status?.toLowerCase() !== "cancelled" && a.appointmentDate
-  );
-  if (!upcoming) {
-    return (
-      <AnimatedCard index={2}>
-        <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-          <View style={styles.previewHeader}>
-            <View style={[styles.visitIconWrap, { backgroundColor: colors.primaryLight }]}>
-              <Feather name="calendar" size={18} color={colors.primary} />
-            </View>
-            <Text style={[styles.previewTitle, { color: colors.text }]}>{t("upcomingAppointment")}</Text>
-          </View>
-          <View style={styles.emptyState}>
-            <Feather name="calendar" size={32} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("noUpcomingAppointments")}</Text>
-            <Text style={[styles.emptySubtext, { color: colors.textTertiary }]}>{t("scheduleVisit")}</Text>
-          </View>
-          <Pressable
-            style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
-            onPress={() => {
-              impactLight();
-              router.push("/appointments" as any);
-            }}
-          >
-            <Text style={styles.viewBtnText}>{t("scheduleAppointmentBtn")}</Text>
-          </Pressable>
-        </View>
-      </AnimatedCard>
-    );
-  }
-
-  const dt = formatAppointmentDate(upcoming.appointmentDate);
-  const typeName = (upcoming.appointmentType || "Office Visit").replace(/_/g, " ").toUpperCase();
-  const provider = upcoming.doctorName || upcoming.provider || "";
-  const location = upcoming.hospitalName || upcoming.location || "";
-
-  return (
-    <AnimatedCard index={2}>
-      <View style={[styles.previewCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-        <View style={styles.previewHeader}>
-          <View style={[styles.visitIconWrap, { backgroundColor: colors.primaryLight }]}>
-            <Feather name="calendar" size={18} color={colors.primary} />
-          </View>
-          <Text style={[styles.visitType, { color: colors.text }]}>{typeName}</Text>
-        </View>
-
-        <View style={styles.appointmentBody}>
-          {dt ? (
-            <View style={[styles.dateColumn, { backgroundColor: colors.primaryLight }]}>
-              <Text style={[styles.dateMonth, { color: colors.primary }]}>{dt.month}</Text>
-              <Text style={[styles.dateDay, { color: colors.primary }]}>{dt.day}</Text>
-              <Text style={[styles.dateWeekday, { color: colors.primary }]}>{dt.weekday}</Text>
-            </View>
-          ) : null}
-
-          <View style={styles.appointmentDetails}>
-            {dt ? (
-              <View style={styles.detailRow}>
-                <Feather name="clock" size={14} color={colors.textTertiary} />
-                <Text style={[styles.detailText, { color: colors.textSecondary }]}>Starts at {dt.time}</Text>
-              </View>
-            ) : null}
-            {location ? (
-              <View style={styles.detailRow}>
-                <Feather name="home" size={14} color={colors.textTertiary} />
-                <Text style={[styles.detailText, { color: colors.textSecondary }]}>{location}</Text>
-              </View>
-            ) : null}
-            {provider ? (
-              <View style={styles.detailRow}>
-                <Feather name="user" size={14} color={colors.textTertiary} />
-                <Text style={[styles.detailText, { color: colors.textSecondary }]}>With {provider}</Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
-
-        <Pressable
-          style={({ pressed }) => [styles.viewBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }]}
-          onPress={() => {
-            impactLight();
-            router.push("/appointments" as any);
-          }}
-        >
-          <Text style={styles.viewBtnText}>{t("viewDetails")}</Text>
-        </Pressable>
-      </View>
-    </AnimatedCard>
-  );
-}
+function Empty({ icon, text, colors }: { icon: Icon; text: string; colors: any }) { return <View style={styles.empty}><Feather name={icon} size={28} color={colors.textTertiary} /><Text style={[styles.emptyText, { color: colors.textSecondary }]}>{text}</Text></View>; }
 
 export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
-  const { profile, isLoading, refreshProfile } = useAuth();
-  const { colors } = useTheme();
-  const { t } = useI18n();
-  const [refreshing, setRefreshing] = useState(false);
-
-  const queryClient = useQueryClient();
-
-  const { data: messages, isError: messagesError } = useQuery({
-    queryKey: ["messages"],
-    queryFn: () => api.getMessages(),
-    enabled: !!profile,
-  });
-
-  const { data: appointments, isError: appointmentsError } = useQuery({
-    queryKey: ["appointments"],
-    queryFn: () => api.getAppointments(),
-    enabled: !!profile,
-  });
-
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([
-      refreshProfile(),
-      queryClient.invalidateQueries({ queryKey: ["messages"] }),
-      queryClient.invalidateQueries({ queryKey: ["appointments"] }),
-    ]);
-    setRefreshing(false);
-  };
-
-  const firstName = profile?.firstName || "Patient";
-
-  if (isLoading && !profile) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad + 16 }]}>
-        <HomeSkeleton />
-      </View>
-    );
-  }
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LogoWatermark />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
-        contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 34 : 20 }}
-      >
-        <LinearGradient
-          colors={[colors.gradientStart, colors.gradientEnd]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.headerGradient, { paddingTop: topPad + 16 }]}
-        >
-          <View style={styles.headerRow}>
-            <Text style={styles.welcomeText}>{t("welcome", { name: firstName })}</Text>
-            <Pressable
-              style={({ pressed }) => [styles.editProfileBtn, pressed && { opacity: 0.7 }]}
-              onPress={() => {
-                impactLight();
-                router.push("/(tabs)/profile" as any);
-              }}
-            >
-              <Feather name="edit-2" size={18} color="#fff" />
-            </Pressable>
-          </View>
-        </LinearGradient>
-
-        <AnimatedCard index={0}>
-          <View style={styles.tilesContainer}>
-            <View style={styles.tilesGrid}>
-              {QUICK_ACTIONS.map((item) => (
-                <QuickActionTile key={item.labelKey} item={item} colors={colors} />
-              ))}
-            </View>
-          </View>
-        </AnimatedCard>
-
-        <View style={styles.cardsContainer}>
-          <MessagePreview messages={messages || []} colors={colors} hasError={messagesError} />
-          <AppointmentPreview appointments={appointments || []} colors={colors} hasError={appointmentsError} />
-        </View>
-
-        <View style={styles.footer}>
-          <Feather name="shield" size={13} color={colors.textTertiary} />
-          <Text style={[styles.footerText, { color: colors.textTertiary }]}>{t("poweredBy")}</Text>
-        </View>
-      </ScrollView>
-    </View>
-  );
+  const { profile, isLoading, refreshProfile } = useAuth(); const { colors } = useTheme(); const { t } = useI18n(); const insets = useSafeAreaInsets(); const { width } = useWindowDimensions();
+  const a11y = useAccessibilityLabels();
+  const [refreshing, setRefreshing] = useState(false); const [allServices, setAllServices] = useState(false); const client = useQueryClient();
+  const { data: messages = [], isError: messagesError } = useQuery({ queryKey: ["messages"], queryFn: () => api.getMessages(), enabled: !!profile });
+  const { data: appointments = [], isError: appointmentsError } = useQuery({ queryKey: ["appointments"], queryFn: () => api.getAppointments(), enabled: !!profile });
+  const refresh = async () => { setRefreshing(true); await Promise.all([refreshProfile(), client.invalidateQueries({ queryKey: ["messages"] }), client.invalidateQueries({ queryKey: ["appointments"] })]); setRefreshing(false); };
+  const tablet = width >= 720, wide = width >= 1000; const columns = wide ? 5 : tablet ? 4 : 2; const actions = allServices ? ACTIONS : ACTIONS.slice(0, 8); const side = tablet ? 28 : 16;
+  if (isLoading && !profile) return <View accessibilityRole="progressbar" accessibilityLabel={a11y.loading} aria-busy={true} style={[styles.screen, { backgroundColor: colors.background, paddingTop: (Platform.OS === "web" ? 67 : insets.top) + 18 }]}><HomeSkeleton /></View>;
+  return <View style={[styles.screen, { backgroundColor: colors.background }]}><View style={[styles.coralBar, { backgroundColor: colors.coral }]} /><ScrollView accessibilityLabel={a11y.mainContent} contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} refreshControl={<RefreshControl accessibilityLabel={a11y.refresh} refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />} contentContainerStyle={{ paddingBottom: (Platform.OS === "web" ? 110 : insets.bottom + 105) }}>
+    <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.borderLight, paddingTop: (Platform.OS === "web" ? 67 : insets.top) + 10, paddingHorizontal: side }]}><View style={[styles.max, styles.headerRow]}><View style={styles.brand}><View style={[styles.brandMark, { backgroundColor: colors.primary }]}><Feather name="heart" size={20} color={colors.onPrimary} /></View><Text style={[styles.brandText, { color: colors.text }]}>CARNET</Text>{tablet ? <Text style={[styles.byline, { color: colors.textTertiary }]}>BY ARGILETTE</Text> : null}</View><View style={styles.headerActions}><IconButton icon="search" label="Search" color={colors.textSecondary} onPress={() => go("/messages")} /><Pressable accessibilityRole="button" accessibilityLabel="Manage profile" onPress={() => go("/(tabs)/profile")} style={[styles.profileChip, { borderColor: colors.controlBorder }]}><Text style={[styles.profileInitial, { backgroundColor: colors.primaryLight, color: colors.primary }]}>{(profile?.firstName || "P").charAt(0)}</Text>{tablet ? <Text style={[styles.profileName, { color: colors.textSecondary }]}>{profile?.firstName || "Patient"}</Text> : null}</Pressable></View></View></View>
+    <View accessible={false} style={[styles.content, styles.max, { paddingHorizontal: side }]}><View accessibilityRole="alert" aria-live="polite" style={[styles.notice, { backgroundColor: colors.notice, borderColor: colors.noticeBorder }]}><Feather name="shield" size={17} color={colors.primary} /><Text style={[styles.noticeText, { color: colors.textSecondary }]}>Your health information is secure. {messages.length ? `You have ${messages.length} messages from your care team.` : "You're all caught up."}</Text></View>
+    <View style={styles.greeting}><Text style={[styles.eyebrow, { color: colors.textTertiary }]}>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</Text><Text style={[styles.heading, { color: colors.text }]}>Good morning, {profile?.firstName || "Patient"}.</Text><Text style={[styles.subheading, { color: colors.textSecondary }]}>Your care at a glance.</Text></View>
+    <View style={[styles.topGrid, tablet && styles.row]}><View style={tablet ? styles.appointmentWide : undefined}><AppointmentCard appointments={appointments} error={appointmentsError} colors={colors} /></View><View style={[styles.tools, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}><View style={styles.cardTitleRow}><View><Text style={[styles.eyebrow, { color: colors.textTertiary }]}>CARE TOOLS</Text><Text style={[styles.cardTitle, { color: colors.text }]}>How can we help?</Text></View><View style={[styles.smallIcon, { backgroundColor: colors.dangerLight }]}><Feather name="activity" size={19} color={colors.coral} /></View></View><Tool label={t("scheduleAppointment")} onPress={() => go("/request-appointment")} colors={colors} /><Tool label={t("symptomChecker")} onPress={() => go("/symptom-checker")} colors={colors} /></View></View>
+     <View style={[styles.middleGrid, tablet && styles.row]}><View style={tablet ? styles.messageWide : undefined}><MessageCard messages={messages} error={messagesError} colors={colors} /></View><View style={tablet ? styles.servicesWide : undefined}><View style={styles.sectionHead}><View><Text style={[styles.eyebrow, { color: colors.textTertiary }]}>YOUR HEALTH</Text><Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.text }]}>Quick access</Text></View><Pressable accessibilityRole="button" accessibilityState={{ expanded: allServices }} onPress={() => setAllServices((current) => !current)}><Text style={[styles.link, { color: colors.primary }]}>{allServices ? "Show less" : "All services"}</Text></Pressable></View><View style={styles.actionGrid}>{actions.map((item) => <Pressable key={item.labelKey} accessibilityRole="button" accessibilityLabel={t(item.labelKey)} onPress={() => go(item.route)} style={({ pressed }) => [styles.action, { width: `${100 / columns - 2}%`, backgroundColor: colors.surface, borderColor: colors.borderLight }, pressed && styles.pressed]}><View style={[styles.actionIcon, { backgroundColor: colors[item.tone] }]}><Feather name={item.icon} size={20} color={colors.primary} /></View><Text style={[styles.actionLabel, { color: colors.text }]} numberOfLines={2}>{t(item.labelKey)}</Text></Pressable>)}</View></View></View>
+    <View style={[styles.metric, { backgroundColor: colors.mint, borderColor: colors.successLight }]}><View style={[styles.metricIcon, { backgroundColor: colors.surface }]}><Feather name="activity" size={21} color={colors.mintStrong} /></View><View style={styles.flex}><Text style={[styles.metricTitle, { color: colors.text }]}>Your latest health metric is ready</Text><Text style={[styles.metricText, { color: colors.textSecondary }]}>Review your latest health trends and measurements.</Text></View><Pressable accessibilityRole="button" onPress={() => go("/health-metrics")} style={[styles.metricButton, { backgroundColor: colors.mintStrong }]}><Text style={[styles.metricButtonText, { color: colors.onPrimary }]}>View metrics</Text><Feather name="arrow-right" size={16} color={colors.onPrimary} /></Pressable></View></View>
+    <View style={[styles.footer, { backgroundColor: colors.footer, borderTopColor: colors.borderLight }]}><Feather name="shield" size={15} color={colors.textTertiary} /><Text style={[styles.footerText, { color: colors.textTertiary }]}>Your health information is private and protected.</Text></View></ScrollView></View>;
 }
-
+function Tool({ label, onPress, colors }: { label: string; onPress: () => void; colors: any }) { return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.tool, { backgroundColor: colors.surfaceSecondary }, pressed && styles.pressed]}><Text style={[styles.toolText, { color: colors.primary }]}>{label}</Text><Feather name="chevron-right" size={18} color={colors.primary} /></Pressable>; }
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  headerGradient: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  welcomeText: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    color: "#fff",
-  },
-  editProfileBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tilesContainer: {
-    marginTop: -8,
-    paddingHorizontal: 16,
-  },
-  tilesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    justifyContent: "space-between",
-  },
-  tile: {
-    width: "31%",
-    alignItems: "center",
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    gap: 10,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  tileIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tileLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    textAlign: "center",
-    lineHeight: 16,
-  },
-  cardsContainer: {
-    marginTop: 16,
-    paddingHorizontal: 16,
-    gap: 14,
-  },
-  previewCard: {
-    borderRadius: 16,
-    padding: 16,
-    gap: 14,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  previewHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  previewIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  previewTitle: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-    flex: 1,
-  },
-  messageBody: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-  },
-  senderAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  senderInitial: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-  },
-  messageContent: {
-    flex: 1,
-    gap: 3,
-  },
-  senderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  senderName: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-  },
-  messageDate: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-  },
-  messagePreviewText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-  },
-  viewBtn: {
-    alignSelf: "center",
-    paddingHorizontal: 28,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  viewBtnText: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: "#fff",
-  },
-  divider: {
-    height: 1,
-  },
-  viewAllRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  viewAllText: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-  },
-  visitIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  visitType: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-    flex: 1,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  appointmentBody: {
-    flexDirection: "row",
-    gap: 14,
-  },
-  dateColumn: {
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    minWidth: 64,
-  },
-  dateMonth: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    textTransform: "capitalize",
-  },
-  dateDay: {
-    fontSize: 32,
-    fontFamily: "Inter_700Bold",
-    lineHeight: 36,
-  },
-  dateWeekday: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-  },
-  appointmentDetails: {
-    flex: 1,
-    gap: 8,
-    justifyContent: "center",
-  },
-  detailRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-  },
-  detailText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    flex: 1,
-  },
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    marginTop: 28,
-    marginBottom: 8,
-  },
-  footerText: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 16,
-    gap: 6,
-  },
-  emptyText: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-  },
-  emptySubtext: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    textAlign: "center",
-  },
+  screen:{flex:1}, coralBar:{height:4}, max:{width:"100%",maxWidth:1180,alignSelf:"center"}, header:{borderBottomWidth:1,paddingBottom:12},headerRow:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},brand:{flexDirection:"row",alignItems:"center",gap:9},brandMark:{width:36,height:36,borderRadius:11,alignItems:"center",justifyContent:"center"},brandText:{fontSize:20,fontFamily:"Inter_700Bold",letterSpacing:-1},byline:{fontSize:9,fontFamily:"Inter_700Bold",letterSpacing:1,borderLeftWidth:1,paddingLeft:9},headerActions:{flexDirection:"row",alignItems:"center",gap:8},iconButton:{width:44,height:44,alignItems:"center",justifyContent:"center"},profileChip:{minHeight:44,padding:5,borderWidth:1,borderRadius:22,flexDirection:"row",alignItems:"center",gap:7},profileInitial:{width:30,height:30,borderRadius:15,textAlign:"center",lineHeight:30,fontFamily:"Inter_700Bold"},profileName:{paddingRight:6,fontFamily:"Inter_600SemiBold",fontSize:13},content:{paddingTop:18},notice:{borderWidth:1,borderRadius:12,padding:11,flexDirection:"row",gap:8,alignItems:"center"},noticeText:{fontSize:13,fontFamily:"Inter_500Medium",flex:1},greeting:{marginTop:20,marginBottom:18,gap:3},eyebrow:{fontSize:11,fontFamily:"Inter_700Bold",letterSpacing:1.1},heading:{fontSize:30,lineHeight:36,fontFamily:"Inter_700Bold",letterSpacing:-1.1},subheading:{fontSize:15},topGrid:{gap:14},row:{flexDirection:"row"},appointmentWide:{flex:1.55},appointment:{overflow:"hidden",borderRadius:24,borderWidth:1,padding:20,minHeight:248},relative:{zIndex:1},orbOne:{position:"absolute",right:-45,top:-55,width:180,height:180,borderRadius:90,borderWidth:24,borderColor:"rgba(255,255,255,0.15)"},orbTwo:{position:"absolute",right:35,bottom:-65,width:125,height:125,borderRadius:70,backgroundColor:"rgba(255,255,255,0.09)"},upNext:{flexDirection:"row",alignItems:"center",gap:7,marginBottom:15},appointmentInfo:{flexDirection:"row",gap:15},dateBadge:{width:74,height:94,borderRadius:15,alignItems:"center",justifyContent:"center"},dateMonth:{fontSize:12,fontFamily:"Inter_700Bold",textTransform:"uppercase"},dateDay:{fontSize:34,lineHeight:38,fontFamily:"Inter_700Bold"},appointmentCopy:{flex:1},time:{fontSize:13,fontFamily:"Inter_700Bold"},appointmentTitle:{fontSize:20,lineHeight:25,fontFamily:"Inter_700Bold",marginTop:3,textTransform:"capitalize"},location:{flexDirection:"row",gap:5,alignItems:"center",marginTop:7},locationText:{fontSize:12,flex:1},buttonRow:{flexDirection:"row",gap:8,marginTop:18},detailsButton:{minHeight:44,borderRadius:11,paddingHorizontal:15,justifyContent:"center"},reschedule:{minHeight:44,borderRadius:11,borderWidth:1,paddingHorizontal:15,justifyContent:"center"},detailsText:{fontSize:13,fontFamily:"Inter_700Bold"},tools:{borderWidth:1,borderRadius:22,padding:18,gap:9,flex:0.9},cardTitleRow:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:10},smallIcon:{width:39,height:39,borderRadius:11,alignItems:"center",justifyContent:"center"},cardTitle:{fontSize:19,fontFamily:"Inter_700Bold"},tool:{minHeight:48,borderRadius:11,paddingHorizontal:13,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},toolText:{fontFamily:"Inter_700Bold",fontSize:13},middleGrid:{marginTop:20,gap:18},messageWide:{flex:1},servicesWide:{flex:1.45},card:{borderWidth:1,borderRadius:20,padding:17,minHeight:180},flex:{flex:1},unread:{fontSize:12,fontFamily:"Inter_700Bold"},link:{fontSize:13,fontFamily:"Inter_700Bold",minHeight:40,textAlignVertical:"center"},message:{borderTopWidth:1,marginTop:15,paddingTop:14,flexDirection:"row",gap:10},avatar:{width:40,height:40,borderRadius:20,alignItems:"center",justifyContent:"center"},avatarText:{fontFamily:"Inter_700Bold"},senderRow:{flexDirection:"row",justifyContent:"space-between",gap:8},sender:{fontSize:14,fontFamily:"Inter_700Bold",flex:1},messageDate:{fontSize:11},senderName:{fontSize:12,marginTop:2},preview:{fontSize:12,marginTop:3},empty:{flex:1,minHeight:95,alignItems:"center",justifyContent:"center",gap:7},emptyText:{fontSize:14,fontFamily:"Inter_600SemiBold",textAlign:"center"},primaryButton:{minHeight:44,borderRadius:11,alignSelf:"center",justifyContent:"center",paddingHorizontal:17},primaryButtonText:{fontFamily:"Inter_700Bold",fontSize:13},sectionHead:{flexDirection:"row",alignItems:"flex-end",justifyContent:"space-between",marginBottom:9},sectionTitle:{fontSize:21,fontFamily:"Inter_700Bold"},actionGrid:{flexDirection:"row",flexWrap:"wrap",gap:"2%" as any,rowGap:10},action:{minHeight:112,borderWidth:1,borderRadius:16,padding:12,justifyContent:"space-between"},actionIcon:{width:39,height:39,borderRadius:11,alignItems:"center",justifyContent:"center"},actionLabel:{fontSize:12,fontFamily:"Inter_700Bold",lineHeight:15},metric:{marginTop:22,borderWidth:1,borderRadius:20,padding:17,flexDirection:"row",alignItems:"center",gap:11},metricIcon:{width:44,height:44,borderRadius:22,alignItems:"center",justifyContent:"center"},metricTitle:{fontSize:16,fontFamily:"Inter_700Bold"},metricText:{fontSize:12,marginTop:2},metricButton:{minHeight:44,borderRadius:11,paddingHorizontal:12,flexDirection:"row",alignItems:"center",gap:6},metricButtonText:{fontSize:12,fontFamily:"Inter_700Bold"},footer:{marginTop:25,borderTopWidth:1,padding:20,flexDirection:"row",justifyContent:"center",alignItems:"center",gap:6},footerText:{fontSize:12,textAlign:"center"},pressed:{opacity:0.78,transform:[{scale:0.98}]},
 });

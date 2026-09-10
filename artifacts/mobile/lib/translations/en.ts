@@ -8,7 +8,7 @@ const en = {
   hospitalOptional: "Hospital / Clinic (optional)",
   yourHospitalName: "Your hospital name",
   accessRecords: "Access your medical records securely",
-  dataEncrypted: "Your data is encrypted and secure",
+  dataEncrypted: "Encrypted connection. Sign out when finished.",
 
   home: "Home",
   profile: "Profile",

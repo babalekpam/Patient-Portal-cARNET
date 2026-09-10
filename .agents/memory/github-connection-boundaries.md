@@ -1,0 +1,17 @@
+---
+name: GitHub connection boundaries
+description: Distinguishes the GitHub data connector from workspace Git remote authentication.
+---
+
+A healthy GitHub connector does not prove that command-line Git can fetch or
+push the repository.
+
+**Why:** The connector successfully read the repository with full write
+permission while the workspace remote and GitHub CLI both rejected their
+separate saved authentication. Reauthorizing a healthy connector is not a
+valid repair for an unrelated Git credential.
+
+**How to apply:** Check remote divergence before syncing. Preserve and reconcile
+both histories locally first. If command-line authentication is stale, ask the
+user to reconnect the repository through Replit's Git/version-control interface;
+never extract connector tokens or place credentials in a remote URL.

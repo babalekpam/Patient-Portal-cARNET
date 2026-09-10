@@ -3,19 +3,22 @@ import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificati
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-  Modal,
 } from "react-native";
+import { Pressable } from "@/components/AccessiblePressable";
+import { Modal } from "@/components/AccessibleModal";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { AnimatedCard } from "@/components/AnimatedCard";
 import { useTheme } from "@/context/ThemeContext";
 import { useI18n } from "@/lib/i18n";
 import { LogoWatermark } from "@/components/LogoWatermark";
+import { assertPatientDataEpoch, capturePatientDataEpoch, getSecureItem, isPatientDataEpochCurrent, setSecureItem, subscribeToPatientDataClear } from "@/lib/secureStorage";
+import { showAppAlert } from "@/lib/privacyAlerts";
 
 const METRICS_KEY = "health_metrics";
 
@@ -30,24 +33,24 @@ interface MetricEntry {
 interface MetricConfig {
   key: string;
   icon: React.ComponentProps<typeof Feather>["name"];
-  color: string;
   unit: string;
   label: string;
   normalRange?: string;
 }
 
 const METRIC_CONFIGS: MetricConfig[] = [
-  { key: "steps", icon: "trending-up", color: "#059669", unit: "steps", label: "Steps", normalRange: "8,000-10,000/day" },
-  { key: "heartRate", icon: "heart", color: "#dc2626", unit: "bpm", label: "Heart Rate", normalRange: "60-100 bpm" },
-  { key: "bloodPressureSys", icon: "activity", color: "#1a6fbf", unit: "mmHg", label: "Blood Pressure (Sys)", normalRange: "90-120 mmHg" },
-  { key: "bloodPressureDia", icon: "activity", color: "#7c3aed", unit: "mmHg", label: "Blood Pressure (Dia)", normalRange: "60-80 mmHg" },
-  { key: "weight", icon: "user", color: "#d97706", unit: "kg", label: "Weight" },
-  { key: "sleep", icon: "moon", color: "#6366f1", unit: "hrs", label: "Sleep", normalRange: "7-9 hours" },
-  { key: "temperature", icon: "thermometer", color: "#f43f5e", unit: "°F", label: "Temperature", normalRange: "97.8-99.1°F" },
-  { key: "oxygen", icon: "wind", color: "#06b6d4", unit: "%", label: "Blood Oxygen", normalRange: "95-100%" },
+  { key: "steps", icon: "trending-up", unit: "steps", label: "Steps", normalRange: "8,000-10,000/day" },
+  { key: "heartRate", icon: "heart", unit: "bpm", label: "Heart Rate", normalRange: "60-100 bpm" },
+  { key: "bloodPressureSys", icon: "activity", unit: "mmHg", label: "Blood Pressure (Sys)", normalRange: "90-120 mmHg" },
+  { key: "bloodPressureDia", icon: "activity", unit: "mmHg", label: "Blood Pressure (Dia)", normalRange: "60-80 mmHg" },
+  { key: "weight", icon: "user", unit: "kg", label: "Weight" },
+  { key: "sleep", icon: "moon", unit: "hrs", label: "Sleep", normalRange: "7-9 hours" },
+  { key: "temperature", icon: "thermometer", unit: "°F", label: "Temperature", normalRange: "97.8-99.1°F" },
+  { key: "oxygen", icon: "wind", unit: "%", label: "Blood Oxygen", normalRange: "95-100%" },
 ];
 
 function MetricCard({ config, entries, colors, onAdd }: { config: MetricConfig; entries: MetricEntry[]; colors: any; onAdd: () => void }) {
+  const { t } = useI18n();
   const latest = entries[0];
   const prev = entries[1];
   const trend = latest && prev ? latest.value - prev.value : 0;
@@ -56,10 +59,12 @@ function MetricCard({ config, entries, colors, onAdd }: { config: MetricConfig; 
     <Pressable
       style={[styles.metricCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
       onPress={onAdd}
+      accessibilityRole="button"
+      accessibilityLabel={`${config.label}. ${latest ? `${latest.value} ${config.unit}` : "No data"}${trend ? `, trend ${trend > 0 ? "up" : "down"} ${Math.abs(trend).toFixed(1)}` : ""}${config.normalRange ? `. Normal range ${config.normalRange}` : ""}${entries.length > 1 ? `. Recent values: ${entries.slice(0, 7).reverse().map((entry) => `${entry.value} ${config.unit} on ${new Date(entry.date).toLocaleDateString()}`).join(", ")}` : ""}`}
     >
       <View style={styles.metricHeader}>
-        <View style={[styles.metricIcon, { backgroundColor: config.color + "15" }]}>
-          <Feather name={config.icon} size={20} color={config.color} />
+        <View style={[styles.metricIcon, { backgroundColor: colors.primaryLight }]}>
+          <Feather name={config.icon} size={20} color={colors.primary} />
         </View>
         <View style={styles.metricInfo}>
           <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>{config.label}</Text>
@@ -68,9 +73,9 @@ function MetricCard({ config, entries, colors, onAdd }: { config: MetricConfig; 
               <Text style={[styles.metricValue, { color: colors.text }]}>{latest.value}</Text>
               <Text style={[styles.metricUnit, { color: colors.textTertiary }]}>{config.unit}</Text>
               {trend !== 0 && (
-                <View style={[styles.trendBadge, { backgroundColor: trend > 0 ? "#dcfce720" : "#fee2e220" }]}>
-                  <Feather name={trend > 0 ? "trending-up" : "trending-down"} size={12} color={trend > 0 ? "#16a34a" : "#dc2626"} />
-                  <Text style={[styles.trendText, { color: trend > 0 ? "#16a34a" : "#dc2626" }]}>{Math.abs(trend).toFixed(1)}</Text>
+                <View style={[styles.trendBadge, { backgroundColor: trend > 0 ? colors.successLight : colors.dangerLight }]}>
+                  <Feather name={trend > 0 ? "trending-up" : "trending-down"} size={12} color={trend > 0 ? colors.success : colors.danger} />
+                  <Text style={[styles.trendText, { color: trend > 0 ? colors.success : colors.danger }]}>{Math.abs(trend).toFixed(1)}</Text>
                 </View>
               )}
             </View>
@@ -78,22 +83,22 @@ function MetricCard({ config, entries, colors, onAdd }: { config: MetricConfig; 
             <Text style={[styles.noData, { color: colors.textTertiary }]}>No data</Text>
           )}
         </View>
-        <Pressable style={[styles.addIcon, { backgroundColor: config.color + "15" }]} onPress={onAdd}>
-          <Feather name="plus" size={18} color={config.color} />
+        <Pressable style={[styles.addIcon, { backgroundColor: colors.primaryLight }]} onPress={onAdd} accessibilityRole="button" accessibilityLabel={`${t("add")} ${config.label}`}>
+          <Feather name="plus" size={18} color={colors.primary} />
         </Pressable>
       </View>
       {config.normalRange && (
         <Text style={[styles.rangeText, { color: colors.textTertiary }]}>Normal: {config.normalRange}</Text>
       )}
       {entries.length > 1 && (
-        <View style={styles.miniChart}>
+        <View style={styles.miniChart} accessible={false}>
           {entries.slice(0, 7).reverse().map((e, i) => {
             const max = Math.max(...entries.slice(0, 7).map((x) => x.value));
             const min = Math.min(...entries.slice(0, 7).map((x) => x.value));
             const range = max - min || 1;
             const height = 8 + ((e.value - min) / range) * 32;
             return (
-              <View key={e.id} style={[styles.bar, { height, backgroundColor: config.color + (i === entries.slice(0, 7).length - 1 ? "ff" : "40"), borderRadius: 3, width: 8 }]} />
+              <View key={e.id} style={[styles.bar, { height, backgroundColor: colors.primary, borderRadius: 3, width: 8 }]} />
             );
           })}
         </View>
@@ -105,23 +110,39 @@ function MetricCard({ config, entries, colors, onAdd }: { config: MetricConfig; 
 export default function HealthMetricsScreen() {
   const { colors } = useTheme();
   const { t } = useI18n();
+  const a11y = useAccessibilityLabels();
   const [allEntries, setAllEntries] = useState<MetricEntry[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addingMetric, setAddingMetric] = useState<MetricConfig | null>(null);
   const [inputValue, setInputValue] = useState("");
 
   const load = useCallback(async () => {
+    const expectedEpoch = capturePatientDataEpoch();
     try {
-      const stored = await AsyncStorage.getItem(METRICS_KEY);
+      const stored = await getSecureItem(METRICS_KEY);
+      await AsyncStorage.removeItem(METRICS_KEY).catch(() => {});
+      assertPatientDataEpoch(expectedEpoch);
       if (stored) setAllEntries(JSON.parse(stored));
-    } catch { setAllEntries([]); }
-  }, []);
+    } catch {
+      if (!isPatientDataEpochCurrent(expectedEpoch)) return;
+      setAllEntries([]);
+      showAppAlert(t("error"), "CARNET could not load measurements from secure storage.");
+    }
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => subscribeToPatientDataClear(() => {
+    setAllEntries([]);
+    setShowAddModal(false);
+    setAddingMetric(null);
+    setInputValue("");
+  }), []);
 
-  const saveEntries = async (entries: MetricEntry[]) => {
+  const saveEntries = async (entries: MetricEntry[], expectedEpoch: number) => {
+    await setSecureItem(METRICS_KEY, JSON.stringify(entries));
+    await AsyncStorage.removeItem(METRICS_KEY).catch(() => {});
+    assertPatientDataEpoch(expectedEpoch);
     setAllEntries(entries);
-    await AsyncStorage.setItem(METRICS_KEY, JSON.stringify(entries));
   };
 
   const openAdd = (config: MetricConfig) => {
@@ -133,15 +154,27 @@ export default function HealthMetricsScreen() {
   const handleSave = async () => {
     if (!addingMetric || !inputValue) return;
     impactMedium();
+    const expectedEpoch = capturePatientDataEpoch();
+    const value = Number(inputValue);
+    if (!Number.isFinite(value)) {
+      showAppAlert(t("error"), "Enter a valid number.");
+      return;
+    }
     const entry: MetricEntry = {
       id: Date.now().toString(),
       type: addingMetric.key,
-      value: parseFloat(inputValue),
+      value,
       unit: addingMetric.unit,
       date: new Date().toISOString(),
     };
-    await saveEntries([entry, ...allEntries]);
-    setShowAddModal(false);
+    try {
+      await saveEntries([entry, ...allEntries], expectedEpoch);
+      setShowAddModal(false);
+    } catch {
+      if (!isPatientDataEpochCurrent(expectedEpoch)) return;
+      notificationError();
+      showAppAlert(t("error"), "This measurement could not be saved securely. No changes were made.");
+    }
   };
 
   const getEntries = (type: string) => allEntries.filter((e) => e.type === type).slice(0, 30);
@@ -169,14 +202,14 @@ export default function HealthMetricsScreen() {
         </View>
       </ScrollView>
 
-      <Modal visible={showAddModal} animationType="slide" transparent>
+      <Modal visible={showAddModal} animationType="slide" transparent accessibilityLabel={addingMetric ? `${t("add")} ${addingMetric.label}` : t("healthMetrics")} onRequestClose={() => setShowAddModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modal, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>
                 {addingMetric ? `${t("add")} ${addingMetric.label}` : ""}
               </Text>
-              <Pressable onPress={() => setShowAddModal(false)}>
+              <Pressable onPress={() => setShowAddModal(false)} accessibilityRole="button" accessibilityLabel={a11y.closeDialog}>
                 <Feather name="x" size={24} color={colors.textSecondary} />
               </Pressable>
             </View>
@@ -185,13 +218,14 @@ export default function HealthMetricsScreen() {
               <>
                 <View style={styles.inputRow}>
                   <TextInput
-                    style={[styles.valueInput, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.border }]}
+                    style={[styles.valueInput, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.controlBorder }]}
                     placeholder="0"
                     placeholderTextColor={colors.textTertiary}
                     value={inputValue}
                     onChangeText={setInputValue}
                     keyboardType="decimal-pad"
                     autoFocus
+                    accessibilityLabel={addingMetric.label}
                   />
                   <Text style={[styles.unitLabel, { color: colors.textSecondary }]}>{addingMetric.unit}</Text>
                 </View>
@@ -201,11 +235,13 @@ export default function HealthMetricsScreen() {
                 )}
 
                 <Pressable
-                  style={[styles.saveBtn, { backgroundColor: inputValue ? (addingMetric?.color || colors.primary) : colors.borderLight }]}
+                  style={[styles.saveBtn, { backgroundColor: inputValue ? colors.primary : colors.borderLight }]}
                   disabled={!inputValue}
                   onPress={handleSave}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !inputValue }}
                 >
-                  <Text style={[styles.saveBtnText, { color: inputValue ? "#fff" : colors.textTertiary }]}>{t("saveChanges")}</Text>
+                  <Text style={[styles.saveBtnText, { color: inputValue ? colors.onPrimary : colors.textTertiary }]}>{t("saveChanges")}</Text>
                 </Pressable>
               </>
             )}
@@ -235,7 +271,7 @@ const styles = StyleSheet.create({
   trendBadge: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginLeft: 4 },
   trendText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   noData: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  addIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  addIcon: { width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   rangeText: { fontSize: 12, fontFamily: "Inter_400Regular" },
   miniChart: { flexDirection: "row", alignItems: "flex-end", gap: 4, height: 40, marginTop: 4 },
   bar: {},

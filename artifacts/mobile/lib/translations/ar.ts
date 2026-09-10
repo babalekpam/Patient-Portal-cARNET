@@ -8,7 +8,7 @@ const ar: Record<string, string> = {
   hospitalOptional: "المستشفى / العيادة (اختياري)",
   yourHospitalName: "اسم المستشفى",
   accessRecords: "الوصول إلى سجلاتك الطبية بأمان",
-  dataEncrypted: "بياناتك مشفرة وآمنة",
+  dataEncrypted: "اتصال مشفّر. سجّل الخروج عند الانتهاء.",
   home: "الرئيسية",
   profile: "الملف الشخصي",
   appointments: "المواعيد",

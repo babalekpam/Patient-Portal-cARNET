@@ -17,6 +17,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { api, type VisitSummary } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { LogoWatermark } from "@/components/LogoWatermark";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return "";
@@ -138,6 +139,7 @@ function SummaryCard({ item, index, colors }: { item: VisitSummary; index: numbe
 export default function VisitSummariesScreen() {
   const { colors } = useTheme();
   const { t } = useI18n();
+  const a11y = useAccessibilityLabels();
   const [search, setSearch] = useState("");
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
@@ -164,7 +166,7 @@ export default function VisitSummariesScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ScreenHeader title={t("visitSummaries")} />
-        <ListSkeleton />
+        <View accessibilityRole="progressbar" accessibilityLabel={a11y.loading} aria-busy={true}><ListSkeleton /></View>
       </View>
     );
   }
@@ -175,8 +177,8 @@ export default function VisitSummariesScreen() {
         <ScreenHeader title={t("visitSummaries")} />
         <View style={styles.centered}>
           <Feather name="wifi-off" size={36} color={colors.textTertiary} />
-          <Text style={[styles.errorTitle, { color: colors.text }]}>{t("unableToLoad")}</Text>
-          <Text style={[styles.errorText, { color: colors.textSecondary }]}>{(error as Error).message}</Text>
+          <Text accessibilityRole="header" style={[styles.errorTitle, { color: colors.text }]}>{t("unableToLoad")}</Text>
+          <Text accessibilityRole="alert" aria-live="assertive" style={[styles.errorText, { color: colors.textSecondary }]}>{(error as Error).message}</Text>
         </View>
       </View>
     );
@@ -211,7 +213,7 @@ export default function VisitSummariesScreen() {
             </Text>
           </View>
         }
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl accessibilityLabel={a11y.refresh} refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
       />
     </View>
   );

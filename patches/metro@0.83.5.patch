@@ -1,0 +1,13 @@
+diff --git a/src/Assets.js b/src/Assets.js
+index ac3302ca43a572b6b750dd6f390401ddfab03f05..c7740e000cc8824634cea1f1ecd4b8f347d00d82 100644
+--- a/src/Assets.js
++++ b/src/Assets.js
+@@ -14,7 +14,7 @@ var AssetPaths = _interopRequireWildcard(
+ );
+ var _crypto = _interopRequireDefault(require("crypto"));
+ var _fs = _interopRequireDefault(require("fs"));
+-var _imageSize = _interopRequireDefault(require("image-size"));
++var _imageSize = _interopRequireDefault(require("@workspace/scripts/asset-dimensions"));
+ var _path = _interopRequireDefault(require("path"));
+ function _interopRequireDefault(e) {
+   return e && e.__esModule ? e : { default: e };

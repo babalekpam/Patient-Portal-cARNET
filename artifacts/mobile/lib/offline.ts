@@ -1,7 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { deleteSecureItem, getSecureItem, setSecureItem } from "@/lib/secureStorage";
 
 const CACHE_PREFIX = "offline_cache_";
 const PENDING_QUEUE_KEY = "offline_pending_queue";
+const CACHE_MAX_AGE = 5 * 60 * 1000;
 
 interface CachedData {
   data: any;
@@ -53,42 +55,52 @@ export function subscribeToConnectivity(callback: (isConnected: boolean) => void
 
 export async function cacheData(key: string, data: any): Promise<void> {
   const cached: CachedData = { data, timestamp: Date.now(), key };
-  await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify(cached));
+  await setSecureItem(CACHE_PREFIX + key, JSON.stringify(cached));
+  await AsyncStorage.removeItem(CACHE_PREFIX + key);
 }
 
-export async function getCachedData<T>(key: string, maxAgeMs?: number): Promise<T | null> {
-  const raw = await AsyncStorage.getItem(CACHE_PREFIX + key);
+export async function getCachedData<T>(key: string, maxAgeMs = CACHE_MAX_AGE): Promise<T | null> {
+  const raw = await getSecureItem(CACHE_PREFIX + key);
+  await AsyncStorage.removeItem(CACHE_PREFIX + key);
   if (!raw) return null;
   const cached: CachedData = JSON.parse(raw);
-  if (maxAgeMs && Date.now() - cached.timestamp > maxAgeMs) return null;
+  if (!Number.isFinite(cached.timestamp) || Date.now() - cached.timestamp > Math.min(maxAgeMs, CACHE_MAX_AGE)) {
+    await clearCache(key);
+    return null;
+  }
   return cached.data as T;
 }
 
 export async function clearCache(key: string): Promise<void> {
+  await deleteSecureItem(CACHE_PREFIX + key);
   await AsyncStorage.removeItem(CACHE_PREFIX + key);
 }
 
 export async function addPendingAction(action: Omit<PendingAction, "id" | "createdAt">): Promise<void> {
   const queue = await getPendingActions();
+  if (queue.length >= 50) throw new Error("Too many pending actions. Reconnect before adding more.");
   queue.push({
     ...action,
     id: Date.now().toString(),
     createdAt: new Date().toISOString(),
   });
-  await AsyncStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(queue));
+  await setSecureItem(PENDING_QUEUE_KEY, JSON.stringify(queue));
+  await AsyncStorage.removeItem(PENDING_QUEUE_KEY);
 }
 
 export async function getPendingActions(): Promise<PendingAction[]> {
-  const raw = await AsyncStorage.getItem(PENDING_QUEUE_KEY);
+  const raw = await getSecureItem(PENDING_QUEUE_KEY);
+  await AsyncStorage.removeItem(PENDING_QUEUE_KEY);
   return raw ? JSON.parse(raw) : [];
 }
 
 export async function removePendingAction(id: string): Promise<void> {
   const queue = await getPendingActions();
-  await AsyncStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(queue.filter((a) => a.id !== id)));
+  await setSecureItem(PENDING_QUEUE_KEY, JSON.stringify(queue.filter((a) => a.id !== id)));
 }
 
 export async function clearPendingActions(): Promise<void> {
+  await deleteSecureItem(PENDING_QUEUE_KEY);
   await AsyncStorage.removeItem(PENDING_QUEUE_KEY);
 }
 
@@ -103,7 +115,8 @@ export async function cacheEssentialData(apiCall: (endpoint: string) => Promise<
 }
 
 export async function getCacheAge(key: string): Promise<number | null> {
-  const raw = await AsyncStorage.getItem(CACHE_PREFIX + key);
+  const raw = await getSecureItem(CACHE_PREFIX + key);
+  await AsyncStorage.removeItem(CACHE_PREFIX + key);
   if (!raw) return null;
   const cached: CachedData = JSON.parse(raw);
   return Date.now() - cached.timestamp;

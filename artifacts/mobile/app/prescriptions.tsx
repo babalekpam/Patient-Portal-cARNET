@@ -3,12 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { AccessiblePressable as Pressable } from "@/components/AccessiblePressable";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SearchBar } from "@/components/SearchBar";
@@ -86,6 +87,7 @@ function EmptyState({ colors }: { colors: any }) {
 
 export default function PrescriptionsScreen() {
   const { colors } = useTheme();
+  const a11y = useAccessibilityLabels();
   const [search, setSearch] = useState("");
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["prescriptions"],
@@ -106,7 +108,7 @@ export default function PrescriptionsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ScreenHeader title="Prescriptions" />
-        <ListSkeleton />
+        <View accessibilityRole="progressbar" accessibilityLabel={a11y.loading} aria-busy={true}><ListSkeleton /></View>
       </View>
     );
   }
@@ -117,10 +119,10 @@ export default function PrescriptionsScreen() {
         <ScreenHeader title="Prescriptions" />
         <View style={styles.centered}>
           <Feather name="wifi-off" size={36} color={colors.textTertiary} />
-          <Text style={[styles.errorTitle, { color: colors.text }]}>Unable to Load</Text>
-          <Text style={[styles.errorText, { color: colors.textSecondary }]}>{(error as Error).message}</Text>
-          <Pressable style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()}>
-            <Text style={styles.retryText}>Try Again</Text>
+          <Text accessibilityRole="header" style={[styles.errorTitle, { color: colors.text }]}>Unable to Load</Text>
+          <Text accessibilityRole="alert" aria-live="assertive" style={[styles.errorText, { color: colors.textSecondary }]}>{(error as Error).message}</Text>
+          <Pressable accessibilityLabel={a11y.refresh} style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()}>
+            <Text style={[styles.retryText, { color: colors.onPrimary }]}>Try Again</Text>
           </Pressable>
         </View>
       </View>
@@ -139,7 +141,7 @@ export default function PrescriptionsScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={data && data.length > 1 ? <SearchBar value={search} onChangeText={setSearch} placeholder="Search medications..." /> : null}
         ListEmptyComponent={<EmptyState colors={colors} />}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl accessibilityLabel={a11y.refresh} refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
       />
     </View>
   );

@@ -3,20 +3,22 @@ import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificati
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  Alert,
   FlatList,
-  Modal,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { Pressable } from "@/components/AccessiblePressable";
+import { Modal } from "@/components/AccessibleModal";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { AnimatedCard } from "@/components/AnimatedCard";
 import { useTheme } from "@/context/ThemeContext";
 import { useI18n } from "@/lib/i18n";
 import { LogoWatermark } from "@/components/LogoWatermark";
+import { assertPatientDataEpoch, capturePatientDataEpoch, getSecureItem, isPatientDataEpochCurrent, setSecureItem, subscribeToPatientDataClear } from "@/lib/secureStorage";
+import { confirmAppAction, showAppAlert } from "@/lib/privacyAlerts";
 
 const FAMILY_KEY = "family_members";
 
@@ -39,6 +41,7 @@ const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"
 export default function FamilyScreen() {
   const { colors } = useTheme();
   const { t } = useI18n();
+  const a11y = useAccessibilityLabels();
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<FamilyMember | null>(null);
@@ -46,17 +49,33 @@ export default function FamilyScreen() {
   const [viewMember, setViewMember] = useState<FamilyMember | null>(null);
 
   const load = useCallback(async () => {
+    const expectedEpoch = capturePatientDataEpoch();
     try {
-      const stored = await AsyncStorage.getItem(FAMILY_KEY);
+      const stored = await getSecureItem(FAMILY_KEY);
+      await AsyncStorage.removeItem(FAMILY_KEY).catch(() => {});
+      assertPatientDataEpoch(expectedEpoch);
       if (stored) setMembers(JSON.parse(stored));
-    } catch { setMembers([]); }
-  }, []);
+    } catch {
+      if (!isPatientDataEpochCurrent(expectedEpoch)) return;
+      setMembers([]);
+      showAppAlert(t("error"), "CARNET could not load family information from secure storage.");
+    }
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => subscribeToPatientDataClear(() => {
+    setMembers([]);
+    setViewMember(null);
+    setShowModal(false);
+    setEditing(null);
+    setForm({});
+  }), []);
 
-  const save = async (list: FamilyMember[]) => {
+  const save = async (list: FamilyMember[], expectedEpoch: number) => {
+    await setSecureItem(FAMILY_KEY, JSON.stringify(list));
+    await AsyncStorage.removeItem(FAMILY_KEY).catch(() => {});
+    assertPatientDataEpoch(expectedEpoch);
     setMembers(list);
-    await AsyncStorage.setItem(FAMILY_KEY, JSON.stringify(list));
   };
 
   const openAdd = () => {
@@ -74,31 +93,44 @@ export default function FamilyScreen() {
   const handleSave = async () => {
     if (!form.firstName || !form.relationship) return;
     impactMedium();
-    if (editing) {
-      const updated = members.map((m) => m.id === editing.id ? { ...m, ...form } as FamilyMember : m);
-      await save(updated);
-    } else {
-      const newMember: FamilyMember = {
-        id: Date.now().toString(),
-        firstName: form.firstName || "",
-        lastName: form.lastName || "",
-        relationship: form.relationship || "",
-        dateOfBirth: form.dateOfBirth || "",
-        bloodType: form.bloodType || "",
-        allergies: form.allergies || "",
-        medications: form.medications || "",
-        notes: form.notes || "",
-      };
-      await save([...members, newMember]);
+    const expectedEpoch = capturePatientDataEpoch();
+    try {
+      if (editing) {
+        const updated = members.map((m) => m.id === editing.id ? { ...m, ...form } as FamilyMember : m);
+        await save(updated, expectedEpoch);
+      } else {
+        const newMember: FamilyMember = {
+          id: Date.now().toString(),
+          firstName: form.firstName || "",
+          lastName: form.lastName || "",
+          relationship: form.relationship || "",
+          dateOfBirth: form.dateOfBirth || "",
+          bloodType: form.bloodType || "",
+          allergies: form.allergies || "",
+          medications: form.medications || "",
+          notes: form.notes || "",
+        };
+        await save([...members, newMember], expectedEpoch);
+      }
+      setShowModal(false);
+    } catch {
+      if (!isPatientDataEpochCurrent(expectedEpoch)) return;
+      notificationError();
+      showAppAlert(t("error"), "Family information could not be saved securely. No changes were made.");
     }
-    setShowModal(false);
   };
 
-  const handleDelete = (id: string) => {
-    Alert.alert(t("removeFamilyMember"), t("removeFamilyConfirm"), [
-      { text: t("cancel"), style: "cancel" },
-      { text: t("remove"), style: "destructive", onPress: async () => { await save(members.filter((m) => m.id !== id)); setViewMember(null); } },
-    ]);
+  const handleDelete = async (id: string) => {
+    const confirmed = await confirmAppAction(t("removeFamilyMember"), t("removeFamilyConfirm"), t("remove"), t("cancel"), true);
+    if (!confirmed) return;
+    const expectedEpoch = capturePatientDataEpoch();
+    try {
+      await save(members.filter((m) => m.id !== id), expectedEpoch);
+      setViewMember(null);
+    } catch {
+      if (!isPatientDataEpochCurrent(expectedEpoch)) return;
+      showAppAlert(t("error"), "The family member could not be removed from secure storage.");
+    }
   };
 
   const getInitials = (m: FamilyMember) => `${m.firstName.charAt(0)}${m.lastName.charAt(0)}`.toUpperCase() || "?";
@@ -120,6 +152,8 @@ export default function FamilyScreen() {
             <Pressable
               style={[styles.memberCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
               onPress={() => setViewMember(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.firstName} ${item.lastName}, ${item.relationship}`}
             >
               <View style={[styles.avatar, { backgroundColor: getRelColor(item.relationship) + "20" }]}>
                 <Text style={[styles.avatarText, { color: getRelColor(item.relationship) }]}>{getInitials(item)}</Text>
@@ -143,22 +177,22 @@ export default function FamilyScreen() {
             </View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("noFamilyMembers")}</Text>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("noFamilyText")}</Text>
-            <Pressable style={[styles.primaryBtn, { backgroundColor: colors.primary }]} onPress={openAdd}>
-              <Feather name="user-plus" size={18} color="#fff" />
-              <Text style={styles.primaryBtnText}>{t("addFamilyMember")}</Text>
+            <Pressable style={[styles.primaryBtn, { backgroundColor: colors.primary }]} onPress={openAdd} accessibilityRole="button" accessibilityLabel={t("addFamilyMember")}>
+              <Feather name="user-plus" size={18} color={colors.onPrimary} />
+              <Text style={[styles.primaryBtnText, { color: colors.onPrimary }]}>{t("addFamilyMember")}</Text>
             </Pressable>
           </View>
         }
       />
 
-      <Modal visible={!!viewMember} animationType="slide" transparent>
+      <Modal visible={!!viewMember} animationType="slide" transparent accessibilityLabel={viewMember ? `${viewMember.firstName} ${viewMember.lastName}` : t("familyMembers")} onRequestClose={() => setViewMember(null)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modal, { backgroundColor: colors.surface }]}>
             {viewMember && (
               <>
                 <View style={styles.modalHeader}>
                   <Text style={[styles.modalTitle, { color: colors.text }]}>{viewMember.firstName} {viewMember.lastName}</Text>
-                  <Pressable onPress={() => setViewMember(null)}>
+                  <Pressable onPress={() => setViewMember(null)} accessibilityRole="button" accessibilityLabel={a11y.closeDialog}>
                     <Feather name="x" size={24} color={colors.textSecondary} />
                   </Pressable>
                 </View>
@@ -172,11 +206,11 @@ export default function FamilyScreen() {
                 {viewMember.medications ? <View style={[styles.detailRow, { borderBottomColor: colors.borderLight }]}><Text style={[styles.detailLabel, { color: colors.textTertiary }]}>{t("medications")}</Text><Text style={[styles.detailValue, { color: colors.text }]}>{viewMember.medications}</Text></View> : null}
                 {viewMember.notes ? <View style={[styles.detailRow, { borderBottomColor: colors.borderLight }]}><Text style={[styles.detailLabel, { color: colors.textTertiary }]}>{t("notes")}</Text><Text style={[styles.detailValue, { color: colors.text }]}>{viewMember.notes}</Text></View> : null}
                 <View style={styles.actionRow}>
-                  <Pressable style={[styles.actionBtn, { backgroundColor: colors.primaryLight }]} onPress={() => { setViewMember(null); openEdit(viewMember); }}>
+                  <Pressable style={[styles.actionBtn, { backgroundColor: colors.primaryLight }]} onPress={() => { setViewMember(null); openEdit(viewMember); }} accessibilityRole="button">
                     <Feather name="edit-2" size={16} color={colors.primary} />
                     <Text style={[styles.actionBtnText, { color: colors.primary }]}>{t("editProfile")}</Text>
                   </Pressable>
-                  <Pressable style={[styles.actionBtn, { backgroundColor: colors.dangerLight }]} onPress={() => handleDelete(viewMember.id)}>
+                  <Pressable style={[styles.actionBtn, { backgroundColor: colors.dangerLight }]} onPress={() => handleDelete(viewMember.id)} accessibilityRole="button">
                     <Feather name="trash-2" size={16} color={colors.danger} />
                     <Text style={[styles.actionBtnText, { color: colors.danger }]}>{t("remove")}</Text>
                   </Pressable>
@@ -187,44 +221,44 @@ export default function FamilyScreen() {
         </View>
       </Modal>
 
-      <Modal visible={showModal} animationType="slide" transparent>
+      <Modal visible={showModal} animationType="slide" transparent accessibilityLabel={editing ? t("editFamilyMember") : t("addFamilyMember")} onRequestClose={() => setShowModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modal, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>{editing ? t("editFamilyMember") : t("addFamilyMember")}</Text>
-              <Pressable onPress={() => setShowModal(false)}>
+              <Pressable onPress={() => setShowModal(false)} accessibilityRole="button" accessibilityLabel={a11y.closeDialog}>
                 <Feather name="x" size={24} color={colors.textSecondary} />
               </Pressable>
             </View>
-            <TextInput style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.border }]} placeholder={t("firstName") + " *"} placeholderTextColor={colors.textTertiary} value={form.firstName || ""} onChangeText={(v) => setForm({ ...form, firstName: v })} />
-            <TextInput style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.border }]} placeholder={t("lastName")} placeholderTextColor={colors.textTertiary} value={form.lastName || ""} onChangeText={(v) => setForm({ ...form, lastName: v })} />
+            <TextInput style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.controlBorder }]} placeholder={t("firstName") + " *"} placeholderTextColor={colors.textTertiary} value={form.firstName || ""} onChangeText={(v) => setForm({ ...form, firstName: v })} accessibilityLabel={t("firstName")} />
+            <TextInput style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.controlBorder }]} placeholder={t("lastName")} placeholderTextColor={colors.textTertiary} value={form.lastName || ""} onChangeText={(v) => setForm({ ...form, lastName: v })} accessibilityLabel={t("lastName")} />
 
             <Text style={[styles.label, { color: colors.textSecondary }]}>{t("relationship")} *</Text>
             <View style={styles.chipsRow}>
               {RELATIONSHIPS.map((r) => (
-                <Pressable key={r} style={[styles.chip, { backgroundColor: form.relationship === r ? colors.primaryLight : colors.surfaceSecondary, borderColor: form.relationship === r ? colors.primary : colors.border }]} onPress={() => setForm({ ...form, relationship: r })}>
+                <Pressable key={r} style={[styles.chip, { backgroundColor: form.relationship === r ? colors.primaryLight : colors.surfaceSecondary, borderColor: form.relationship === r ? colors.primary : colors.border }]} onPress={() => setForm({ ...form, relationship: r })} accessibilityRole="radio" accessibilityState={{ checked: form.relationship === r }}>
                   <Text style={[styles.chipText, { color: form.relationship === r ? colors.primary : colors.textSecondary }]}>{r}</Text>
                 </Pressable>
               ))}
             </View>
 
-            <TextInput style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.border }]} placeholder={t("dateOfBirth") + " (MM/DD/YYYY)"} placeholderTextColor={colors.textTertiary} value={form.dateOfBirth || ""} onChangeText={(v) => setForm({ ...form, dateOfBirth: v })} />
+            <TextInput style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.controlBorder }]} placeholder={t("dateOfBirth") + " (MM/DD/YYYY)"} placeholderTextColor={colors.textTertiary} value={form.dateOfBirth || ""} onChangeText={(v) => setForm({ ...form, dateOfBirth: v })} accessibilityLabel={t("dateOfBirth")} />
 
             <Text style={[styles.label, { color: colors.textSecondary }]}>{t("bloodType")}</Text>
             <View style={styles.chipsRow}>
               {BLOOD_TYPES.map((bt) => (
-                <Pressable key={bt} style={[styles.chip, { backgroundColor: form.bloodType === bt ? colors.primaryLight : colors.surfaceSecondary, borderColor: form.bloodType === bt ? colors.primary : colors.border }]} onPress={() => setForm({ ...form, bloodType: bt })}>
+                <Pressable key={bt} style={[styles.chip, { backgroundColor: form.bloodType === bt ? colors.primaryLight : colors.surfaceSecondary, borderColor: form.bloodType === bt ? colors.primary : colors.border }]} onPress={() => setForm({ ...form, bloodType: bt })} accessibilityRole="radio" accessibilityState={{ checked: form.bloodType === bt }}>
                   <Text style={[styles.chipText, { color: form.bloodType === bt ? colors.primary : colors.textSecondary }]}>{bt}</Text>
                 </Pressable>
               ))}
             </View>
 
-            <TextInput style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.border }]} placeholder={t("allergies")} placeholderTextColor={colors.textTertiary} value={form.allergies || ""} onChangeText={(v) => setForm({ ...form, allergies: v })} />
-            <TextInput style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.border }]} placeholder={t("medications")} placeholderTextColor={colors.textTertiary} value={form.medications || ""} onChangeText={(v) => setForm({ ...form, medications: v })} />
-            <TextInput style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.border }]} placeholder={t("notes")} placeholderTextColor={colors.textTertiary} value={form.notes || ""} onChangeText={(v) => setForm({ ...form, notes: v })} multiline />
+            <TextInput style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.controlBorder }]} placeholder={t("allergies")} placeholderTextColor={colors.textTertiary} value={form.allergies || ""} onChangeText={(v) => setForm({ ...form, allergies: v })} accessibilityLabel={t("allergies")} />
+            <TextInput style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.controlBorder }]} placeholder={t("medications")} placeholderTextColor={colors.textTertiary} value={form.medications || ""} onChangeText={(v) => setForm({ ...form, medications: v })} accessibilityLabel={t("medications")} />
+            <TextInput style={[styles.input, { backgroundColor: colors.surfaceSecondary, color: colors.text, borderColor: colors.controlBorder }]} placeholder={t("notes")} placeholderTextColor={colors.textTertiary} value={form.notes || ""} onChangeText={(v) => setForm({ ...form, notes: v })} multiline accessibilityLabel={t("notes")} />
 
-            <Pressable style={[styles.saveBtn, { backgroundColor: form.firstName && form.relationship ? colors.primary : colors.borderLight }]} disabled={!form.firstName || !form.relationship} onPress={handleSave}>
-              <Text style={[styles.saveBtnText, { color: form.firstName && form.relationship ? "#fff" : colors.textTertiary }]}>{editing ? t("saveChanges") : t("addFamilyMember")}</Text>
+            <Pressable style={[styles.saveBtn, { backgroundColor: form.firstName && form.relationship ? colors.primary : colors.borderLight }]} disabled={!form.firstName || !form.relationship} onPress={handleSave} accessibilityRole="button" accessibilityState={{ disabled: !form.firstName || !form.relationship }}>
+              <Text style={[styles.saveBtnText, { color: form.firstName && form.relationship ? colors.onPrimary : colors.textTertiary }]}>{editing ? t("saveChanges") : t("addFamilyMember")}</Text>
             </Pressable>
           </View>
         </View>
@@ -248,7 +282,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", paddingHorizontal: 32 },
   primaryBtn: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 14, borderRadius: 12, marginTop: 8 },
-  primaryBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  primaryBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
   modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
   modal: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 12, maxHeight: "90%" },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

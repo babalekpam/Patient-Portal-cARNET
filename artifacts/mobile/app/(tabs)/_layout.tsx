@@ -37,8 +37,9 @@ export default function TabLayout() {
         options={{
           title: t("home"),
           tabBarIcon: ({ color }) => (
-            <Feather name="home" size={22} color={color} />
+            <Feather accessible={false} name="home" size={22} color={color} />
           ),
+          tabBarAccessibilityLabel: t("home"),
         }}
       />
       <Tabs.Screen
@@ -46,8 +47,9 @@ export default function TabLayout() {
         options={{
           title: t("reminders"),
           tabBarIcon: ({ color }) => (
-            <Feather name="bell" size={22} color={color} />
+            <Feather accessible={false} name="bell" size={22} color={color} />
           ),
+          tabBarAccessibilityLabel: t("reminders"),
         }}
       />
       <Tabs.Screen
@@ -55,8 +57,9 @@ export default function TabLayout() {
         options={{
           title: t("profile"),
           tabBarIcon: ({ color }) => (
-            <Feather name="user" size={22} color={color} />
+            <Feather accessible={false} name="user" size={22} color={color} />
           ),
+          tabBarAccessibilityLabel: t("profile"),
         }}
       />
     </Tabs>

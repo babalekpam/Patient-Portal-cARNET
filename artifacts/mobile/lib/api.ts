@@ -1,6 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 import type { EHRAdapter } from "@/lib/ehr/types";
+import { deleteSecureItem, getSecureItem, setSecureItem } from "@/lib/secureStorage";
+import {
+  assertSession,
+  notifySessionEnd,
+  sessionGeneration,
+  StaleSessionRequestError,
+} from "@/lib/session";
 
 const DIRECT_URL = "https://www.navimedi.org/api";
 
@@ -17,14 +24,22 @@ function getBaseUrl(): string {
 const TOKEN_KEY = "carnet_auth_token";
 
 export const saveToken = async (token: string): Promise<void> => {
-  await AsyncStorage.setItem(TOKEN_KEY, token);
+  await setSecureItem(TOKEN_KEY, token);
+  await AsyncStorage.removeItem(TOKEN_KEY);
 };
 
 export const getToken = async (): Promise<string | null> => {
-  return AsyncStorage.getItem(TOKEN_KEY);
+  const token = await getSecureItem(TOKEN_KEY);
+  if (token) return token;
+
+  // Never migrate legacy plaintext bearer tokens. Remove them and require a
+  // fresh login so all future sessions begin in platform-backed secure storage.
+  await AsyncStorage.removeItem(TOKEN_KEY);
+  return null;
 };
 
 export const clearToken = async (): Promise<void> => {
+  await deleteSecureItem(TOKEN_KEY);
   await AsyncStorage.removeItem(TOKEN_KEY);
 };
 
@@ -38,6 +53,11 @@ export interface LoginResponse {
   token: string;
   user: any;
   tenant: any;
+  expires_in?: number;
+  expiresIn?: number;
+  expires_at?: number | string;
+  expiresAt?: number | string;
+  patientContext?: string;
 }
 
 export interface Appointment {
@@ -118,6 +138,15 @@ export interface AppointmentRequest {
   notes?: string;
 }
 
+export interface AppointmentBookingData {
+  providerId: string;
+  appointmentDate: string;
+  type?: string;
+  duration?: number;
+  notes?: string;
+  chiefComplaint?: string;
+}
+
 export interface Bill {
   id?: string;
   totalCharges?: number;
@@ -181,8 +210,12 @@ export interface ProfileUpdateData {
 
 class ApiClient {
   private _adapter: EHRAdapter | null = null;
+  private csrfToken: string | null = null;
+  private responseGenerations = new WeakMap<Response, number>();
 
   setAdapter(adapter: EHRAdapter | null): void {
+    if (this._adapter && this._adapter !== adapter) this._adapter.clearToken();
+    this.csrfToken = null;
     this._adapter = adapter;
   }
 
@@ -190,27 +223,118 @@ class ApiClient {
     return this._adapter;
   }
 
+  // Clears the in-memory CSRF token. Call on logout so a new session fetches a
+  // fresh token tied to the new auth session.
+  clearCsrfToken(): void {
+    this.csrfToken = null;
+  }
+
+  private async protectedFetch(url: string, init?: RequestInit): Promise<Response> {
+    const generation = sessionGeneration();
+    assertSession(null, generation);
+    const response = await fetch(url, init);
+    assertSession(null, generation);
+    this.responseGenerations.set(response, generation);
+    return response;
+  }
+
   private async getHeaders(): Promise<HeadersInit> {
+    const generation = sessionGeneration();
+    assertSession(null, generation);
     const headers: HeadersInit = {
       "Content-Type": "application/json",
     };
     const token = await getToken();
+    assertSession(null, generation);
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
     return headers;
   }
 
-  private async handleResponse<T>(response: Response, isLogin = false): Promise<T> {
+  // The server enforces CSRF protection on all mutating requests
+  // (POST/PUT/PATCH/DELETE). The token is keyed to the auth session, so we fetch
+  // it lazily and re-fetch once if a write is rejected with a CSRF-specific 403.
+  private async fetchCsrfToken(): Promise<string | null> {
+    try {
+      const response = await this.protectedFetch(`${getBaseUrl()}/csrf-token`, {
+        headers: await this.getHeaders(),
+      });
+      const generation = this.responseGenerations.get(response);
+      if (!response.ok) return null;
+      const data = await response.json().catch(() => ({}) as any);
+      assertSession(null, generation);
+      this.csrfToken = data?.csrfToken ?? null;
+      return this.csrfToken;
+    } catch (error) {
+      if (error instanceof StaleSessionRequestError) throw error;
+      return null;
+    }
+  }
+
+  private async getMutatingHeaders(): Promise<HeadersInit> {
+    if (!this.csrfToken) {
+      await this.fetchCsrfToken();
+    }
+    const headers = (await this.getHeaders()) as Record<string, string>;
+    if (this.csrfToken) {
+      headers["X-CSRF-Token"] = this.csrfToken;
+    }
+    return headers;
+  }
+
+  // Performs a mutating request, retrying once with a fresh CSRF token if the
+  // server rejects it with a CSRF-specific 403. A plain 403 (genuine
+  // authorization failure) is surfaced to the caller unchanged.
+  private async mutate<T>(
+    method: "POST" | "PUT" | "PATCH" | "DELETE",
+    url: string,
+    body?: unknown,
+    isLogin = false,
+  ): Promise<T> {
+    const send = async () =>
+      this.protectedFetch(url, {
+        method,
+        headers: await this.getMutatingHeaders(),
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    let response = await send();
+    let generation = this.responseGenerations.get(response);
+    assertSession(null, generation);
+    if (response.status === 403) {
+      const errBody = await response.clone().json().catch(() => ({}) as any);
+      assertSession(null, generation);
+      const csrfCodes = ["CSRF_TOKEN_MISSING", "CSRF_TOKEN_INVALID", "CSRF_SESSION_INVALID"];
+      if (csrfCodes.includes(errBody?.code)) {
+        await this.fetchCsrfToken();
+        response = await send();
+        generation = this.responseGenerations.get(response);
+        assertSession(null, generation);
+      }
+    }
+    return this.handleResponse<T>(response, isLogin);
+  }
+
+  private async handleResponse<T>(
+    response: Response,
+    isLogin = false,
+    isProtected = !isLogin,
+  ): Promise<T> {
+    const generation = this.responseGenerations.get(response);
+    if (isProtected) assertSession(this._adapter?.sessionKey ?? null, generation);
     if (!response.ok) {
       const errorBody = await response.json().catch(() => ({
         message: `Request failed with status ${response.status}.`,
       }));
+      if (isProtected) assertSession(this._adapter?.sessionKey ?? null, generation);
       const serverMessage = errorBody.message || "";
 
       if (response.status === 401) {
-        if (!isLogin) {
+        if (isProtected) {
           await clearToken();
+          this.csrfToken = null;
+          this._adapter?.clearToken();
+          notifySessionEnd("unauthorized");
         }
         throw new Error(serverMessage || (isLogin ? "Invalid credentials. Please check your email, password, and hospital." : "Session expired. Please log in again."));
       }
@@ -222,13 +346,14 @@ class ApiClient {
       }
       throw new Error(serverMessage || `Request failed with status ${response.status}.`);
     }
-    return response.json();
+    const body = await response.json();
+    if (isProtected) assertSession(this._adapter?.sessionKey ?? null, generation);
+    return body;
   }
 
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
     if (this._adapter) {
       const result = await this._adapter.login(credentials);
-      this._adapter.setToken(result.token);
       return result;
     }
     const body: Record<string, string> = {
@@ -260,38 +385,48 @@ class ApiClient {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
     });
-    return this.handleResponse<any>(response);
+    return this.handleResponse<any>(response, false, false);
   }
 
   async getProfile(): Promise<Profile> {
-    if (this._adapter) return this._adapter.getProfile();
-    const response = await fetch(`${getBaseUrl()}/patient/profile`, {
+    const generation = sessionGeneration();
+    if (this._adapter) {
+      const profile = await this._adapter.getProfile();
+      assertSession(this._adapter.sessionKey, generation);
+      return profile;
+    }
+    const response = await this.protectedFetch(`${getBaseUrl()}/patient/profile`, {
       headers: await this.getHeaders(),
     });
-    return this.handleResponse<Profile>(response);
+    const profile = await this.handleResponse<Profile>(response);
+    assertSession(null, generation);
+    return profile;
   }
 
   async updateProfile(data: ProfileUpdateData): Promise<Profile> {
     if (this._adapter) return this._adapter.updateProfile(data);
-    const response = await fetch(`${getBaseUrl()}/patient/profile`, {
-      method: "PATCH",
-      headers: await this.getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return this.handleResponse<Profile>(response);
+    return this.mutate<Profile>("PATCH", `${getBaseUrl()}/patient/profile`, data);
   }
 
   async getAppointments(): Promise<Appointment[]> {
     if (this._adapter) return this._adapter.getAppointments();
-    const response = await fetch(`${getBaseUrl()}/patient/appointments`, {
+    const response = await this.protectedFetch(`${getBaseUrl()}/patient/appointments`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<Appointment[]>(response);
   }
 
+  // Book an appointment as the authenticated patient. Uses the PATIENT endpoint
+  // (/patient/appointments), which derives patient + tenant from the auth token
+  // and accepts any visit type — including "telehealth".
+  async bookAppointment(data: AppointmentBookingData): Promise<Appointment> {
+    if (this._adapter) return this._adapter.bookAppointment(data);
+    return this.mutate<Appointment>("POST", `${getBaseUrl()}/patient/appointments`, data);
+  }
+
   async getPrescriptions(): Promise<Prescription[]> {
     if (this._adapter) return this._adapter.getPrescriptions();
-    const response = await fetch(`${getBaseUrl()}/patient/prescriptions`, {
+    const response = await this.protectedFetch(`${getBaseUrl()}/patient/prescriptions`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<Prescription[]>(response);
@@ -299,7 +434,7 @@ class ApiClient {
 
   async getLabResults(): Promise<LabResult[]> {
     if (this._adapter) return this._adapter.getLabResults();
-    const response = await fetch(`${getBaseUrl()}/patient/lab-results`, {
+    const response = await this.protectedFetch(`${getBaseUrl()}/patient/lab-results`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<LabResult[]>(response);
@@ -307,7 +442,7 @@ class ApiClient {
 
   async getMessages(): Promise<Message[]> {
     if (this._adapter) return this._adapter.getMessages();
-    const response = await fetch(`${getBaseUrl()}/medical-communications`, {
+    const response = await this.protectedFetch(`${getBaseUrl()}/medical-communications`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<Message[]>(response);
@@ -315,22 +450,17 @@ class ApiClient {
 
   async sendMessage(subject: string, message: string, recipientId?: string): Promise<any> {
     if (this._adapter) return this._adapter.sendMessage(subject, message, recipientId);
-    const response = await fetch(`${getBaseUrl()}/medical-communications`, {
-      method: "POST",
-      headers: await this.getHeaders(),
-      body: JSON.stringify({
-        type: "general_message",
-        priority: "normal",
-        originalContent: { subject, message },
-        ...(recipientId && { recipientId }),
-      }),
+    return this.mutate("POST", `${getBaseUrl()}/medical-communications`, {
+      type: "general_message",
+      priority: "normal",
+      originalContent: { subject, message },
+      ...(recipientId && { recipientId }),
     });
-    return this.handleResponse(response);
   }
 
   async getVisitSummaries(): Promise<VisitSummary[]> {
     if (this._adapter) return this._adapter.getVisitSummaries();
-    const response = await fetch(`${getBaseUrl()}/patient/visit-summaries`, {
+    const response = await this.protectedFetch(`${getBaseUrl()}/patient/visit-summaries`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<VisitSummary[]>(response);
@@ -338,17 +468,12 @@ class ApiClient {
 
   async requestAppointment(data: AppointmentRequest): Promise<any> {
     if (this._adapter) return this._adapter.requestAppointment(data);
-    const response = await fetch(`${getBaseUrl()}/patient/appointment-requests`, {
-      method: "POST",
-      headers: await this.getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    return this.mutate("POST", `${getBaseUrl()}/patient/appointment-requests`, data);
   }
 
   async getBills(): Promise<Bill[]> {
     if (this._adapter) return this._adapter.getBills();
-    const response = await fetch(`${getBaseUrl()}/patient/bills`, {
+    const response = await this.protectedFetch(`${getBaseUrl()}/patient/bills`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<Bill[]>(response);
@@ -356,7 +481,7 @@ class ApiClient {
 
   async getTelehealthAppointments(): Promise<TelehealthAppointment[]> {
     if (this._adapter) return this._adapter.getTelehealthAppointments();
-    const response = await fetch(`${getBaseUrl()}/patient/telehealth/appointments`, {
+    const response = await this.protectedFetch(`${getBaseUrl()}/patient/telehealth/appointments`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<TelehealthAppointment[]>(response);
@@ -364,16 +489,15 @@ class ApiClient {
 
   async createTelehealthSession(appointmentId: string): Promise<TelehealthSession> {
     if (this._adapter) return this._adapter.createTelehealthSession(appointmentId);
-    const response = await fetch(`${getBaseUrl()}/patient/telehealth/sessions/${appointmentId}`, {
-      method: "POST",
-      headers: await this.getHeaders(),
-    });
-    return this.handleResponse<TelehealthSession>(response);
+    return this.mutate<TelehealthSession>(
+      "POST",
+      `${getBaseUrl()}/patient/telehealth/sessions/${appointmentId}`,
+    );
   }
 
   async getTelehealthSession(appointmentId: string): Promise<TelehealthSession> {
     if (this._adapter) return this._adapter.getTelehealthSession(appointmentId);
-    const response = await fetch(`${getBaseUrl()}/patient/telehealth/sessions/${appointmentId}`, {
+    const response = await this.protectedFetch(`${getBaseUrl()}/patient/telehealth/sessions/${appointmentId}`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<TelehealthSession>(response);

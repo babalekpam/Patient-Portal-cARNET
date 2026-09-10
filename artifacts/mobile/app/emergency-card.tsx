@@ -4,13 +4,14 @@ import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificati
 import React from "react";
 import {
   Platform,
-  Pressable,
   ScrollView,
   Share,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { AccessiblePressable as Pressable } from "@/components/AccessiblePressable";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useAuth } from "@/context/AuthContext";
@@ -19,6 +20,10 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { LogoWatermark } from "@/components/LogoWatermark";
+import { assertPatientDataEpoch, capturePatientDataEpoch, getSecureItem, isPatientDataEpochCurrent } from "@/lib/secureStorage";
+import { confirmAppAction, showAppAlert } from "@/lib/privacyAlerts";
+
+const ALLOW_SHARING_KEY = "carnet_allow_sharing";
 
 function InfoRow({ icon, label, value, colors, danger }: { icon: React.ComponentProps<typeof Feather>["name"]; label: string; value: string; colors: any; danger?: boolean }) {
   return (
@@ -39,6 +44,7 @@ export default function EmergencyCardScreen() {
   const { profile } = useAuth();
   const { colors } = useTheme();
   const { t } = useI18n();
+  const a11y = useAccessibilityLabels();
 
   const { data: prescriptions } = useQuery({
     queryKey: ["prescriptions"],
@@ -62,9 +68,41 @@ export default function EmergencyCardScreen() {
     ?.join(", ") || t("noneReported");
 
   const handleShare = async () => {
-    impactMedium();
-    const text = `${t("emergencyCard").toUpperCase()}\n\n${t("patient")}: ${fullName}\n${t("dateOfBirth")}: ${dob}\n${t("gender")}: ${gender}\n${t("bloodType")}: ${bloodType}\n${t("allergies")}: ${allergies}\n${t("medications")}: ${activeMeds}\n${t("emergencyContact")}: ${emergencyContact}${emergencyPhone ? ` (${emergencyPhone})` : ""}`;
-    await Share.share({ message: text, title: t("emergencyCard") });
+    const expectedEpoch = capturePatientDataEpoch();
+    try {
+      const sharingAllowed = (await getSecureItem(ALLOW_SHARING_KEY)) === "true";
+      assertPatientDataEpoch(expectedEpoch);
+      if (!sharingAllowed) {
+        const openSettings = await confirmAppAction(
+          "Sharing is off",
+          "Enable export and sharing in Security & Privacy first.",
+          "Open privacy settings",
+          "Cancel",
+        );
+        if (openSettings && isPatientDataEpochCurrent(expectedEpoch)) {
+          router.push("/security-privacy" as any);
+        }
+        return;
+      }
+      const confirmed = await confirmAppAction(
+        "Share outside CARNET?",
+        "This copy contains health information and will no longer be protected by CARNET.",
+        "Continue",
+        "Cancel",
+      );
+      if (!confirmed) return;
+      assertPatientDataEpoch(expectedEpoch);
+      const stillAllowed = (await getSecureItem(ALLOW_SHARING_KEY)) === "true";
+      assertPatientDataEpoch(expectedEpoch);
+      if (!stillAllowed) return;
+      impactMedium();
+      const text = `${t("emergencyCard").toUpperCase()}\n\n${t("patient")}: ${fullName}\n${t("dateOfBirth")}: ${dob}\n${t("gender")}: ${gender}\n${t("bloodType")}: ${bloodType}\n${t("allergies")}: ${allergies}\n${t("medications")}: ${activeMeds}\n${t("emergencyContact")}: ${emergencyContact}${emergencyPhone ? ` (${emergencyPhone})` : ""}`;
+      assertPatientDataEpoch(expectedEpoch);
+      await Share.share({ message: text, title: t("emergencyCard") });
+    } catch {
+      if (!isPatientDataEpochCurrent(expectedEpoch)) return;
+      showAppAlert("Sharing unavailable", "CARNET could not complete sharing. Sharing remains off.");
+    }
   };
 
   return (
@@ -75,6 +113,7 @@ export default function EmergencyCardScreen() {
         style={[styles.header, { paddingTop: Platform.OS === "web" ? 20 : insets.top }]}
       >
         <Pressable
+          accessibilityLabel="Go back"
           style={styles.backBtn}
           onPress={() => { impactLight(); router.back(); }}
         >
@@ -84,7 +123,7 @@ export default function EmergencyCardScreen() {
           <Feather name="alert-circle" size={28} color="#fff" />
           <Text style={styles.headerTitle}>{t("emergencyCard")}</Text>
         </View>
-        <Pressable style={styles.shareBtn} onPress={handleShare}>
+        <Pressable accessibilityLabel="Share emergency card" accessibilityHint="Requires confirmation before sharing health information outside CARNET" style={styles.shareBtn} onPress={handleShare}>
           <Feather name="share-2" size={20} color="#fff" />
         </Pressable>
       </LinearGradient>
@@ -127,6 +166,9 @@ export default function EmergencyCardScreen() {
         <Text style={[styles.disclaimer, { color: colors.textTertiary }]}>
           {t("emergencyDisclaimer")}
         </Text>
+        <Text style={[styles.disclaimer, { color: colors.textTertiary }]}>
+          Shared copies are outside CARNET and are not protected by the app.
+        </Text>
       </ScrollView>
     </View>
   );
@@ -135,10 +177,10 @@ export default function EmergencyCardScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 16 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   headerCenter: { alignItems: "center", gap: 4 },
   headerTitle: { fontSize: 20, fontFamily: "Inter_700Bold", color: "#fff" },
-  shareBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  shareBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   scrollContent: { padding: 16, paddingBottom: 40 },
   card: { borderRadius: 16, padding: 16, gap: 2, borderWidth: 1, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   patientHeader: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },

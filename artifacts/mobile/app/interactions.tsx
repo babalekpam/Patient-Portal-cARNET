@@ -15,6 +15,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { api, type Prescription } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { LogoWatermark } from "@/components/LogoWatermark";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 
 interface Interaction {
   id: string;
@@ -65,14 +66,12 @@ function findInteractions(prescriptions: Prescription[]): Interaction[] {
   return found;
 }
 
-const SEVERITY_CONFIG = {
-  severe: { color: "#dc2626", bg: "#fee2e2", icon: "alert-octagon" as const, label: "Severe" },
-  moderate: { color: "#d97706", bg: "#fef3c7", icon: "alert-triangle" as const, label: "Moderate" },
-  mild: { color: "#059669", bg: "#d1fae5", icon: "info" as const, label: "Mild" },
-};
-
 function InteractionCard({ item, index, colors }: { item: Interaction; index: number; colors: any }) {
-  const cfg = SEVERITY_CONFIG[item.severity];
+  const cfg = {
+    severe: { color: colors.danger, bg: colors.dangerLight, icon: "alert-octagon" as const, label: "Severe" },
+    moderate: { color: colors.warning, bg: colors.warningLight, icon: "alert-triangle" as const, label: "Moderate" },
+    mild: { color: colors.success, bg: colors.successLight, icon: "info" as const, label: "Mild" },
+  }[item.severity];
   return (
     <AnimatedCard index={Math.min(index, 8)}>
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight, borderLeftColor: cfg.color, borderLeftWidth: 4 }]}>
@@ -106,6 +105,7 @@ function InteractionCard({ item, index, colors }: { item: Interaction; index: nu
 export default function InteractionsScreen() {
   const { colors } = useTheme();
   const { t } = useI18n();
+  const a11y = useAccessibilityLabels();
   const { data: prescriptions, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["prescriptions"],
     queryFn: () => api.getPrescriptions(),
@@ -114,12 +114,14 @@ export default function InteractionsScreen() {
   const interactions = prescriptions ? findInteractions(prescriptions) : [];
   const severeCount = interactions.filter((i) => i.severity === "severe").length;
   const moderateCount = interactions.filter((i) => i.severity === "moderate").length;
+  const severeStyle = { color: colors.danger, backgroundColor: colors.dangerLight };
+  const moderateStyle = { color: colors.warning, backgroundColor: colors.warningLight };
 
   if (isLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ScreenHeader title={t("interactionChecker")} />
-        <ListSkeleton />
+        <View accessibilityRole="progressbar" accessibilityLabel={a11y.loading} aria-busy={true}><ListSkeleton /></View>
       </View>
     );
   }
@@ -132,15 +134,15 @@ export default function InteractionsScreen() {
       {interactions.length > 0 && (
         <View style={styles.summaryRow}>
           {severeCount > 0 && (
-            <View style={[styles.summaryPill, { backgroundColor: SEVERITY_CONFIG.severe.bg }]}>
-              <Feather name="alert-octagon" size={14} color={SEVERITY_CONFIG.severe.color} />
-              <Text style={[styles.summaryText, { color: SEVERITY_CONFIG.severe.color }]}>{severeCount} {t("severe")}</Text>
+            <View style={[styles.summaryPill, { backgroundColor: severeStyle.backgroundColor }]}>
+              <Feather name="alert-octagon" size={14} color={severeStyle.color} />
+              <Text style={[styles.summaryText, { color: severeStyle.color }]}>{severeCount} {t("severe")}</Text>
             </View>
           )}
           {moderateCount > 0 && (
-            <View style={[styles.summaryPill, { backgroundColor: SEVERITY_CONFIG.moderate.bg }]}>
-              <Feather name="alert-triangle" size={14} color={SEVERITY_CONFIG.moderate.color} />
-              <Text style={[styles.summaryText, { color: SEVERITY_CONFIG.moderate.color }]}>{moderateCount} {t("moderate")}</Text>
+            <View style={[styles.summaryPill, { backgroundColor: moderateStyle.backgroundColor }]}>
+              <Feather name="alert-triangle" size={14} color={moderateStyle.color} />
+              <Text style={[styles.summaryText, { color: moderateStyle.color }]}>{moderateCount} {t("moderate")}</Text>
             </View>
           )}
         </View>
@@ -152,11 +154,11 @@ export default function InteractionsScreen() {
         renderItem={({ item, index }) => <InteractionCard item={item} index={index} colors={colors} />}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl accessibilityLabel={a11y.refresh} refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <View style={[styles.emptyIcon, { backgroundColor: "#d1fae5" }]}>
-              <Feather name="check-circle" size={40} color="#059669" />
+            <View style={[styles.emptyIcon, { backgroundColor: colors.successLight }]}>
+              <Feather name="check-circle" size={40} color={colors.success} />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>{t("noInteractions")}</Text>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t("noInteractionsText")}</Text>

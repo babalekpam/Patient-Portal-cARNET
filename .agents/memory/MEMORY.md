@@ -1,0 +1,8 @@
+- [Native publishing boundaries](eas-builds-replit.md) — verify the managed upload's app identity separately from source config; old manual CLI recipes are not current guidance.
+- [NaviMED CSRF on writes](navimed-csrf-writes.md) — navimedi server 403s any write missing X-CSRF-Token; fetch /csrf-token, attach header, retry once on CSRF 403, clear on logout/401.
+- [Patient session boundaries](patient-session-boundaries.md) — credential destinations are trust boundaries; stale async work must never mutate the next patient's session.
+- [Browser security evidence](browser-security-evidence.md) — verify confirmation return values and same-page session transitions; empty browser storage alone proves no cleanup.
+- [Security backport verification](security-backport-verification.md) — test whole recovery pipelines and real dependency resolution; a patched helper or quiet scan is not sufficient.
+- [Cross-platform accessibility](cross-platform-accessibility.md) — native props are not proof of web semantics; privacy concealment must cover assistive trees and modal portals.
+- [CARNET launch direction](carnet-launch-direction.md) — keep the approved illustrated healthcare landscape and restrained branded motion as the startup visual language.
+- [GitHub connection boundaries](github-connection-boundaries.md) — connector API access and command-line Git credentials are separate; one may work while the other is stale.

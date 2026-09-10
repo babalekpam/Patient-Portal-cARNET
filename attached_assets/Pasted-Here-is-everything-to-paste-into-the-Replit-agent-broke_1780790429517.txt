@@ -1,0 +1,129 @@
+Here is everything to paste into the Replit agent, broken into clear sections:
+
+---
+
+## 1. New API routes in `artifacts/api-server`
+
+```
+In artifacts/api-server/src/routes, add a new file telehealth.ts with these endpoints:
+
+GET  /api/telehealth/appointments
+  - Proxies to Navimed: GET /patient/telehealth/appointments
+  - Requires Authorization: Bearer token header
+  - Returns: array of TelehealthAppointment objects:
+    { id, appointmentDate, appointmentType, doctorName, provider, status, notes, sessionId }
+
+POST /api/telehealth/sessions/:appointmentId
+  - Proxies to Navimed: POST /patient/telehealth/sessions/:appointmentId
+  - Requires Authorization: Bearer token header
+  - Returns TelehealthSession:
+    { sessionId, appointmentId, roomUrl, token, status, providerName, expiresAt }
+  - status can be: "scheduled" | "waiting" | "in-progress" | "ended"
+
+GET  /api/telehealth/sessions/:appointmentId
+  - Proxies to Navimed: GET /patient/telehealth/sessions/:appointmentId
+  - Requires Authorization: Bearer token header
+  - Returns same TelehealthSession shape
+
+Mount this router in src/routes/index.ts at /telehealth
+```
+
+---
+
+## 2. New hospital dashboard app in `artifacts/hospital-dashboard`
+
+```
+Create a new web app artifact at artifacts/hospital-dashboard using React + Vite + TypeScript + Tailwind CSS.
+
+It is a dashboard for hospital doctors and staff, NOT for patients.
+It connects to the same Navimed API at https://www.navimedi.org/api using a Bearer token.
+
+Pages and routes needed (use React Router):
+
+/login
+  - Email + password + hospital (tenantId) login form
+  - POST to /auth/login or /auth/staff-login on Navimed
+  - Save token to localStorage
+
+/dashboard (protected, redirect to /login if no token)
+  - Overview: today's appointments count, pending messages, active telehealth sessions
+  - Sidebar navigation with these tabs:
+      - Dashboard (home icon)
+      - Appointments (calendar icon)
+      - Telehealth (video icon)  ← most important
+      - Patients (users icon)
+      - Messages (mail icon)
+      - Settings (settings icon)
+
+/telehealth (the main tab to build)
+  - List of today's telehealth appointments from GET /patient/telehealth/appointments
+  - Each appointment card shows: patient name, time, status badge (scheduled/waiting/in-progress/ended)
+  - "Start Session" button calls POST /patient/telehealth/sessions/:appointmentId
+    which returns a roomUrl
+  - Opens the roomUrl in an embedded iframe (full width, tall) inside the page
+  - Above the iframe show: Mute, Camera, End Call controls
+  - End Call sets session status to ended and closes iframe
+  - After call: show "Write Visit Notes" form to save a visit summary
+
+/appointments
+  - List all appointments (GET /patient/appointments)
+  - Filter by date, status, doctor
+  - "Schedule Telehealth" button to create a virtual appointment
+
+/patients
+  - Search patients by name or MRN
+  - Click a patient to see their profile, appointments, prescriptions, lab results
+
+/messages
+  - List medical communications (GET /medical-communications)
+  - Reply to messages (POST /medical-communications)
+
+Auth context:
+  - Store token in localStorage key "navimed_staff_token"
+  - Attach as Authorization: Bearer <token> on all requests
+  - On 401 redirect to /login and clear token
+
+Styling:
+  - Clean professional medical dashboard look
+  - Color scheme: primary #2563eb (blue), sidebar dark navy #0f172a
+  - Use Tailwind CSS
+  - Responsive layout (sidebar collapses on mobile)
+
+Add this app to pnpm-workspace.yaml packages list
+Add a dev script: vite --port 5174
+```
+
+---
+
+## 3. What to tell the Replit agent in one single paste
+
+```
+I need you to do two things:
+
+TASK 1 - Add telehealth API routes to artifacts/api-server:
+Create artifacts/api-server/src/routes/telehealth.ts with three endpoints:
+  GET  /api/telehealth/appointments → proxy to Navimed GET /patient/telehealth/appointments
+  POST /api/telehealth/sessions/:id → proxy to Navimed POST /patient/telehealth/sessions/:id  
+  GET  /api/telehealth/sessions/:id → proxy to Navimed GET /patient/telehealth/sessions/:id
+All endpoints forward the Authorization header from the request.
+Mount the router in src/routes/index.ts at path /telehealth.
+
+TASK 2 - Create artifacts/hospital-dashboard as a new React + Vite + TypeScript + Tailwind app:
+This is a hospital staff/doctor dashboard that connects to https://www.navimedi.org/api.
+It needs these pages using React Router:
+  /login - staff login (POST /auth/login with email, password, tenantId)
+  /dashboard - overview stats (appointments today, active telehealth sessions, pending messages)
+  /telehealth - list of telehealth appointments, "Start Session" button that calls POST /patient/telehealth/sessions/:id, embeds the returned roomUrl in an iframe with Mute / Camera / End Call controls overlaid, and a post-call visit notes form
+  /appointments - full appointment list with date and status filters
+  /patients - patient search and profile view
+  /messages - medical communications list and reply
+
+The sidebar should have icons and labels for: Dashboard, Telehealth, Appointments, Patients, Messages, Settings.
+Primary color #2563eb, sidebar color #0f172a.
+Store the auth token in localStorage as "navimed_staff_token".
+Add the app to pnpm-workspace.yaml and give it a dev script on port 5174.
+```
+
+---
+
+That last block is everything in one copy-paste for the Replit agent. The two tasks together give you the complete picture — backend routes + the hospital dashboard with the telehealth tab properly wired to Navimed.

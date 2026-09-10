@@ -8,7 +8,7 @@ const zh: Record<string, string> = {
   hospitalOptional: "医院/诊所（可选）",
   yourHospitalName: "您的医院名称",
   accessRecords: "安全访问您的医疗记录",
-  dataEncrypted: "您的数据已加密且安全",
+  dataEncrypted: "连接已加密。使用完毕后请退出登录。",
   home: "首页",
   profile: "个人资料",
   appointments: "预约",

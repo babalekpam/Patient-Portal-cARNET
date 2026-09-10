@@ -1,5 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import {
+  assertPatientDataEpoch,
+  capturePatientDataEpoch,
+  getSecureItem,
+  registerSecureCleanup,
+  setSecureItem,
+} from "@/lib/secureStorage";
 
 const REMINDERS_KEY = "medication_reminders";
 
@@ -60,33 +67,43 @@ async function ensureInitialized() {
 
 export async function registerForPushNotifications(): Promise<string | null> {
   if (Platform.OS === "web") return null;
+  const expectedEpoch = capturePatientDataEpoch();
   try {
     await ensureInitialized();
+    assertPatientDataEpoch(expectedEpoch);
     const Notifications = await getNotifications();
+    assertPatientDataEpoch(expectedEpoch);
     if (!Notifications) return null;
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    assertPatientDataEpoch(expectedEpoch);
     let finalStatus = existingStatus;
     if (existingStatus !== "granted") {
       const { status } = await Notifications.requestPermissionsAsync();
+      assertPatientDataEpoch(expectedEpoch);
       finalStatus = status;
     }
     if (finalStatus !== "granted") return null;
     const tokenData = await Notifications.getExpoPushTokenAsync();
+    assertPatientDataEpoch(expectedEpoch);
     return tokenData.data;
   } catch {
     return null;
   }
 }
 
-export async function requestNotificationPermissions(): Promise<boolean> {
+export async function requestNotificationPermissions(expectedEpoch = capturePatientDataEpoch()): Promise<boolean> {
   if (Platform.OS === "web") return false;
   try {
     await ensureInitialized();
+    assertPatientDataEpoch(expectedEpoch);
     const Notifications = await getNotifications();
+    assertPatientDataEpoch(expectedEpoch);
     if (!Notifications) return false;
     const { status: existing } = await Notifications.getPermissionsAsync();
+    assertPatientDataEpoch(expectedEpoch);
     if (existing === "granted") return true;
     const { status } = await Notifications.requestPermissionsAsync();
+    assertPatientDataEpoch(expectedEpoch);
     return status === "granted";
   } catch {
     return false;
@@ -94,22 +111,33 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 }
 
 export async function getReminders(): Promise<MedicationReminder[]> {
-  const raw = await AsyncStorage.getItem(REMINDERS_KEY);
+  const expectedEpoch = capturePatientDataEpoch();
+  const raw = await getSecureItem(REMINDERS_KEY);
+  await AsyncStorage.removeItem(REMINDERS_KEY).catch(() => {});
+  assertPatientDataEpoch(expectedEpoch);
   if (!raw) return [];
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) throw new Error("Invalid reminder data.");
+    return parsed;
   } catch {
-    return [];
+    throw new Error("Saved reminders could not be read securely.");
   }
 }
 
 export async function saveReminders(reminders: MedicationReminder[]): Promise<void> {
-  await AsyncStorage.setItem(REMINDERS_KEY, JSON.stringify(reminders));
+  await setSecureItem(REMINDERS_KEY, JSON.stringify(reminders));
+  await AsyncStorage.removeItem(REMINDERS_KEY).catch(() => {});
 }
 
-export async function scheduleReminder(reminder: MedicationReminder): Promise<string[]> {
+export async function scheduleReminder(
+  reminder: MedicationReminder,
+  expectedEpoch = capturePatientDataEpoch(),
+): Promise<string[]> {
   await ensureInitialized();
+  assertPatientDataEpoch(expectedEpoch);
   const Notifications = await getNotifications();
+  assertPatientDataEpoch(expectedEpoch);
   if (!Notifications) return [];
   const notificationIds: string[] = [];
 
@@ -119,11 +147,9 @@ export async function scheduleReminder(reminder: MedicationReminder): Promise<st
     try {
       const id = await Notifications.scheduleNotificationAsync({
         content: {
-          title: `Time to take ${reminder.medicationName}`,
-          body: reminder.dosage
-            ? `${reminder.dosage}${reminder.instructions ? " - " + reminder.instructions : ""}`
-            : reminder.instructions || "Take your medication now",
-          data: { reminderId: reminder.id, prescriptionId: reminder.prescriptionId },
+          title: "CARNET reminder",
+          body: "Open CARNET to view your reminder.",
+          data: {},
           sound: true,
         },
         trigger: {
@@ -132,8 +158,18 @@ export async function scheduleReminder(reminder: MedicationReminder): Promise<st
           minute: minutes,
         },
       });
+      try {
+        assertPatientDataEpoch(expectedEpoch);
+      } catch (error) {
+        await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+        await cancelReminder(notificationIds);
+        throw error;
+      }
       notificationIds.push(id);
-    } catch {}
+    } catch (error) {
+      await cancelReminder(notificationIds);
+      throw error;
+    }
   }
 
   return notificationIds;
@@ -156,7 +192,9 @@ export async function addReminder(
   instructions: string,
   times: string[]
 ): Promise<MedicationReminder> {
-  const hasPermission = await requestNotificationPermissions();
+  const expectedEpoch = capturePatientDataEpoch();
+  const hasPermission = await requestNotificationPermissions(expectedEpoch);
+  assertPatientDataEpoch(expectedEpoch);
   const id = `rem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
   const reminder: MedicationReminder = {
@@ -171,40 +209,61 @@ export async function addReminder(
     takenToday: {},
   };
 
-  if (hasPermission) {
-    reminder.notificationIds = await scheduleReminder(reminder);
-  }
+  if (hasPermission) reminder.notificationIds = await scheduleReminder(reminder, expectedEpoch);
 
-  const existing = await getReminders();
-  existing.push(reminder);
-  await saveReminders(existing);
+  try {
+    const existing = await getReminders();
+    assertPatientDataEpoch(expectedEpoch);
+    existing.push(reminder);
+    await saveReminders(existing);
+    assertPatientDataEpoch(expectedEpoch);
+  } catch (error) {
+    await cancelReminder(reminder.notificationIds);
+    throw error;
+  }
 
   return reminder;
 }
 
 export async function removeReminder(reminderId: string): Promise<void> {
+  const expectedEpoch = capturePatientDataEpoch();
   const reminders = await getReminders();
+  assertPatientDataEpoch(expectedEpoch);
   const target = reminders.find((r) => r.id === reminderId);
-  if (target) {
-    await cancelReminder(target.notificationIds);
-  }
   await saveReminders(reminders.filter((r) => r.id !== reminderId));
+  assertPatientDataEpoch(expectedEpoch);
+  if (target) await cancelReminder(target.notificationIds);
 }
 
 export async function toggleReminder(reminderId: string, enabled: boolean): Promise<void> {
+  const expectedEpoch = capturePatientDataEpoch();
   const reminders = await getReminders();
+  assertPatientDataEpoch(expectedEpoch);
   const idx = reminders.findIndex((r) => r.id === reminderId);
   if (idx === -1) return;
 
   if (!enabled) {
-    await cancelReminder(reminders[idx].notificationIds);
+    const notificationIds = reminders[idx].notificationIds;
     reminders[idx].notificationIds = [];
     reminders[idx].enabled = false;
+    await saveReminders(reminders);
+    assertPatientDataEpoch(expectedEpoch);
+    await cancelReminder(notificationIds);
+    return;
   } else {
-    const hasPermission = await requestNotificationPermissions();
+    const hasPermission = await requestNotificationPermissions(expectedEpoch);
     if (hasPermission) {
-      reminders[idx].notificationIds = await scheduleReminder(reminders[idx]);
+      const notificationIds = await scheduleReminder(reminders[idx], expectedEpoch);
+      reminders[idx].notificationIds = notificationIds;
       reminders[idx].enabled = true;
+      try {
+        await saveReminders(reminders);
+        assertPatientDataEpoch(expectedEpoch);
+      } catch (error) {
+        await cancelReminder(notificationIds);
+        throw error;
+      }
+      return;
     } else {
       reminders[idx].enabled = false;
     }
@@ -213,7 +272,9 @@ export async function toggleReminder(reminderId: string, enabled: boolean): Prom
 }
 
 export async function markTaken(reminderId: string, time: string): Promise<void> {
+  const expectedEpoch = capturePatientDataEpoch();
   const reminders = await getReminders();
+  assertPatientDataEpoch(expectedEpoch);
   const idx = reminders.findIndex((r) => r.id === reminderId);
   if (idx === -1) return;
 
@@ -221,6 +282,7 @@ export async function markTaken(reminderId: string, time: string): Promise<void>
   const key = `${today}_${time}`;
   reminders[idx].takenToday[key] = true;
   await saveReminders(reminders);
+  assertPatientDataEpoch(expectedEpoch);
 }
 
 export function isTakenToday(reminder: MedicationReminder, time: string): boolean {
@@ -255,3 +317,12 @@ export function parseFrequencyToTimes(frequency?: string): string[] {
   }
   return ["08:00"];
 }
+
+registerSecureCleanup(async () => {
+  try {
+    const Notifications = await getNotifications();
+    if (Notifications) await Notifications.cancelAllScheduledNotificationsAsync();
+  } finally {
+    await AsyncStorage.removeItem(REMINDERS_KEY);
+  }
+});

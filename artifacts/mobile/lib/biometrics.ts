@@ -1,7 +1,7 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import * as SecureStore from "expo-secure-store";
 
-const BIOMETRIC_ENABLED_KEY = "biometric_enabled";
+const BIOMETRIC_ENABLED_KEY = "carnet_biometric_enabled";
 
 let LocalAuthentication: typeof import("expo-local-authentication") | null = null;
 
@@ -30,12 +30,19 @@ export async function isBiometricAvailable(): Promise<boolean> {
 }
 
 export async function isBiometricEnabled(): Promise<boolean> {
-  const stored = await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY);
-  return stored === "true";
+  if (Platform.OS === "web") return false;
+  return (await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY)) === "true";
 }
 
 export async function setBiometricEnabled(enabled: boolean): Promise<void> {
-  await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, enabled ? "true" : "false");
+  if (Platform.OS === "web") throw new Error("Biometric sign-in is not available on the web.");
+  if (enabled) {
+    const authenticated = await authenticateWithBiometrics();
+    if (!authenticated) throw new Error("Authentication was cancelled or unsuccessful.");
+  }
+  await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, enabled ? "true" : "false", {
+    keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  });
 }
 
 export async function authenticateWithBiometrics(): Promise<boolean> {

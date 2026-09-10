@@ -7,7 +7,6 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -21,6 +20,9 @@ import { ListSkeleton } from "@/components/SkeletonLoader";
 import { useTheme } from "@/context/ThemeContext";
 import { api, type Message } from "@/lib/api";
 import { LogoWatermark } from "@/components/LogoWatermark";
+import { Pressable } from "@/components/AccessiblePressable";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
+import { useI18n } from "@/lib/i18n";
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return null;
@@ -67,6 +69,7 @@ function MessageCard({ item, index, colors }: { item: Message; index: number; co
 }
 
 function ComposeSheet({ onSend, sending, onClose, colors }: { onSend: (s: string, m: string) => void; sending: boolean; onClose: () => void; colors: any }) {
+  const a11y = useAccessibilityLabels();
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const canSend = subject.trim().length > 0 && message.trim().length > 0 && !sending;
@@ -75,42 +78,47 @@ function ComposeSheet({ onSend, sending, onClose, colors }: { onSend: (s: string
     <View style={styles.composeContainer}>
       <View style={styles.composeHeader}>
         <Text style={[styles.composeTitle, { color: colors.text }]}>New Message</Text>
-        <Pressable onPress={onClose} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+        <Pressable onPress={onClose} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]} accessibilityRole="button" accessibilityLabel={a11y.closeDialog}>
           <Feather name="x" size={24} color={colors.text} />
         </Pressable>
       </View>
       <View style={styles.composeField}>
         <Text style={[styles.composeLabel, { color: colors.textSecondary }]}>Subject</Text>
         <TextInput
-          style={[styles.composeInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[styles.composeInput, { backgroundColor: colors.surface, borderColor: colors.controlBorder, color: colors.text }]}
           value={subject}
           onChangeText={setSubject}
           placeholder="Enter subject..."
           placeholderTextColor={colors.textTertiary}
           returnKeyType="next"
+          accessibilityLabel="Subject"
         />
       </View>
       <View style={[styles.composeField, { flex: 1 }]}>
         <Text style={[styles.composeLabel, { color: colors.textSecondary }]}>Message</Text>
         <TextInput
-          style={[styles.composeInput, styles.messageInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+          style={[styles.composeInput, styles.messageInput, { backgroundColor: colors.surface, borderColor: colors.controlBorder, color: colors.text }]}
           value={message}
           onChangeText={setMessage}
           placeholder="Write your message to your care team..."
           placeholderTextColor={colors.textTertiary}
           multiline
           textAlignVertical="top"
+          accessibilityLabel="Message"
         />
       </View>
       <Pressable
         style={({ pressed }) => [styles.sendBtn, { backgroundColor: colors.primary }, !canSend && styles.sendBtnDisabled, pressed && { opacity: 0.85 }]}
         disabled={!canSend}
         onPress={() => { impactMedium(); onSend(subject.trim(), message.trim()); }}
+        accessibilityRole="button"
+        accessibilityLabel="Send Message"
+        accessibilityState={{ disabled: !canSend, busy: sending }}
       >
-        {sending ? <ActivityIndicator size="small" color="#fff" /> : (
+        {sending ? <ActivityIndicator size="small" color={colors.onPrimary} /> : (
           <>
-            <Feather name="send" size={16} color="#fff" />
-            <Text style={styles.sendBtnText}>Send Message</Text>
+            <Feather name="send" size={16} color={colors.onPrimary} />
+            <Text style={[styles.sendBtnText, { color: colors.onPrimary }]}>Send Message</Text>
           </>
         )}
       </Pressable>
@@ -132,6 +140,8 @@ function EmptyState({ colors }: { colors: any }) {
 
 export default function MessagesScreen() {
   const { colors } = useTheme();
+  const { t } = useI18n();
+  const a11y = useAccessibilityLabels();
   const queryClient = useQueryClient();
   const [composing, setComposing] = useState(false);
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
@@ -147,8 +157,10 @@ export default function MessagesScreen() {
     <Pressable
       style={({ pressed }) => [styles.composeBtn, pressed && { opacity: 0.7 }]}
       onPress={() => { impactLight(); setComposing(true); }}
+      accessibilityRole="button"
+      accessibilityLabel="Compose message"
     >
-      <Feather name="edit-2" size={18} color="#fff" />
+      <Feather name="edit-2" size={18} color={colors.whiteText} />
     </Pressable>
   );
 
@@ -163,7 +175,13 @@ export default function MessagesScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View
+        style={[styles.container, { backgroundColor: colors.background }]}
+        accessibilityLabel={a11y.loading}
+        accessibilityState={{ busy: true }}
+        aria-busy
+        aria-live="polite"
+      >
         <ScreenHeader title="Messages" rightElement={composeBtn} />
         <ListSkeleton />
       </View>
@@ -176,10 +194,12 @@ export default function MessagesScreen() {
         <ScreenHeader title="Messages" rightElement={composeBtn} />
         <View style={styles.centered}>
           <Feather name="wifi-off" size={36} color={colors.textTertiary} />
-          <Text style={[styles.errorTitle, { color: colors.text }]}>Unable to Load</Text>
-          <Text style={[styles.errorText, { color: colors.textSecondary }]}>{(error as Error).message}</Text>
-          <Pressable style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()}>
-            <Text style={styles.retryText}>Try Again</Text>
+          <Text style={[styles.errorTitle, { color: colors.text }]}>{t("unableToLoad")}</Text>
+          <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" aria-live="assertive" style={[styles.errorText, { color: colors.textSecondary }]}>
+            {t("unableToLoadMessages")}
+          </Text>
+          <Pressable style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()} accessibilityRole="button" accessibilityLabel={a11y.refresh} accessibilityState={{ busy: isRefetching }}>
+            <Text style={[styles.retryText, { color: colors.onPrimary }]}>{t("tryAgain")}</Text>
           </Pressable>
         </View>
       </View>
@@ -218,17 +238,17 @@ const styles = StyleSheet.create({
   preview: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
   senderRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   senderText: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  composeBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  composeBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
   composeContainer: { flex: 1, padding: 16, gap: 16 },
   composeHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   composeTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
   composeField: { gap: 6 },
   composeLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  composeInput: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, fontFamily: "Inter_400Regular" },
+  composeInput: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, minHeight: 44, fontSize: 15, fontFamily: "Inter_400Regular" },
   messageInput: { flex: 1, minHeight: 120, textAlignVertical: "top" },
   sendBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 16, shadowColor: "#1a6fbf", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
   sendBtnDisabled: { opacity: 0.5 },
-  sendBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  sendBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   emptyState: { alignItems: "center", paddingTop: 60, gap: 12 },
   emptyIcon: { width: 72, height: 72, borderRadius: 24, alignItems: "center", justifyContent: "center" },
   emptyTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
@@ -236,5 +256,5 @@ const styles = StyleSheet.create({
   errorTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold" },
   errorText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
   retryBtn: { marginTop: 8, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
-  retryText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  retryText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });

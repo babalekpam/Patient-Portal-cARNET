@@ -10,6 +10,7 @@ import {
   searchProviders,
 } from "@/lib/ehr/registry";
 import { api } from "@/lib/api";
+import { hasCurrentSession, notifySessionEnd } from "@/lib/session";
 
 const EHR_PROVIDER_KEY = "ehr_active_provider";
 const EHR_CUSTOM_PROVIDERS_KEY = "ehr_custom_providers";
@@ -71,6 +72,11 @@ export function EHRProvider({ children }: { children: React.ReactNode }) {
 
   const selectProvider = useCallback(async (provider: EHRProviderConfig) => {
     const newAdapter = createAdapter(provider);
+    if (hasCurrentSession() && api.adapter?.sessionKey !== newAdapter.sessionKey) {
+      notifySessionEnd("provider_changed");
+    }
+    // Tokens are bound by AuthProvider only after a login/restore proves the
+    // saved session belongs to this exact provider.
     setActiveProvider(provider);
     setAdapter(newAdapter);
     api.setAdapter(newAdapter);

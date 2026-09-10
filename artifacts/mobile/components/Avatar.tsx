@@ -17,6 +17,9 @@ export function Avatar({ firstName, lastName, size = 56, style }: AvatarProps) {
 
   return (
     <View
+      accessible={false}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
       style={[
         styles.container,
         {
@@ -29,7 +32,7 @@ export function Avatar({ firstName, lastName, size = 56, style }: AvatarProps) {
         style,
       ]}
     >
-      <Text style={[styles.text, { fontSize }]}>{initials}</Text>
+      <Text style={[styles.text, { fontSize, color: colors.onPrimary }]}>{initials}</Text>
     </View>
   );
 }
@@ -45,7 +48,6 @@ const styles = StyleSheet.create({
   },
   text: {
     fontFamily: "Inter_700Bold",
-    color: "#fff",
     letterSpacing: 1,
   },
 });

@@ -1,0 +1,68 @@
+
+~/.../artifacts/mobile$ cd ~/workspace/artifacts/mobile && EAS_NO_VCS=1 \
+  EXPO_ASC_API_KEY_PATH="./credentials/AuthKey_PS2M4W334H.p8" \
+  EXPO_ASC_KEY_ID="PS2M4W334H" \
+  EXPO_ASC_ISSUER_ID="d6b6d45d-83aa-47cb-87e2-827015b47527" \
+  EXPO_APPLE_TEAM_ID="Z82KB5AR7N" \
+  ./node_modules/.bin/eas build --platform ios --profile production --no-wait
+Using EAS CLI without version control system is not recommended, use this mode only if you know what you are doing.
+Found eas-cli in your project dependencies.
+It's recommended to use the "cli.version" field in eas.json to enforce the eas-cli version for your project.
+Learn more: https://github.com/expo/eas-cli#enforcing-eas-cli-version-for-your-project
+
+
+⚠️ Detected that your app uses Expo Go for development, this is not recommended when building production apps.
+Learn more: https://expo.fyi/why-not-build-expo-go-for-production
+To suppress this warning, set EAS_BUILD_NO_EXPO_GO_WARNING=true.
+
+Resolved "production" environment for the build. Learn more: https://docs.expo.dev/eas/environment-variables/#setting-the-environment-for-your-builds
+No environment variables with visibility "Plain text" and "Sensitive" found for the "production" environment on EAS.
+
+
+You've used 100% of your included build credits for this month.
+Additional usage beyond your limit will be charged at pay-as-you-go rates. See usage in billing.: https://expo.dev/accounts/argilette/settings/billing
+
+✔ Using remote iOS credentials (Expo server)
+
+✔ Select your Apple Team Type: › Company/Organization
+✔ Bundle identifier registered com.argilette.navimed
+✔ Synced capabilities: Enabled: Push Notifications
+Skipping capability identifier syncing because the current Apple authentication session is not using Cookies (username/password).
+✔ Synced capability identifiers: No updates
+✔ Fetched Apple distribution certificates
+✔ Fetched Apple provisioning profiles
+
+Project Credentials Configuration
+
+Project                   @argilette/navimed
+Bundle Identifier         com.argilette.navimed
+                          
+App Store Configuration   
+                          
+Distribution Certificate  
+Serial Number             61C34BC350733FB557F8AF1368B20813
+Expiration Date           Thu, 06 May 2027 03:33:31 UTC
+Apple Team                Z82KB5AR7N (ARGILETTE LLC (Company/Organization))
+Updated                   1 month ago
+                          
+Provisioning Profile      
+Developer Portal ID       7JGVKQHPFF
+Status                    active
+Expiration                Thu, 06 May 2027 03:33:31 UTC
+Apple Team                Z82KB5AR7N (ARGILETTE LLC (Company/Organization))
+Updated                   14 minutes ago
+                          
+All credentials are ready to build @argilette/navimed (com.argilette.navimed)
+
+✔ Push Notifications are set up
+
+Bumping expo.ios.buildNumber from 32 to 33
+
+Compressing project files and uploading to EAS Build. Learn more: https://expo.fyi/eas-build-archive
+✔ Compressed project files 1s (30.3 MB)
+✔ Uploaded to EAS 
+✔ Computed project fingerprint
+
+See logs: https://expo.dev/accounts/argilette/projects/navimed/builds/acdbc7a0-61ba-4383-b7f0-fc3c0382f553
+
+~/.../artifacts/mobile$ 

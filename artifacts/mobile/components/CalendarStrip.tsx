@@ -2,12 +2,13 @@ import { Feather } from "@expo/vector-icons";
 import React, { useRef, useEffect } from "react";
 import {
   FlatList,
-  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { useTheme } from "@/context/ThemeContext";
+import { Pressable } from "@/components/AccessiblePressable";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 
 interface CalendarStripProps {
   selectedDate: Date;
@@ -39,6 +40,7 @@ const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "Ju
 
 export function CalendarStrip({ selectedDate, onSelectDate, markedDates = [] }: CalendarStripProps) {
   const { colors } = useTheme();
+  const labels = useAccessibilityLabels();
   const days = getDaysAround(selectedDate);
   const flatRef = useRef<FlatList>(null);
   const markedSet = new Set(markedDates);
@@ -57,6 +59,11 @@ export function CalendarStrip({ selectedDate, onSelectDate, markedDates = [] }: 
     today.setHours(0, 0, 0, 0);
     onSelectDate(today);
   };
+  const changeMonth = (offset: number) => {
+    const next = new Date(selectedDate);
+    next.setMonth(next.getMonth() + offset);
+    onSelectDate(next);
+  };
 
   const monthLabel = `${MONTH_NAMES[selectedDate.getMonth()]} ${selectedDate.getFullYear()}`;
 
@@ -64,13 +71,22 @@ export function CalendarStrip({ selectedDate, onSelectDate, markedDates = [] }: 
     <View style={styles.wrapper}>
       <View style={styles.headerRow}>
         <Text style={[styles.monthLabel, { color: colors.text }]}>{monthLabel}</Text>
-        <Pressable
-          onPress={goToToday}
-          style={({ pressed }) => [styles.todayBtn, { backgroundColor: colors.primaryLight }, pressed && { opacity: 0.7 }]}
-        >
-          <Feather name="calendar" size={14} color={colors.primary} />
-          <Text style={[styles.todayText, { color: colors.primary }]}>Today</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable onPress={() => changeMonth(-1)} accessibilityLabel={labels.previousMonth} style={styles.monthButton}>
+            <Feather accessible={false} name="chevron-left" size={20} color={colors.primary} />
+          </Pressable>
+          <Pressable onPress={() => changeMonth(1)} accessibilityLabel={labels.nextMonth} style={styles.monthButton}>
+            <Feather accessible={false} name="chevron-right" size={20} color={colors.primary} />
+          </Pressable>
+          <Pressable
+            onPress={goToToday}
+            accessibilityLabel="Go to today"
+            style={({ pressed }) => [styles.todayBtn, { backgroundColor: colors.primaryLight }, pressed && { opacity: 0.7 }]}
+          >
+            <Feather accessible={false} name="calendar" size={14} color={colors.primary} />
+            <Text style={[styles.todayText, { color: colors.primary }]}>Today</Text>
+          </Pressable>
+        </View>
       </View>
       <FlatList
         ref={flatRef}
@@ -87,20 +103,22 @@ export function CalendarStrip({ selectedDate, onSelectDate, markedDates = [] }: 
           return (
             <Pressable
               onPress={() => onSelectDate(item)}
+              accessibilityLabel={`${DAY_NAMES[item.getDay()]}, ${MONTH_NAMES[item.getMonth()]} ${item.getDate()}, ${item.getFullYear()}${hasEvent ? ", has event" : ""}`}
+              accessibilityState={{ selected: isSelected }}
               style={[
                 styles.dayCell,
                 { backgroundColor: isSelected ? colors.primary : "transparent" },
                 isToday && !isSelected && { borderColor: colors.primary, borderWidth: 1.5 },
               ]}
             >
-              <Text style={[styles.dayName, { color: isSelected ? "#fff" : colors.textTertiary }]}>
+              <Text style={[styles.dayName, { color: isSelected ? colors.onPrimary : colors.textTertiary }]}>
                 {DAY_NAMES[item.getDay()]}
               </Text>
-              <Text style={[styles.dayNumber, { color: isSelected ? "#fff" : colors.text }]}>
+              <Text style={[styles.dayNumber, { color: isSelected ? colors.onPrimary : colors.text }]}>
                 {item.getDate()}
               </Text>
               {hasEvent ? (
-                <View style={[styles.dot, { backgroundColor: isSelected ? "#fff" : colors.primary }]} />
+                <View style={[styles.dot, { backgroundColor: isSelected ? colors.onPrimary : colors.primary }]} />
               ) : (
                 <View style={styles.dotSpacer} />
               )}
@@ -118,11 +136,22 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
+    gap: 4,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  monthButton: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   monthLabel: {
+    flexShrink: 1,
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",
   },

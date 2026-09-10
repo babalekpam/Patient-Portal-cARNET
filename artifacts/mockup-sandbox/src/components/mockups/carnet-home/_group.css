@@ -1,0 +1,396 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+:root {
+  --background: 216 33% 97%;
+  --foreground: 210 40% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 210 40% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 210 40% 10%;
+  --primary: 208 76% 43%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 36% 96%;
+  --secondary-foreground: 210 40% 10%;
+  --muted: 210 36% 96%;
+  --muted-foreground: 210 15% 42%;
+  --accent: 211 79% 95%;
+  --accent-foreground: 208 76% 43%;
+  --destructive: 0 72% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 208 76% 43%;
+  --radius: 0.5rem;
+  --font-sans: "Inter", sans-serif;
+
+  --carnet-primary: #1a6fbf;
+  --carnet-primary-dark: #1557a0;
+  --carnet-primary-light: #e8f2fd;
+  --carnet-text: #0f1923;
+  --carnet-text-secondary: #5a6a7a;
+  --carnet-text-tertiary: #8a9aaa;
+  --carnet-background: #f5f7fa;
+  --carnet-surface: #ffffff;
+  --carnet-surface-secondary: #f0f4f8;
+  --carnet-border: #e2e8f0;
+  --carnet-border-light: #edf2f7;
+}
+
+.carnet-current,
+.carnet-current * {
+  box-sizing: border-box;
+}
+
+.carnet-current {
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+  background: var(--carnet-background);
+  color: var(--carnet-text);
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.carnet-scroll {
+  position: relative;
+  min-height: 100vh;
+  padding-bottom: 34px;
+}
+
+.carnet-watermark {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.carnet-watermark-tile {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  display: grid;
+  place-items: center;
+}
+
+.carnet-watermark-tile img {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  opacity: 0.04;
+  transform: rotate(-30deg);
+}
+
+.carnet-content {
+  position: relative;
+  z-index: 1;
+}
+
+.carnet-header {
+  padding: 83px 20px 24px;
+  background: linear-gradient(135deg, var(--carnet-primary), var(--carnet-primary-dark));
+}
+
+.carnet-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.carnet-welcome {
+  margin: 0;
+  color: #fff;
+  font-size: 22px;
+  line-height: 27px;
+  font-weight: 700;
+}
+
+.carnet-icon-button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+}
+
+.carnet-icon-button:active,
+.carnet-tile:active {
+  transform: scale(0.96);
+  opacity: 0.8;
+}
+
+.carnet-tiles-wrap {
+  margin-top: -8px;
+  padding: 0 16px;
+}
+
+.carnet-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.carnet-tile {
+  min-width: 0;
+  min-height: 112px;
+  padding: 16px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  border: 1px solid var(--carnet-border-light);
+  border-radius: 16px;
+  background: var(--carnet-surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+
+.carnet-tile-icon,
+.carnet-preview-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: var(--carnet-primary);
+  background: var(--carnet-primary-light);
+}
+
+.carnet-tile-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+}
+
+.carnet-tile-label {
+  max-width: 100%;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.carnet-cards {
+  margin-top: 16px;
+  padding: 0 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.carnet-card {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 1px solid var(--carnet-border-light);
+  border-radius: 16px;
+  background: var(--carnet-surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.carnet-preview-header,
+.carnet-message-body,
+.carnet-sender-row,
+.carnet-appointment-body,
+.carnet-detail-row,
+.carnet-view-all,
+.carnet-footer {
+  display: flex;
+  align-items: center;
+}
+
+.carnet-preview-header {
+  gap: 10px;
+}
+
+.carnet-preview-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.carnet-preview-title {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+.carnet-message-body {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.carnet-avatar {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  color: var(--carnet-primary);
+  background: var(--carnet-surface-secondary);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.carnet-message-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.carnet-sender-row {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.carnet-sender {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.carnet-date {
+  color: var(--carnet-text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.carnet-message-preview {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--carnet-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.carnet-primary-button {
+  align-self: center;
+  padding: 10px 28px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--carnet-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.carnet-divider {
+  height: 1px;
+  background: var(--carnet-border-light);
+}
+
+.carnet-view-all {
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--carnet-text-secondary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.carnet-visit-type {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.carnet-appointment-body {
+  align-items: stretch;
+  gap: 14px;
+}
+
+.carnet-date-column {
+  min-width: 64px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: var(--carnet-primary-light);
+  color: var(--carnet-primary);
+}
+
+.carnet-month {
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.carnet-day {
+  font-size: 32px;
+  line-height: 36px;
+  font-weight: 700;
+}
+
+.carnet-weekday {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.carnet-appointment-details {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.carnet-detail-row {
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--carnet-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.carnet-detail-row svg {
+  margin-top: 2px;
+  flex: 0 0 auto;
+  color: var(--carnet-text-tertiary);
+}
+
+.carnet-footer {
+  justify-content: center;
+  gap: 6px;
+  margin: 28px 0 8px;
+  color: var(--carnet-text-tertiary);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+@media (min-width: 700px) {
+  .carnet-content {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  .carnet-header {
+    border-radius: 0 0 20px 20px;
+  }
+
+  .carnet-tiles {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .carnet-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}

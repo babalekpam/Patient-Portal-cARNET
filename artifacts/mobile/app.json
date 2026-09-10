@@ -2,7 +2,7 @@
   "expo": {
     "name": "CARNET",
     "slug": "navimed",
-    "version": "1.0.8",
+    "version": "1.0.10",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "navimed",
@@ -19,18 +19,17 @@
       "appleTeamId": "Z82KB5AR7N",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "CARNET uses your camera in the Documents section to take a photo of a medical document such as a prescription label or lab report, so you can store it in your health records for easy access during doctor visits.",
-        "NSPhotoLibraryUsageDescription": "CARNET accesses your photo library in the Documents section so you can select an existing photo of a medical document, such as an insurance card or vaccination record, and upload it to your secure health vault for safekeeping.",
-        "NSPhotoLibraryAddUsageDescription": "CARNET saves copies of your medical documents, such as downloaded lab results or prescription records, to your photo library so you can access them offline or share them with your healthcare provider."
+        "NSCameraUsageDescription": "CARNET uses the camera only when you choose to capture a document for a session-only preview.",
+        "NSPhotoLibraryUsageDescription": "CARNET accesses your photo library only when you choose a document image for a session-only preview."
       },
       "entitlements": {
         "aps-environment": "production"
       },
-      "buildNumber": "31"
+      "buildNumber": "35"
     },
     "android": {
       "package": "com.argilette.navimed",
-      "versionCode": 8,
+      "versionCode": 10,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0A2540"
@@ -41,9 +40,12 @@
         "USE_FINGERPRINT",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -72,7 +74,8 @@
         {
           "faceIDPermission": "Allow CARNET to use Face ID for quick and secure access to your health records."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

@@ -34,7 +34,7 @@ export function LogoWatermark() {
   }
 
   return (
-    <View style={styles.container} pointerEvents="none">
+    <View style={styles.container} pointerEvents="none" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       {tiles}
     </View>
   );

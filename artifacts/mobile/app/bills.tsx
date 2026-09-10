@@ -3,12 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import {
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { AccessiblePressable as Pressable } from "@/components/AccessiblePressable";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { AnimatedCard } from "@/components/AnimatedCard";
@@ -79,13 +80,13 @@ function SummaryCard({ data: bills, colors }: { data: Bill[]; colors: any }) {
     <AnimatedCard index={0}>
       <View style={[styles.summaryCard, { backgroundColor: colors.primary }]}>
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Total Due</Text>
-          <Text style={styles.summaryAmount}>{formatCurrency(totalOwed)}</Text>
+          <Text style={[styles.summaryLabel, { color: colors.onPrimary }]}>Total Due</Text>
+          <Text style={[styles.summaryAmount, { color: colors.onPrimary }]}>{formatCurrency(totalOwed)}</Text>
         </View>
-        <View style={styles.summaryDivider} />
+        <View style={[styles.summaryDivider, { backgroundColor: colors.onPrimary }]} />
         <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Unpaid Bills</Text>
-          <Text style={[styles.summaryAmount, unpaidCount > 0 && { color: "#fbbf24" }]}>{unpaidCount}</Text>
+          <Text style={[styles.summaryLabel, { color: colors.onPrimary }]}>Unpaid Bills</Text>
+          <Text style={[styles.summaryAmount, { color: colors.onPrimary }]}>{unpaidCount}</Text>
         </View>
       </View>
     </AnimatedCard>
@@ -106,6 +107,7 @@ function EmptyState({ colors }: { colors: any }) {
 
 export default function BillsScreen() {
   const { colors } = useTheme();
+  const a11y = useAccessibilityLabels();
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["bills"],
     queryFn: () => api.getBills(),
@@ -115,7 +117,7 @@ export default function BillsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ScreenHeader title="Bills & Payments" />
-        <ListSkeleton />
+        <View accessibilityRole="progressbar" accessibilityLabel={a11y.loading} aria-busy={true}><ListSkeleton /></View>
       </View>
     );
   }
@@ -126,10 +128,10 @@ export default function BillsScreen() {
         <ScreenHeader title="Bills & Payments" />
         <View style={styles.centered}>
           <Feather name="wifi-off" size={36} color={colors.textTertiary} />
-          <Text style={[styles.errorTitle, { color: colors.text }]}>Unable to Load</Text>
-          <Text style={[styles.errorText, { color: colors.textSecondary }]}>{(error as Error).message}</Text>
-          <Pressable style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()}>
-            <Text style={styles.retryText}>Try Again</Text>
+          <Text accessibilityRole="header" style={[styles.errorTitle, { color: colors.text }]}>Unable to Load</Text>
+          <Text accessibilityRole="alert" aria-live="assertive" style={[styles.errorText, { color: colors.textSecondary }]}>{(error as Error).message}</Text>
+          <Pressable accessibilityLabel={a11y.refresh} style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()}>
+            <Text style={[styles.retryText, { color: colors.onPrimary }]}>Try Again</Text>
           </Pressable>
         </View>
       </View>
@@ -150,7 +152,7 @@ export default function BillsScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={bills.length > 0 ? <SummaryCard data={bills} colors={colors} /> : null}
         ListEmptyComponent={<EmptyState colors={colors} />}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl accessibilityLabel={a11y.refresh} refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
       />
     </View>
   );
@@ -165,9 +167,9 @@ const styles = StyleSheet.create({
     shadowColor: "#1a6fbf", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 4,
   },
   summaryItem: { flex: 1, alignItems: "center" },
-  summaryLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)", marginBottom: 4 },
-  summaryAmount: { fontSize: 24, fontFamily: "Inter_700Bold", color: "#fff" },
-  summaryDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.2)", marginVertical: 4 },
+  summaryLabel: { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 4 },
+  summaryAmount: { fontSize: 24, fontFamily: "Inter_700Bold" },
+  summaryDivider: { width: 1, opacity: 0.35, marginVertical: 4 },
   card: {
     borderRadius: 16, padding: 16, gap: 12, borderWidth: 1,
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 1,
@@ -178,10 +180,10 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 5 },
   metaText: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  amountsGrid: { flexDirection: "row", gap: 12 },
-  amountItem: { flex: 1, borderRadius: 12, padding: 12 },
+  amountsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  amountItem: { flex: 1, minWidth: 130, borderRadius: 12, padding: 12 },
   amountLabel: { fontSize: 12, fontFamily: "Inter_400Regular", marginBottom: 4 },
-  amountValue: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  amountValue: { fontSize: 16, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
   responsibilityBox: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#bfdbfe" },
   responsibilityLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
   responsibilityLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold" },

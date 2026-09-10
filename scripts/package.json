@@ -3,9 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./asset-dimensions": "./src/asset-dimensions.cjs"
+  },
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "probe-image-size": "7.4.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",

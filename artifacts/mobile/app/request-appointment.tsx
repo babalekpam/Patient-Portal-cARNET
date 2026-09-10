@@ -7,7 +7,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +18,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { LogoWatermark } from "@/components/LogoWatermark";
+import { Pressable } from "@/components/AccessiblePressable";
 
 const APPOINTMENT_TYPE_KEYS = [
   { key: "generalCheckup", value: "general_checkup" },
@@ -77,11 +77,14 @@ function OptionPicker({
                 impactLight();
                 onSelect(opt.value);
               }}
+              accessibilityRole="radio"
+              accessibilityLabel={opt.label}
+              accessibilityState={{ checked: isSelected }}
             >
               <Text
                 style={[
                   styles.optionText,
-                  { color: isSelected ? "#fff" : colors.text },
+                  { color: isSelected ? colors.onPrimary : colors.text },
                 ]}
               >
                 {opt.label}
@@ -139,14 +142,17 @@ function DateSelector({
                 impactLight();
                 onChange(key);
               }}
+              accessibilityRole="radio"
+              accessibilityLabel={d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+              accessibilityState={{ checked: isSelected }}
             >
-              <Text style={[styles.dateChipMonth, { color: isSelected ? "rgba(255,255,255,0.8)" : colors.textTertiary }]}>
+              <Text style={[styles.dateChipMonth, { color: isSelected ? colors.onPrimaryMuted : colors.textTertiary }]}>
                 {d.toLocaleDateString("en-US", { month: "short" })}
               </Text>
-              <Text style={[styles.dateChipDay, { color: isSelected ? "#fff" : colors.text }]}>
+              <Text style={[styles.dateChipDay, { color: isSelected ? colors.onPrimary : colors.text }]}>
                 {d.getDate()}
               </Text>
-              <Text style={[styles.dateChipWeekday, { color: isSelected ? "rgba(255,255,255,0.8)" : colors.textTertiary }]}>
+              <Text style={[styles.dateChipWeekday, { color: isSelected ? colors.onPrimaryMuted : colors.textTertiary }]}>
                 {d.toLocaleDateString("en-US", { weekday: "short" })}
               </Text>
             </Pressable>
@@ -223,13 +229,17 @@ export default function RequestAppointmentScreen() {
                 setDoctorPreference("");
                 setNotes("");
               }}
+              accessibilityRole="button"
+              accessibilityLabel={t("requestAnother")}
             >
-              <Feather name="plus" size={18} color="#fff" />
-              <Text style={styles.submitBtnText}>{t("requestAnother")}</Text>
+              <Feather name="plus" size={18} color={colors.onPrimary} />
+              <Text style={[styles.submitBtnText, { color: colors.onPrimary }]}>{t("requestAnother")}</Text>
             </Pressable>
             <Pressable
-              style={[styles.secondaryBtn, { borderColor: colors.border }]}
+              style={[styles.secondaryBtn, { borderColor: colors.controlBorder }]}
               onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel={t("backToHome")}
             >
               <Text style={[styles.secondaryBtnText, { color: colors.textSecondary }]}>{t("backToHome")}</Text>
             </Pressable>
@@ -291,7 +301,7 @@ export default function RequestAppointmentScreen() {
               <Text style={[styles.fieldLabel, { color: colors.text }]}>{t("reasonForVisit")}</Text>
             </View>
             <TextInput
-              style={[styles.textInput, { color: colors.text, backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight }]}
+              style={[styles.textInput, { color: colors.text, backgroundColor: colors.surfaceSecondary, borderColor: colors.controlBorder }]}
               value={reason}
               onChangeText={setReason}
               placeholder={t("describeReason")}
@@ -299,6 +309,7 @@ export default function RequestAppointmentScreen() {
               multiline
               numberOfLines={3}
               textAlignVertical="top"
+              accessibilityLabel={t("reasonForVisit")}
             />
           </View>
 
@@ -308,11 +319,12 @@ export default function RequestAppointmentScreen() {
               <Text style={[styles.fieldLabel, { color: colors.text }]}>{t("doctorPreference")}</Text>
             </View>
             <TextInput
-              style={[styles.textInputSingle, { color: colors.text, backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight }]}
+              style={[styles.textInputSingle, { color: colors.text, backgroundColor: colors.surfaceSecondary, borderColor: colors.controlBorder }]}
               value={doctorPreference}
               onChangeText={setDoctorPreference}
               placeholder={t("preferredDoctorName")}
               placeholderTextColor={colors.textTertiary}
+              accessibilityLabel={t("doctorPreference")}
             />
           </View>
 
@@ -322,7 +334,7 @@ export default function RequestAppointmentScreen() {
               <Text style={[styles.fieldLabel, { color: colors.text }]}>{t("additionalNotes")}</Text>
             </View>
             <TextInput
-              style={[styles.textInput, { color: colors.text, backgroundColor: colors.surfaceSecondary, borderColor: colors.borderLight }]}
+              style={[styles.textInput, { color: colors.text, backgroundColor: colors.surfaceSecondary, borderColor: colors.controlBorder }]}
               value={notes}
               onChangeText={setNotes}
               placeholder={t("additionalInfo")}
@@ -330,6 +342,7 @@ export default function RequestAppointmentScreen() {
               multiline
               numberOfLines={2}
               textAlignVertical="top"
+              accessibilityLabel={t("additionalNotes")}
             />
           </View>
 
@@ -342,13 +355,16 @@ export default function RequestAppointmentScreen() {
             ]}
             onPress={handleSubmit}
             disabled={!canSubmit || submitting}
+            accessibilityRole="button"
+            accessibilityLabel={t("submitRequest")}
+            accessibilityState={{ disabled: !canSubmit || submitting, busy: submitting }}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={colors.onPrimary} />
             ) : (
               <>
-                <Feather name="send" size={18} color="#fff" />
-                <Text style={styles.submitBtnText}>{t("submitRequest")}</Text>
+                <Feather name="send" size={18} color={colors.onPrimary} />
+                <Text style={[styles.submitBtnText, { color: colors.onPrimary }]}>{t("submitRequest")}</Text>
               </>
             )}
           </Pressable>
@@ -379,6 +395,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
+    minHeight: 44,
+    justifyContent: "center",
   },
   optionText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   dateScroll: { gap: 8, paddingVertical: 4 },
@@ -409,6 +427,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     fontFamily: "Inter_400Regular",
+    minHeight: 44,
   },
   submitBtn: {
     flexDirection: "row",
@@ -424,7 +443,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  submitBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  submitBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },
   secondaryBtn: {
     alignItems: "center",
     justifyContent: "center",

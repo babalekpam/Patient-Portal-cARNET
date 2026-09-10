@@ -43,6 +43,15 @@ const BUILT_IN_PROVIDERS: EHRProviderConfig[] = [
 
 let customProviders: EHRProviderConfig[] = [];
 
+export function validateProviderUrl(baseUrl: string): string {
+  let url: URL;
+  try { url = new URL(baseUrl); } catch { throw new Error("Enter a valid HTTPS provider address."); }
+  if (url.protocol !== "https:" || !url.hostname || url.username || url.password || url.search || url.hash) {
+    throw new Error("Provider addresses must use HTTPS without embedded credentials, query parameters or fragments.");
+  }
+  return url.toString().replace(/\/$/, "");
+}
+
 export function getBuiltInProviders(): EHRProviderConfig[] {
   return [...BUILT_IN_PROVIDERS];
 }
@@ -56,8 +65,12 @@ export function getProviderById(id: string): EHRProviderConfig | undefined {
 }
 
 export function addCustomProvider(provider: EHRProviderConfig): void {
+  if (!provider.id.startsWith("custom-") || !["fhir", "custom"].includes(provider.type)) {
+    throw new Error("Custom endpoints cannot replace a built-in provider.");
+  }
+  const baseUrl = validateProviderUrl(provider.baseUrl);
   customProviders = customProviders.filter((p) => p.id !== provider.id);
-  customProviders.push(provider);
+  customProviders.push({ ...provider, baseUrl });
 }
 
 export function removeCustomProvider(id: string): void {
@@ -76,6 +89,7 @@ export function searchProviders(query: string): EHRProviderConfig[] {
 }
 
 export function createAdapter(provider: EHRProviderConfig): EHRAdapter {
+  validateProviderUrl(provider.baseUrl);
   switch (provider.type) {
     case "navimedi":
       return new NavimediAdapter(provider.id, provider.baseUrl);
@@ -98,7 +112,7 @@ export function createCustomFHIRProvider(
     id,
     name,
     type: "fhir",
-    baseUrl: baseUrl.replace(/\/$/, ""),
+    baseUrl: validateProviderUrl(baseUrl),
     description: "Custom FHIR R4 endpoint",
     fhirVersion: "R4",
     icon: "link",

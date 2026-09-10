@@ -3,12 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import React, { useState } from "react";
 import {
   FlatList,
-  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { AccessiblePressable as Pressable } from "@/components/AccessiblePressable";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { SearchBar } from "@/components/SearchBar";
@@ -55,7 +56,7 @@ function LabCard({ item, index, colors }: { item: LabResult; index: number; colo
   return (
     <AnimatedCard index={index}>
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]} testID={`card-lab-${index}`}>
-        <Pressable style={styles.cardHeader} onPress={() => hasResults && setExpanded(!expanded)}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${item.testName || "Lab test"} results`} accessibilityHint={hasResults ? "Shows or hides individual test results" : "No individual results available"} accessibilityState={{ expanded, disabled: !hasResults }} disabled={!hasResults} style={styles.cardHeader} onPress={() => hasResults && setExpanded(!expanded)}>
           <View style={styles.iconWrap}>
             <Feather name="bar-chart-2" size={20} color="#059669" />
           </View>
@@ -94,7 +95,7 @@ function LabCard({ item, index, colors }: { item: LabResult; index: number; colo
           </View>
         ) : null}
         {hasResults && !expanded ? (
-          <Pressable style={[styles.viewResultsBtn, { borderTopColor: colors.borderLight }]} onPress={() => setExpanded(true)}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View ${item.results!.length} lab results`} accessibilityState={{ expanded: false }} style={[styles.viewResultsBtn, { borderTopColor: colors.borderLight }]} onPress={() => setExpanded(true)}>
             <Text style={[styles.viewResultsText, { color: colors.primary }]}>View {item.results!.length} result{item.results!.length !== 1 ? "s" : ""}</Text>
             <Feather name="chevron-down" size={14} color={colors.primary} />
           </Pressable>
@@ -118,6 +119,7 @@ function EmptyState({ colors }: { colors: any }) {
 
 export default function LabResultsScreen() {
   const { colors } = useTheme();
+  const a11y = useAccessibilityLabels();
   const [search, setSearch] = useState("");
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ["lab-results"],
@@ -138,7 +140,7 @@ export default function LabResultsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <ScreenHeader title="Lab Results" />
-        <ListSkeleton />
+        <View accessibilityRole="progressbar" accessibilityLabel={a11y.loading} aria-busy={true}><ListSkeleton /></View>
       </View>
     );
   }
@@ -149,10 +151,10 @@ export default function LabResultsScreen() {
         <ScreenHeader title="Lab Results" />
         <View style={styles.centered}>
           <Feather name="wifi-off" size={36} color={colors.textTertiary} />
-          <Text style={[styles.errorTitle, { color: colors.text }]}>Unable to Load</Text>
-          <Text style={[styles.errorText, { color: colors.textSecondary }]}>{(error as Error).message}</Text>
-          <Pressable style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()}>
-            <Text style={styles.retryText}>Try Again</Text>
+          <Text accessibilityRole="header" style={[styles.errorTitle, { color: colors.text }]}>Unable to Load</Text>
+          <Text accessibilityRole="alert" aria-live="assertive" style={[styles.errorText, { color: colors.textSecondary }]}>{(error as Error).message}</Text>
+          <Pressable accessibilityLabel={a11y.refresh} style={[styles.retryBtn, { backgroundColor: colors.primary }]} onPress={() => refetch()}>
+            <Text style={[styles.retryText, { color: colors.onPrimary }]}>Try Again</Text>
           </Pressable>
         </View>
       </View>
@@ -171,7 +173,7 @@ export default function LabResultsScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={data && data.length > 1 ? <SearchBar value={search} onChangeText={setSearch} placeholder="Search lab results..." /> : null}
         ListEmptyComponent={<EmptyState colors={colors} />}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+        refreshControl={<RefreshControl accessibilityLabel={a11y.refresh} refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
       />
     </View>
   );

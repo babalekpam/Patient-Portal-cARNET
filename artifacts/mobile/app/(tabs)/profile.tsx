@@ -2,13 +2,12 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -32,6 +31,11 @@ import {
 } from "@/lib/biometrics";
 import { useI18n, LANGUAGES } from "@/lib/i18n";
 import { LogoWatermark } from "@/components/LogoWatermark";
+import "@/lib/notifications";
+import { subscribeToPatientDataClear } from "@/lib/secureStorage";
+import { showAppAlert } from "@/lib/privacyAlerts";
+import { Pressable } from "@/components/AccessiblePressable";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 
 const READ_ONLY_FIELDS = ["mrn", "bloodType", "allergies", "insurancePolicyNumber"];
 
@@ -59,6 +63,7 @@ function EditField({
   colors,
   keyboardType,
   placeholder,
+  inputRef,
 }: {
   icon: React.ComponentProps<typeof Feather>["name"];
   label: string;
@@ -68,6 +73,7 @@ function EditField({
   colors: any;
   keyboardType?: "default" | "email-address" | "phone-pad";
   placeholder?: string;
+  inputRef?: React.Ref<TextInput>;
 }) {
   const { t } = useI18n();
   return (
@@ -84,13 +90,16 @@ function EditField({
           <Text style={[styles.infoValue, { color: colors.textTertiary }]}>{value || "—"}</Text>
         ) : (
           <TextInput
-            style={[styles.editInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surfaceSecondary }]}
+            ref={inputRef}
+            style={[styles.editInput, { color: colors.text, borderColor: colors.controlBorder, backgroundColor: colors.surfaceSecondary }]}
             value={value}
             onChangeText={onChange}
             placeholder={placeholder || label}
             placeholderTextColor={colors.textTertiary}
             keyboardType={keyboardType || "default"}
             autoCapitalize={keyboardType === "email-address" ? "none" : "words"}
+            accessibilityLabel={label}
+            editable={!readOnly}
           />
         )}
       </View>
@@ -103,6 +112,7 @@ export default function ProfileScreen() {
   const { profile, isLoading, logout, refreshProfile } = useAuth();
   const { colors, mode, setMode } = useTheme();
   const { t, language, setLanguage } = useI18n();
+  const a11y = useAccessibilityLabels();
   const [refreshing, setRefreshing] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -110,20 +120,29 @@ export default function ProfileScreen() {
   const [bioAvailable, setBioAvailable] = useState(false);
   const [bioEnabled, setBioEnabled] = useState(false);
   const [bioType, setBioType] = useState("Biometrics");
+  const [bioPreferenceError, setBioPreferenceError] = useState(false);
 
   const [editData, setEditData] = useState<ProfileUpdateData>({});
+  const editButtonRef = useRef<React.ElementRef<typeof Pressable>>(null);
+  const firstNameRef = useRef<TextInput>(null);
+  const languageButtonRef = useRef<React.ElementRef<typeof Pressable>>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   useEffect(() => {
     (async () => {
-      const avail = await isBiometricAvailable();
-      setBioAvailable(avail);
-      if (avail) {
-        const enabled = await isBiometricEnabled();
-        setBioEnabled(enabled);
-        const type = await getBiometricType();
-        setBioType(type);
+      try {
+        const avail = await isBiometricAvailable();
+        setBioAvailable(avail);
+        if (avail) {
+          const enabled = await isBiometricEnabled();
+          setBioEnabled(enabled);
+          const type = await getBiometricType();
+          setBioType(type);
+        }
+      } catch {
+        setBioPreferenceError(true);
+        showAppAlert("Biometric setting unavailable", "CARNET could not read the protected biometric preference. The setting cannot be changed right now.");
       }
     })();
   }, []);
@@ -143,6 +162,12 @@ export default function ProfileScreen() {
       });
     }
   }, [editing, profile]);
+
+  useEffect(() => subscribeToPatientDataClear(() => {
+    setEditing(false);
+    setSaving(false);
+    setEditData({});
+  }), []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -164,8 +189,13 @@ export default function ProfileScreen() {
 
   const toggleBiometric = async (val: boolean) => {
     impactLight();
-    await setBiometricEnabled(val);
-    setBioEnabled(val);
+    try {
+      await setBiometricEnabled(val);
+      setBioEnabled(val);
+    } catch (error: any) {
+      notificationError();
+      showAppAlert("Biometric setting not changed", error?.message || "Please try again.");
+    }
   };
 
   const startEditing = () => {
@@ -177,6 +207,63 @@ export default function ProfileScreen() {
     setEditing(false);
     setEditData({});
   };
+
+  useEffect(() => {
+    if (!editing) return;
+
+    const focusTimer = setTimeout(() => firstNameRef.current?.focus(), 0);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // RN Web inputs stop keydown bubbling. Capture only our inline edit
+      // controls, so Escape inside a separately opened dialog keeps its owner.
+      const target = event.target;
+      const inEditForm = target instanceof Element && target.closest(
+        '[aria-labelledby="profile-edit-heading"], [data-testid="button-edit-profile"]'
+      );
+      if (event.key === "Escape" && inEditForm && !target.closest('[role="dialog"]')) {
+        event.preventDefault();
+        cancelEditing();
+      }
+    };
+
+    if (Platform.OS === "web") {
+      window.addEventListener("keydown", handleKeyDown, true);
+    }
+
+    return () => {
+      clearTimeout(focusTimer);
+      if (Platform.OS === "web") {
+        window.removeEventListener("keydown", handleKeyDown, true);
+      }
+      setTimeout(() => editButtonRef.current?.focus(), 0);
+    };
+  }, [editing]);
+
+  useEffect(() => {
+    if (!showLangPicker) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      const inLanguagePicker = target instanceof Element && target.closest(
+        '[data-testid="button-language-picker"], [data-testid="language-picker"]'
+      );
+      if (event.key === "Escape" && inLanguagePicker) {
+        event.preventDefault();
+        event.stopPropagation();
+        setShowLangPicker(false);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      window.addEventListener("keydown", handleKeyDown, true);
+    }
+
+    return () => {
+      if (Platform.OS === "web") {
+        window.removeEventListener("keydown", handleKeyDown, true);
+      }
+      setTimeout(() => languageButtonRef.current?.focus(), 0);
+    };
+  }, [showLangPicker]);
 
   const saveProfile = async () => {
     setSaving(true);
@@ -204,7 +291,12 @@ export default function ProfileScreen() {
 
   if (isLoading && !profile) {
     return (
-      <View style={[styles.containerBase, { backgroundColor: colors.background, paddingTop: topPad }]}>
+      <View
+        style={[styles.containerBase, { backgroundColor: colors.background, paddingTop: topPad }]}
+        accessibilityLabel={a11y.loading}
+        accessibilityState={{ busy: true }}
+        aria-busy
+      >
         <ProfileSkeleton />
       </View>
     );
@@ -212,13 +304,15 @@ export default function ProfileScreen() {
 
   const editButton = (
     <Pressable
+      ref={editButtonRef}
       style={({ pressed }) => [styles.headerBtn, pressed && { opacity: 0.7 }]}
       onPress={editing ? cancelEditing : startEditing}
       testID="button-edit-profile"
       accessibilityLabel={editing ? t("cancel") : t("editProfile")}
+      accessibilityRole="button"
       hitSlop={12}
     >
-      <Feather name={editing ? "x" : "edit-2"} size={18} color="#fff" />
+      <Feather name={editing ? "x" : "edit-2"} size={18} color={colors.whiteText} />
     </Pressable>
   );
 
@@ -235,6 +329,7 @@ export default function ProfileScreen() {
         contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 34 : 20 }}
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
+        accessibilityLabel={a11y.mainContent}
       >
         <LinearGradient
           colors={[colors.gradientStart, colors.gradientEnd]}
@@ -247,22 +342,26 @@ export default function ProfileScreen() {
             <Avatar firstName={profile?.firstName} lastName={profile?.lastName} size={88} style={{ backgroundColor: "rgba(255,255,255,0.2)" }} />
             {editButton}
           </View>
-          <Text style={styles.nameWhite}>{fullName}</Text>
-          {profile?.email ? <Text style={styles.emailWhite}>{profile.email}</Text> : null}
+          <Text accessibilityRole="header" style={[styles.nameWhite, { color: colors.whiteText }]}>{fullName}</Text>
+          {profile?.email ? <Text style={[styles.emailWhite, { color: colors.onPrimaryMuted }]}>{profile.email}</Text> : null}
           {profile?.mrn ? (
             <View style={styles.mrnBadge}>
-              <Feather name="hash" size={12} color="rgba(255,255,255,0.7)" />
-              <Text style={styles.mrnText}>{t("mrnPrefix")}{profile.mrn}</Text>
+              <Feather name="hash" size={12} color={colors.onPrimaryMuted} />
+              <Text style={[styles.mrnText, { color: colors.onPrimaryMuted }]}>{t("mrnPrefix")}{profile.mrn}</Text>
             </View>
           ) : null}
         </LinearGradient>
 
         {editing ? (
           <AnimatedCard index={0}>
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("editProfile")}</Text>
+            <View
+              style={styles.section}
+              role="form"
+              aria-labelledby="profile-edit-heading"
+            >
+              <Text nativeID="profile-edit-heading" accessibilityRole="header" style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("editProfile")}</Text>
               <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
-                <EditField icon="user" label={t("firstName")} value={editData.firstName || ""} onChange={(v) => updateField("firstName", v)} colors={colors} />
+                <EditField inputRef={firstNameRef} icon="user" label={t("firstName")} value={editData.firstName || ""} onChange={(v) => updateField("firstName", v)} colors={colors} />
                 <EditField icon="user" label={t("lastName")} value={editData.lastName || ""} onChange={(v) => updateField("lastName", v)} colors={colors} />
                 <EditField icon="mail" label={t("email")} value={editData.email || ""} onChange={(v) => updateField("email", v)} colors={colors} keyboardType="email-address" />
                 <EditField icon="phone" label={t("phone")} value={editData.phone || ""} onChange={(v) => updateField("phone", v)} colors={colors} keyboardType="phone-pad" />
@@ -280,8 +379,10 @@ export default function ProfileScreen() {
 
               <View style={styles.editActions}>
                 <Pressable
-                  style={({ pressed }) => [styles.cancelBtn, { borderColor: colors.border }, pressed && { opacity: 0.8 }]}
+                  style={({ pressed }) => [styles.cancelBtn, { borderColor: colors.controlBorder }, pressed && { opacity: 0.8 }]}
                   onPress={cancelEditing}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("cancel")}
                 >
                   <Text style={[styles.cancelBtnText, { color: colors.textSecondary }]}>{t("cancel")}</Text>
                 </Pressable>
@@ -289,13 +390,16 @@ export default function ProfileScreen() {
                   style={({ pressed }) => [styles.saveBtn, { backgroundColor: colors.primary }, pressed && { opacity: 0.85 }, saving && { opacity: 0.6 }]}
                   onPress={saveProfile}
                   disabled={saving}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("saveChanges")}
+                  accessibilityState={{ disabled: saving, busy: saving }}
                 >
                   {saving ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator size="small" color={colors.onPrimary} />
                   ) : (
                     <>
-                      <Feather name="check" size={16} color="#fff" />
-                      <Text style={styles.saveBtnText}>{t("saveChanges")}</Text>
+                      <Feather name="check" size={16} color={colors.onPrimary} />
+                      <Text style={[styles.saveBtnText, { color: colors.onPrimary }]}>{t("saveChanges")}</Text>
                     </>
                   )}
                 </Pressable>
@@ -306,7 +410,7 @@ export default function ProfileScreen() {
           <>
             <AnimatedCard index={0}>
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("personalInfo")}</Text>
+                <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("personalInfo")}</Text>
                 <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
                   <InfoRow icon="calendar" label={t("dateOfBirth")} value={profile?.dateOfBirth} colors={colors} />
                   <InfoRow icon="user" label={t("gender")} value={profile?.gender} colors={colors} />
@@ -323,7 +427,7 @@ export default function ProfileScreen() {
             {profile?.allergies && profile.allergies.length > 0 ? (
               <AnimatedCard index={1}>
                 <View style={styles.section}>
-                  <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("allergies")}</Text>
+                  <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("allergies")}</Text>
                   <View style={[styles.card, styles.allergyCard, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
                     <View style={styles.allergyHeader}>
                       <Feather name="alert-triangle" size={18} color={colors.danger} />
@@ -342,7 +446,7 @@ export default function ProfileScreen() {
 
             <AnimatedCard index={2}>
               <View style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("preferences")}</Text>
+                <Text accessibilityRole="header" style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t("preferences")}</Text>
                 <View style={styles.prefGroup}>
                   <Pressable
                     style={({ pressed }) => [
@@ -351,6 +455,8 @@ export default function ProfileScreen() {
                       pressed && { opacity: 0.8 },
                     ]}
                     onPress={cycleTheme}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("appearance")}
                   >
                     <View style={[styles.prefIconWrap, { backgroundColor: colors.primaryLight }]}>
                       <Feather name={themeIcon as any} size={18} color={colors.primary} />
@@ -369,19 +475,27 @@ export default function ProfileScreen() {
                     <View style={styles.prefContent}>
                       <Text style={[styles.prefLabel, { color: colors.text }]}>{bioType}</Text>
                       <Text style={[styles.prefValue, { color: colors.textSecondary }]}>
-                        {bioAvailable ? t("quickSignIn", { type: bioType.toLowerCase() }) : t("biometricsNotAvailable")}
+                        {bioPreferenceError
+                          ? "Protected preference unavailable"
+                          : bioAvailable
+                            ? t("quickSignIn", { type: bioType.toLowerCase() })
+                            : t("biometricsNotAvailable")}
                       </Text>
                     </View>
                     <Switch
                       value={bioEnabled}
                       onValueChange={toggleBiometric}
                       trackColor={{ false: colors.border, true: colors.primary }}
-                      thumbColor="#fff"
-                      disabled={!bioAvailable}
+                      thumbColor={colors.onPrimary}
+                      disabled={!bioAvailable || bioPreferenceError}
+                      accessibilityLabel={bioType}
+                      accessibilityState={{ disabled: !bioAvailable || bioPreferenceError, checked: bioEnabled }}
                     />
                   </View>
 
                   <Pressable
+                    ref={languageButtonRef}
+                    testID="button-language-picker"
                     style={({ pressed }) => [
                       styles.prefRow,
                       { backgroundColor: colors.surface, borderColor: colors.borderLight },
@@ -391,6 +505,9 @@ export default function ProfileScreen() {
                       impactLight();
                       setShowLangPicker(!showLangPicker);
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("language")}
+                    accessibilityState={{ expanded: showLangPicker }}
                   >
                     <View style={[styles.prefIconWrap, { backgroundColor: colors.primaryLight }]}>
                       <Feather name="globe" size={18} color={colors.primary} />
@@ -405,7 +522,12 @@ export default function ProfileScreen() {
                   </Pressable>
 
                   {showLangPicker ? (
-                    <View style={[styles.langPickerWrap, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}>
+                    <View
+                      testID="language-picker"
+                      role="radiogroup"
+                      aria-label={t("language")}
+                      style={[styles.langPickerWrap, { backgroundColor: colors.surface, borderColor: colors.borderLight }]}
+                    >
                       {LANGUAGES.map((lang) => {
                         const isActive = lang.code === language;
                         return (
@@ -422,6 +544,9 @@ export default function ProfileScreen() {
                               setLanguage(lang.code);
                               setShowLangPicker(false);
                             }}
+                            accessibilityRole="radio"
+                            accessibilityState={{ checked: isActive }}
+                            accessibilityLabel={lang.nativeLabel}
                           >
                             <View style={{ flex: 1 }}>
                               <Text style={[styles.langName, { color: colors.text }]}>{lang.nativeLabel}</Text>
@@ -433,6 +558,29 @@ export default function ProfileScreen() {
                       })}
                     </View>
                   ) : null}
+
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.prefRow,
+                      { backgroundColor: colors.surface, borderColor: colors.borderLight },
+                      pressed && { opacity: 0.8 },
+                    ]}
+                    onPress={() => {
+                      impactLight();
+                      router.push("/security-privacy" as any);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Security & Privacy"
+                  >
+                    <View style={[styles.prefIconWrap, { backgroundColor: colors.primaryLight }]}>
+                      <Feather name="shield" size={18} color={colors.primary} />
+                    </View>
+                    <View style={styles.prefContent}>
+                      <Text style={[styles.prefLabel, { color: colors.text }]}>Security & Privacy</Text>
+                      <Text style={[styles.prefValue, { color: colors.textSecondary }]}>Sharing controls and local data</Text>
+                    </View>
+                    <Feather name="chevron-right" size={18} color={colors.textTertiary} />
+                  </Pressable>
                 </View>
               </View>
             </AnimatedCard>
@@ -442,6 +590,8 @@ export default function ProfileScreen() {
                 <Pressable
                   style={({ pressed }) => [styles.logoutBtnFull, { backgroundColor: colors.dangerLight }, pressed && { opacity: 0.8 }]}
                   onPress={handleLogout}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("signOut")}
                 >
                   <Feather name="log-out" size={18} color={colors.danger} />
                   <Text style={[styles.logoutText, { color: colors.danger }]}>{t("signOut")}</Text>
@@ -473,8 +623,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   headerBtn: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: 10,
     backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center",
@@ -483,13 +633,11 @@ const styles = StyleSheet.create({
   nameWhite: {
     fontSize: 24,
     fontFamily: "Inter_700Bold",
-    color: "#fff",
     marginTop: 6,
   },
   emailWhite: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.75)",
   },
   mrnBadge: {
     flexDirection: "row",
@@ -504,7 +652,6 @@ const styles = StyleSheet.create({
   mrnText: {
     fontSize: 12,
     fontFamily: "Inter_500Medium",
-    color: "rgba(255,255,255,0.7)",
   },
   section: {
     paddingHorizontal: 20,
@@ -566,6 +713,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    minHeight: 44,
   },
   editActions: {
     flexDirection: "row",
@@ -601,7 +749,6 @@ const styles = StyleSheet.create({
   saveBtnText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
-    color: "#fff",
   },
   allergyCard: {
     padding: 16,

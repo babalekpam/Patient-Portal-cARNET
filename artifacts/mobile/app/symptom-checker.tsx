@@ -3,19 +3,22 @@ import { LinearGradient } from "expo-linear-gradient";
 import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { Pressable } from "@/components/AccessiblePressable";
+import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/context/ThemeContext";
 import { useI18n } from "@/lib/i18n";
 import { LogoWatermark } from "@/components/LogoWatermark";
+import { assertPatientDataEpoch, capturePatientDataEpoch, getSecureItem, isPatientDataEpochCurrent, setSecureItem, subscribeToPatientDataClear } from "@/lib/secureStorage";
+import { showAppAlert } from "@/lib/privacyAlerts";
 
 const BODY_AREAS = [
   { key: "head", icon: "eye" as const, area: "Head & Face" },
@@ -100,6 +103,7 @@ export default function SymptomCheckerScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { t } = useI18n();
+  const a11y = useAccessibilityLabels();
   const [step, setStep] = useState(0);
   const [selectedArea, setSelectedArea] = useState("");
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
@@ -109,34 +113,66 @@ export default function SymptomCheckerScreen() {
 
   const topPad = Platform.OS === "web" ? 20 : insets.top;
 
+  useEffect(() => subscribeToPatientDataClear(() => {
+    setStep(0);
+    setSelectedArea("");
+    setSelectedSymptoms([]);
+    setSeverity("");
+    setDuration("");
+    setResult(null);
+  }), []);
+
   const toggleSymptom = (s: string) => {
     setSelectedSymptoms((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
   };
 
   const handleComplete = async () => {
+    const expectedEpoch = capturePatientDataEpoch();
     const triageResult = getTriageResult(severity, selectedSymptoms, duration);
-    setResult(triageResult);
-    setStep(4);
-
-    let history: any[] = [];
-    try { history = JSON.parse((await AsyncStorage.getItem("symptom_history")) || "[]"); } catch {}
-    history.unshift({
-      date: new Date().toISOString(),
-      area: selectedArea,
-      symptoms: selectedSymptoms,
-      severity,
-      duration,
-      triage: triageResult.level,
-    });
-    await AsyncStorage.setItem("symptom_history", JSON.stringify(history.slice(0, 50)));
+    try {
+      let history: any[] = [];
+      const stored = await getSecureItem("symptom_history");
+      assertPatientDataEpoch(expectedEpoch);
+      if (stored) history = JSON.parse(stored);
+      history.unshift({
+        date: new Date().toISOString(),
+        area: selectedArea,
+        symptoms: selectedSymptoms,
+        severity,
+        duration,
+        triage: triageResult.level,
+      });
+      await setSecureItem("symptom_history", JSON.stringify(history.slice(0, 50)));
+      assertPatientDataEpoch(expectedEpoch);
+      await AsyncStorage.removeItem("symptom_history").catch(() => {});
+      assertPatientDataEpoch(expectedEpoch);
+      setResult(triageResult);
+      setStep(4);
+    } catch {
+      if (!isPatientDataEpochCurrent(expectedEpoch)) return;
+      notificationError();
+      showAppAlert(t("error"), "CARNET could not securely save this symptom check. Please try again.");
+    }
   };
 
   const renderStep = () => {
+    const resultColor = result
+      ? result.level === "emergency" ? colors.danger
+        : result.level === "urgentCare" ? colors.warning
+          : result.level === "schedule" ? colors.info
+            : colors.success
+      : colors.primary;
+    const resultBackground = result
+      ? result.level === "emergency" ? colors.dangerLight
+        : result.level === "urgentCare" ? colors.warningLight
+          : result.level === "schedule" ? colors.infoLight
+            : colors.successLight
+      : colors.surface;
     switch (step) {
       case 0:
         return (
           <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: colors.text }]}>{t("whereDoYouFeelSymptoms")}</Text>
+            <Text accessibilityRole="header" accessibilityLiveRegion="polite" aria-live="polite" style={[styles.stepTitle, { color: colors.text }]}>{t("whereDoYouFeelSymptoms")}</Text>
             <Text style={[styles.stepSubtitle, { color: colors.textSecondary }]}>{t("selectBodyArea")}</Text>
             <View style={styles.gridWrap}>
               {BODY_AREAS.map((area) => (
@@ -144,9 +180,12 @@ export default function SymptomCheckerScreen() {
                   key={area.key}
                   style={[styles.areaCard, { backgroundColor: selectedArea === area.key ? colors.primaryLight : colors.surface, borderColor: selectedArea === area.key ? colors.primary : colors.borderLight }]}
                   onPress={() => { impactLight(); setSelectedArea(area.key); }}
+                  accessibilityRole="radio"
+                  accessibilityLabel={area.area}
+                  accessibilityState={{ checked: selectedArea === area.key }}
                 >
                   <View style={[styles.areaIcon, { backgroundColor: selectedArea === area.key ? colors.primary : colors.surfaceSecondary }]}>
-                    <Feather name={area.icon} size={22} color={selectedArea === area.key ? "#fff" : colors.textSecondary} />
+                    <Feather name={area.icon} size={22} color={selectedArea === area.key ? colors.onPrimary : colors.textSecondary} />
                   </View>
                   <Text style={[styles.areaText, { color: selectedArea === area.key ? colors.primary : colors.text }]}>{area.area}</Text>
                 </Pressable>
@@ -157,7 +196,7 @@ export default function SymptomCheckerScreen() {
       case 1:
         return (
           <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: colors.text }]}>{t("whatSymptoms")}</Text>
+            <Text accessibilityRole="header" accessibilityLiveRegion="polite" aria-live="polite" style={[styles.stepTitle, { color: colors.text }]}>{t("whatSymptoms")}</Text>
             <Text style={[styles.stepSubtitle, { color: colors.textSecondary }]}>{t("selectAllThatApply")}</Text>
             <View style={styles.chipsWrap}>
               {(SYMPTOMS_BY_AREA[selectedArea] || []).map((s) => (
@@ -165,9 +204,12 @@ export default function SymptomCheckerScreen() {
                   key={s}
                   style={[styles.symptomChip, { backgroundColor: selectedSymptoms.includes(s) ? colors.primary : colors.surface, borderColor: selectedSymptoms.includes(s) ? colors.primary : colors.borderLight }]}
                   onPress={() => { impactLight(); toggleSymptom(s); }}
+                  accessibilityRole="checkbox"
+                  accessibilityLabel={s}
+                  accessibilityState={{ checked: selectedSymptoms.includes(s) }}
                 >
-                  <Text style={[styles.chipText, { color: selectedSymptoms.includes(s) ? "#fff" : colors.text }]}>{s}</Text>
-                  {selectedSymptoms.includes(s) && <Feather name="check" size={14} color="#fff" />}
+                  <Text style={[styles.chipText, { color: selectedSymptoms.includes(s) ? colors.onPrimary : colors.text }]}>{s}</Text>
+                  {selectedSymptoms.includes(s) && <Feather name="check" size={14} color={colors.onPrimary} />}
                 </Pressable>
               ))}
             </View>
@@ -176,7 +218,7 @@ export default function SymptomCheckerScreen() {
       case 2:
         return (
           <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: colors.text }]}>{t("howSevere")}</Text>
+            <Text accessibilityRole="header" accessibilityLiveRegion="polite" aria-live="polite" style={[styles.stepTitle, { color: colors.text }]}>{t("howSevere")}</Text>
             <Text style={[styles.stepSubtitle, { color: colors.textSecondary }]}>{t("rateSeverity")}</Text>
             <View style={styles.severityWrap}>
               {SEVERITY_LEVELS.map((s) => (
@@ -184,6 +226,9 @@ export default function SymptomCheckerScreen() {
                   key={s.key}
                   style={[styles.severityCard, { backgroundColor: severity === s.key ? s.color + "15" : colors.surface, borderColor: severity === s.key ? s.color : colors.borderLight }]}
                   onPress={() => { impactLight(); setSeverity(s.key); }}
+                  accessibilityRole="radio"
+                  accessibilityLabel={`${s.label}: ${s.desc}`}
+                  accessibilityState={{ checked: severity === s.key }}
                 >
                   <View style={[styles.severityDot, { backgroundColor: s.color }]} />
                   <View style={styles.severityText}>
@@ -198,7 +243,7 @@ export default function SymptomCheckerScreen() {
       case 3:
         return (
           <View style={styles.stepContent}>
-            <Text style={[styles.stepTitle, { color: colors.text }]}>{t("howLong")}</Text>
+            <Text accessibilityRole="header" accessibilityLiveRegion="polite" aria-live="polite" style={[styles.stepTitle, { color: colors.text }]}>{t("howLong")}</Text>
             <Text style={[styles.stepSubtitle, { color: colors.textSecondary }]}>{t("selectDuration")}</Text>
             <View style={styles.durationWrap}>
               {DURATION_OPTIONS.map((d) => (
@@ -206,6 +251,9 @@ export default function SymptomCheckerScreen() {
                   key={d}
                   style={[styles.durationOption, { backgroundColor: duration === d ? colors.primaryLight : colors.surface, borderColor: duration === d ? colors.primary : colors.borderLight }]}
                   onPress={() => { impactLight(); setDuration(d); }}
+                  accessibilityRole="radio"
+                  accessibilityLabel={d}
+                  accessibilityState={{ checked: duration === d }}
                 >
                   <Text style={[styles.durationText, { color: duration === d ? colors.primary : colors.text }]}>{d}</Text>
                   {duration === d && <Feather name="check" size={18} color={colors.primary} />}
@@ -218,16 +266,16 @@ export default function SymptomCheckerScreen() {
         if (!result) return null;
         return (
           <View style={styles.stepContent}>
-            <View style={[styles.resultCard, { backgroundColor: result.color + "10", borderColor: result.color }]}>
-              <View style={[styles.resultIconWrap, { backgroundColor: result.color }]}>
-                <Feather name={result.icon} size={32} color="#fff" />
+            <View style={[styles.resultCard, { backgroundColor: resultBackground, borderColor: resultColor }]} accessibilityLiveRegion="polite" aria-live="polite">
+              <View style={[styles.resultIconWrap, { backgroundColor: resultColor }]}>
+                <Feather name={result.icon} size={32} color={colors.onPrimary} />
               </View>
-              <Text style={[styles.resultTitle, { color: result.color }]}>{result.title}</Text>
+              <Text style={[styles.resultTitle, { color: resultColor }]}>{result.title}</Text>
               <Text style={[styles.resultDesc, { color: colors.textSecondary }]}>{result.description}</Text>
               <View style={styles.actionsList}>
                 {result.actions.map((a, i) => (
                   <View key={i} style={styles.actionItem}>
-                    <Feather name="chevron-right" size={16} color={result.color} />
+                    <Feather name="chevron-right" size={16} color={resultColor} />
                     <Text style={[styles.actionText, { color: colors.text }]}>{a}</Text>
                   </View>
                 ))}
@@ -249,9 +297,10 @@ export default function SymptomCheckerScreen() {
               <Pressable
                 style={[styles.scheduleBtn, { backgroundColor: colors.primary }]}
                 onPress={() => { impactMedium(); router.push("/request-appointment" as any); }}
+                accessibilityRole="button"
               >
-                <Feather name="calendar" size={18} color="#fff" />
-                <Text style={styles.scheduleBtnText}>{t("scheduleAppointmentBtn")}</Text>
+                <Feather name="calendar" size={18} color={colors.onPrimary} />
+                <Text style={[styles.scheduleBtnText, { color: colors.onPrimary }]}>{t("scheduleAppointmentBtn")}</Text>
               </Pressable>
             )}
           </View>
@@ -268,15 +317,15 @@ export default function SymptomCheckerScreen() {
         colors={[colors.gradientStart, colors.gradientEnd]}
         style={[styles.header, { paddingTop: topPad }]}
       >
-        <Pressable style={styles.backBtn} onPress={() => { if (step > 0 && step < 4) setStep(step - 1); else router.back(); }}>
-          <Feather name="arrow-left" size={22} color="#fff" />
+        <Pressable style={styles.backBtn} onPress={() => { if (step > 0 && step < 4) setStep(step - 1); else router.back(); }} accessibilityRole="button" accessibilityLabel={step > 0 && step < 4 ? `${t("symptomChecker")}, ${step}` : t("backToHome")}>
+          <Feather name="arrow-left" size={22} color={colors.whiteText} />
         </Pressable>
-        <Text style={styles.headerTitle}>{t("symptomChecker")}</Text>
-        <View style={styles.backBtn} />
+        <Text style={[styles.headerTitle, { color: colors.whiteText }]}>{t("symptomChecker")}</Text>
+        <View style={styles.backBtn} accessible={false} />
       </LinearGradient>
 
       {step < 4 && (
-        <View style={styles.progressRow}>
+        <View style={styles.progressRow} accessibilityRole="progressbar" accessibilityLabel={`${t("symptomChecker")} progress`} accessibilityValue={{ min: 1, max: 4, now: step + 1 }} aria-valuemin={1} aria-valuemax={4} aria-valuenow={step + 1}>
           {[0, 1, 2, 3].map((i) => (
             <View key={i} style={[styles.progressDot, { backgroundColor: i <= step ? colors.primary : colors.borderLight }]} />
           ))}
@@ -293,18 +342,22 @@ export default function SymptomCheckerScreen() {
             <Pressable
               style={[styles.nextBtn, { backgroundColor: canProceed ? colors.primary : colors.borderLight }]}
               disabled={!canProceed}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canProceed }}
               onPress={() => { impactMedium(); setStep(step + 1); }}
             >
-              <Text style={[styles.nextBtnText, { color: canProceed ? "#fff" : colors.textTertiary }]}>{t("next")}</Text>
-              <Feather name="arrow-right" size={18} color={canProceed ? "#fff" : colors.textTertiary} />
+              <Text style={[styles.nextBtnText, { color: canProceed ? colors.onPrimary : colors.textTertiary }]}>{t("next")}</Text>
+              <Feather name="arrow-right" size={18} color={canProceed ? colors.onPrimary : colors.textTertiary} />
             </Pressable>
           ) : (
             <Pressable
               style={[styles.nextBtn, { backgroundColor: canProceed ? colors.primary : colors.borderLight }]}
               disabled={!canProceed}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canProceed }}
               onPress={() => { impactHeavy(); handleComplete(); }}
             >
-              <Text style={[styles.nextBtnText, { color: canProceed ? "#fff" : colors.textTertiary }]}>{t("getRecommendation")}</Text>
+              <Text style={[styles.nextBtnText, { color: canProceed ? colors.onPrimary : colors.textTertiary }]}>{t("getRecommendation")}</Text>
             </Pressable>
           )}
         </View>
@@ -315,6 +368,8 @@ export default function SymptomCheckerScreen() {
           <Pressable
             style={[styles.nextBtn, { backgroundColor: colors.surfaceSecondary }]}
             onPress={() => { setStep(0); setSelectedArea(""); setSelectedSymptoms([]); setSeverity(""); setDuration(""); setResult(null); }}
+            accessibilityRole="button"
+            accessibilityLabel={a11y.refresh}
           >
             <Feather name="refresh-cw" size={18} color={colors.text} />
             <Text style={[styles.nextBtnText, { color: colors.text }]}>{t("startOver")}</Text>
@@ -328,8 +383,8 @@ export default function SymptomCheckerScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingBottom: 16 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
+  backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold" },
   progressRow: { flexDirection: "row", justifyContent: "center", gap: 8, paddingVertical: 12 },
   progressDot: { width: 32, height: 4, borderRadius: 2 },
   scrollContent: { padding: 16, paddingBottom: 100 },
@@ -341,7 +396,7 @@ const styles = StyleSheet.create({
   areaIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   areaText: { fontSize: 13, fontFamily: "Inter_600SemiBold", textAlign: "center" },
   chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  symptomChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  symptomChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, minHeight: 44, borderRadius: 12, borderWidth: 1 },
   chipText: { fontSize: 14, fontFamily: "Inter_500Medium" },
   severityWrap: { gap: 10 },
   severityCard: { flexDirection: "row", alignItems: "center", gap: 14, padding: 16, borderRadius: 14, borderWidth: 1.5 },
@@ -365,7 +420,7 @@ const styles = StyleSheet.create({
   summaryChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   summaryChipText: { fontSize: 13, fontFamily: "Inter_400Regular" },
   scheduleBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 14 },
-  scheduleBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  scheduleBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", flexShrink: 1 },
   bottomBar: { padding: 16, borderTopWidth: 1 },
   nextBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 16, borderRadius: 14 },
   nextBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold" },

@@ -11,10 +11,12 @@ interface StatusBadgeProps {
 
 function getStatusType(status: string): StatusType {
   const s = status?.toLowerCase() || "";
-  if (["completed", "active", "paid", "filled", "normal", "final"].some((x) => s.includes(x))) return "success";
-  if (["scheduled", "pending", "processing", "partial"].some((x) => s.includes(x))) return "info";
+  // Match abnormal before normal: status meaning must not be conveyed by a
+  // contradictory color. The original label remains visible/readable as text.
   if (["cancelled", "overdue", "abnormal", "high", "low"].some((x) => s.includes(x))) return "danger";
   if (["refill due", "expiring", "warning"].some((x) => s.includes(x))) return "warning";
+  if (["scheduled", "pending", "processing", "partial"].some((x) => s.includes(x))) return "info";
+  if (["completed", "active", "paid", "filled", "normal", "final"].includes(s)) return "success";
   return "default";
 }
 

@@ -1,0 +1,199 @@
+export const NAVIMEDI_ORIGIN = "https://www.navimedi.org";
+export const NAVIMEDI_API_PREFIX = "/api";
+export const MAX_RELAY_BODY_BYTES = 64 * 1024;
+export const MAX_UPSTREAM_BYTES = 2 * 1024 * 1024;
+export const UPSTREAM_TIMEOUT_MS = 10_000;
+
+export type RelayRoute = {
+  category: string;
+  protected: boolean;
+  validateBody: (value: unknown) => boolean;
+};
+
+const noBody = (value: unknown): boolean => value === undefined;
+const emptyBody = (value: unknown): boolean =>
+  value === undefined ||
+  (isRecord(value) && Object.keys(value).length === 0);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOnly(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).every((key) => keys.includes(key));
+}
+
+function stringField(
+  value: Record<string, unknown>,
+  key: string,
+  max: number,
+  required = false,
+): boolean {
+  const field = value[key];
+  if (field === undefined) return !required;
+  return typeof field === "string" && field.length > 0 && field.length <= max;
+}
+
+function numberField(
+  value: Record<string, unknown>,
+  key: string,
+  min: number,
+  max: number,
+): boolean {
+  const field = value[key];
+  return (
+    field === undefined ||
+    (typeof field === "number" &&
+      Number.isFinite(field) &&
+      field >= min &&
+      field <= max)
+  );
+}
+
+function loginBody(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnly(value, ["email", "password", "tenantId"])) return false;
+  return (
+    stringField(value, "email", 320, true) &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email as string) &&
+    stringField(value, "password", 1024, true) &&
+    stringField(value, "tenantId", 128)
+  );
+}
+
+function forgotPasswordBody(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnly(value, ["email"])) return false;
+  return (
+    stringField(value, "email", 320, true) &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email as string)
+  );
+}
+
+function profileBody(value: unknown): boolean {
+  const keys = [
+    "firstName", "lastName", "phone", "email", "address", "gender",
+    "dateOfBirth", "emergencyContact", "emergencyPhone",
+  ] as const;
+  if (!isRecord(value) || !hasOnly(value, keys) || Object.keys(value).length === 0) return false;
+  return keys.every((key) => stringField(value, key, key === "address" ? 500 : 320));
+}
+
+function appointmentBody(value: unknown): boolean {
+  const keys = [
+    "providerId", "appointmentDate", "type", "duration", "notes", "chiefComplaint",
+  ] as const;
+  if (!isRecord(value) || !hasOnly(value, keys)) return false;
+  return (
+    stringField(value, "providerId", 128, true) &&
+    stringField(value, "appointmentDate", 64, true) &&
+    stringField(value, "type", 100) &&
+    numberField(value, "duration", 1, 1_440) &&
+    stringField(value, "notes", 4_000) &&
+    stringField(value, "chiefComplaint", 2_000)
+  );
+}
+
+function appointmentRequestBody(value: unknown): boolean {
+  const keys = [
+    "appointmentType", "preferredDate", "preferredTime", "reason",
+    "doctorPreference", "notes",
+  ] as const;
+  if (!isRecord(value) || !hasOnly(value, keys)) return false;
+  return (
+    stringField(value, "appointmentType", 100, true) &&
+    stringField(value, "preferredDate", 64, true) &&
+    stringField(value, "preferredTime", 64) &&
+    stringField(value, "reason", 2_000, true) &&
+    stringField(value, "doctorPreference", 320) &&
+    stringField(value, "notes", 4_000)
+  );
+}
+
+function messageBody(value: unknown): boolean {
+  if (
+    !isRecord(value) ||
+    !hasOnly(value, ["type", "priority", "originalContent", "recipientId"]) ||
+    !stringField(value, "type", 64, true) ||
+    !stringField(value, "priority", 64, true) ||
+    !stringField(value, "recipientId", 128)
+  ) return false;
+  const content = value.originalContent;
+  return (
+    isRecord(content) &&
+    hasOnly(content, ["subject", "message"]) &&
+    stringField(content, "subject", 500, true) &&
+    stringField(content, "message", 10_000, true)
+  );
+}
+
+const staticRoutes = new Map<string, RelayRoute>([
+  ["GET /csrf-token", { category: "csrf", protected: true, validateBody: noBody }],
+  ["POST /auth/login", { category: "login", protected: false, validateBody: loginBody }],
+  ["POST /auth/patient-login", { category: "patient_login", protected: false, validateBody: loginBody }],
+  ["POST /auth/forgot-password", { category: "forgot_password", protected: false, validateBody: forgotPasswordBody }],
+  ["GET /patient/profile", { category: "profile_read", protected: true, validateBody: noBody }],
+  ["PATCH /patient/profile", { category: "profile_update", protected: true, validateBody: profileBody }],
+  ["GET /patient/appointments", { category: "appointments_read", protected: true, validateBody: noBody }],
+  ["POST /patient/appointments", { category: "appointment_create", protected: true, validateBody: appointmentBody }],
+  ["POST /patient/appointment-requests", { category: "appointment_request", protected: true, validateBody: appointmentRequestBody }],
+  ["GET /patient/prescriptions", { category: "prescriptions_read", protected: true, validateBody: noBody }],
+  ["GET /patient/lab-results", { category: "labs_read", protected: true, validateBody: noBody }],
+  ["GET /medical-communications", { category: "messages_read", protected: true, validateBody: noBody }],
+  ["POST /medical-communications", { category: "message_create", protected: true, validateBody: messageBody }],
+  ["GET /patient/visit-summaries", { category: "visits_read", protected: true, validateBody: noBody }],
+  ["GET /patient/bills", { category: "bills_read", protected: true, validateBody: noBody }],
+  ["GET /patient/telehealth/appointments", { category: "telehealth_read", protected: true, validateBody: noBody }],
+]);
+
+export function parseRelayPath(originalUrl: string): string | null {
+  const prefix = "/api/navimedi";
+  if (!originalUrl.startsWith(prefix)) return null;
+  const suffix = originalUrl.slice(prefix.length);
+  if (!suffix.startsWith("/") || suffix.includes("?") || suffix.includes("#")) return null;
+  if (suffix.includes("%") || suffix.includes("\\") || suffix.includes("//")) return null;
+  const segments = suffix.split("/");
+  if (segments.some((segment) => segment === "." || segment === "..")) return null;
+  return suffix;
+}
+
+export function matchRelayRoute(method: string, path: string): RelayRoute | null {
+  const route = staticRoutes.get(`${method.toUpperCase()} ${path}`);
+  if (route) return route;
+  if (
+    (method === "GET" || method === "POST") &&
+    /^\/patient\/telehealth\/sessions\/[A-Za-z0-9_-]{1,128}$/.test(path)
+  ) {
+    return {
+      category: method === "GET" ? "telehealth_session_read" : "telehealth_session_create",
+      protected: true,
+      validateBody: method === "GET" ? noBody : emptyBody,
+    };
+  }
+  return null;
+}
+
+export function isBearerHeader(value: string | undefined): boolean {
+  return value !== undefined && /^Bearer [A-Za-z0-9._~+/-]{16,4096}$/.test(value);
+}
+
+export function isSafeJson(value: unknown): boolean {
+  const pending: Array<{ value: unknown; depth: number }> = [{ value, depth: 0 }];
+  let nodes = 0;
+  while (pending.length) {
+    const item = pending.pop()!;
+    nodes += 1;
+    if (nodes > 50_000 || item.depth > 20) return false;
+    if (Array.isArray(item.value)) {
+      for (const child of item.value) pending.push({ value: child, depth: item.depth + 1 });
+    } else if (isRecord(item.value)) {
+      for (const child of Object.values(item.value)) {
+        pending.push({ value: child, depth: item.depth + 1 });
+      }
+    } else if (
+      item.value !== null &&
+      typeof item.value !== "string" &&
+      typeof item.value !== "boolean" &&
+      !(typeof item.value === "number" && Number.isFinite(item.value))
+    ) return false;
+  }
+  return true;
+}

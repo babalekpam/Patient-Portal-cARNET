@@ -1,39 +1,63 @@
-import express, { type Express, type Request, type Response } from "express";
+import { randomUUID } from "node:crypto";
+import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
-import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import {
+  isBearerHeader,
+  isSafeJson,
+  matchRelayRoute,
+  MAX_RELAY_BODY_BYTES,
+  MAX_UPSTREAM_BYTES,
+  NAVIMEDI_API_PREFIX,
+  NAVIMEDI_ORIGIN,
+  parseRelayPath,
+  UPSTREAM_TIMEOUT_MS,
+} from "./lib/relay-policy";
+import { isAllowedOrigin, relayLimits, securityHeaders } from "./middlewares/security";
 
 const app: Express = express();
+app.disable("x-powered-by");
+app.set("trust proxy", false);
 
-app.use(
-  pinoHttp({
-    logger,
-    serializers: {
-      req(req) {
-        return {
-          id: req.id,
-          method: req.method,
-          url: req.url?.split("?")[0],
-        };
-      },
-      res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
-      },
-    },
-  }),
-);
-app.use(cors());
-
-app.get("/api/download-mobile", (_req: Request, res: Response) => {
-  const path = "/tmp/mobile-project.tar.gz";
-  res.download(path, "mobile-project.tar.gz");
+app.use((req, res, next) => {
+  const correlationId = randomUUID();
+  res.locals.correlationId = correlationId;
+  res.setHeader("X-Correlation-ID", correlationId);
+  res.once("finish", () => {
+    logger.info({
+      category: res.locals.relayCategory ?? "api",
+      status: res.statusCode,
+      correlationId,
+    }, "request completed");
+  });
+  next();
+});
+app.use(securityHeaders);
+app.use(cors((req, callback) => {
+  const origin = req.headers.origin;
+  const allowed = !origin || isAllowedOrigin(origin, req.headers.host);
+  callback(null, {
+    origin: allowed,
+    methods: ["GET", "POST", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Authorization", "Content-Type", "X-CSRF-Token"],
+    exposedHeaders: ["X-Correlation-ID", "X-RateLimit-Scope", "Retry-After"],
+    credentials: false,
+    maxAge: 600,
+    preflightContinue: true,
+  });
+}));
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && !isAllowedOrigin(origin, req.headers.host)) {
+    res.status(403).json({ message: "This origin is not allowed." });
+    return;
+  }
+  next();
 });
 
 app.get("/api/delete-account", (_req: Request, res: Response) => {
-  res.send(`<!DOCTYPE html>
+  res.type("html").send(`<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Delete Account - CARNET Patient Portal</title>
 <style>body{font-family:Arial,sans-serif;max-width:600px;margin:40px auto;padding:20px;color:#333;background:#f5f5f5}
@@ -46,53 +70,188 @@ h1{color:#0A2540}a{color:#1a6fbf}.card{background:#fff;padding:30px;border-radiu
 <p style="margin-top:30px;color:#666;font-size:14px">&copy; 2026 Argilette LLC</p></div></body></html>`);
 });
 
-const NAVIMEDI_BASE = "https://www.navimedi.org/api";
+const jsonBody = express.raw({
+  type: "application/json",
+  limit: MAX_RELAY_BODY_BYTES,
+});
 
-app.all("/api/navimedi/{*path}", async (req: Request, res: Response) => {
-  const targetPath = req.originalUrl.replace("/api/navimedi", "");
-  const targetUrl = `${NAVIMEDI_BASE}${targetPath}`;
-  const headers: Record<string, string> = {};
-  const authHeader = req.headers["authorization"];
-  if (authHeader && typeof authHeader === "string") {
-    headers["Authorization"] = authHeader;
+app.use("/api/navimedi", relayLimits, (req, res, next) => {
+  if (req.method === "OPTIONS") {
+    const path = parseRelayPath(req.originalUrl);
+    const requestedMethod = req.headers["access-control-request-method"];
+    const route = path && typeof requestedMethod === "string"
+      ? matchRelayRoute(requestedMethod, path)
+      : null;
+    res.locals.relayCategory = route?.category ?? "relay_rejected";
+    if (!route) {
+      res.status(404).json({ message: "This API operation is not available." });
+      return;
+    }
+    res.sendStatus(204);
+    return;
   }
-  const incomingContentType = req.headers["content-type"];
-  if (incomingContentType && typeof incomingContentType === "string") {
-    headers["Content-Type"] = incomingContentType;
+  const hasBody = Number(req.headers["content-length"] ?? "0") > 0 ||
+    req.headers["transfer-encoding"] !== undefined;
+  const contentType = req.headers["content-type"];
+  if (hasBody && (!contentType || !/^application\/json(?:\s*;.*)?$/i.test(contentType))) {
+    res.status(415).json({ message: "Only JSON request bodies are supported." });
+    return;
   }
+  jsonBody(req, res, next);
+}, async (req: Request, res: Response) => {
+  const path = parseRelayPath(req.originalUrl);
+  const route = path ? matchRelayRoute(req.method, path) : null;
+  res.locals.relayCategory = route?.category ?? "relay_rejected";
+  if (!path || !route) {
+    res.status(404).json({ message: "This API operation is not available." });
+    return;
+  }
+
+  const authorization = req.headers.authorization;
+  // This is presence/shape enforcement only. Navimedi remains responsible for
+  // authenticating the token and authorizing patient/resource ownership.
+  if (route.protected && !isBearerHeader(authorization)) {
+    res.status(401).json({ message: "Please log in to continue." });
+    return;
+  }
+  const mutatingProtected = route.protected && ["POST", "PATCH"].includes(req.method);
+  const csrf = req.headers["x-csrf-token"];
+  if (mutatingProtected && (typeof csrf !== "string" || csrf.length < 16 || csrf.length > 4096)) {
+    res.status(403).json({ message: "A valid request token is required." });
+    return;
+  }
+
+  let body: unknown;
+  const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  if (rawBody.length > 0) {
+    try {
+      body = JSON.parse(rawBody.toString("utf8"));
+    } catch {
+      res.status(400).json({ message: "The request contains invalid JSON." });
+      return;
+    }
+  }
+  if (!route.validateBody(body) || (body !== undefined && !isSafeJson(body))) {
+    res.status(400).json({ message: "Please check the submitted fields." });
+    return;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  const cancel = () => controller.abort();
+  req.once("aborted", cancel);
+  res.once("close", cancel);
   try {
-    const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    await new Promise<void>((resolve) => req.on("end", resolve));
-    const rawBody = Buffer.concat(chunks);
+    const headers = new Headers({ Accept: "application/json" });
+    if (route.protected && authorization) headers.set("Authorization", authorization);
+    if (route.protected && typeof csrf === "string") headers.set("X-CSRF-Token", csrf);
+    if (body !== undefined) headers.set("Content-Type", "application/json");
 
-    const fetchOptions: RequestInit = {
+    const upstream = await fetch(`${NAVIMEDI_ORIGIN}${NAVIMEDI_API_PREFIX}${path}`, {
       method: req.method,
       headers,
-    };
-    if (req.method !== "GET" && req.method !== "HEAD" && rawBody.length > 0) {
-      fetchOptions.body = rawBody;
+      body: body === undefined ? undefined : JSON.stringify(body),
+      redirect: "manual",
+      signal: controller.signal,
+    });
+    if (upstream.status >= 300 && upstream.status < 400) {
+      controller.abort();
+      res.status(502).json({ message: "The healthcare service returned an invalid response." });
+      return;
     }
-    logger.info({ targetUrl, method: req.method, bodyLen: rawBody.length }, "Navimedi relay request");
-    const response = await fetch(targetUrl, fetchOptions);
-    const contentType = response.headers.get("content-type") || "";
-    res.status(response.status);
-    if (contentType.includes("application/json")) {
-      const data = await response.json();
-      res.json(data);
-    } else {
-      const text = await response.text();
-      res.send(text);
+    const declaredLength = Number(upstream.headers.get("content-length"));
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_UPSTREAM_BYTES) {
+      controller.abort();
+      res.status(502).json({ message: "The healthcare service response was too large." });
+      return;
     }
-  } catch (err) {
-    logger.error({ err, targetUrl }, "Navimedi proxy error");
-    res.status(502).json({ message: "Failed to reach the healthcare API." });
+    if (upstream.status === 204) {
+      res.sendStatus(204);
+      return;
+    }
+    const contentType = upstream.headers.get("content-type") ?? "";
+    if (!/^application\/json(?:\s*;.*)?$/i.test(contentType)) {
+      controller.abort();
+      res.status(502).json({ message: "The healthcare service returned an invalid response." });
+      return;
+    }
+    const reader = upstream.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        received += value.byteLength;
+        if (received > MAX_UPSTREAM_BYTES) {
+          controller.abort();
+          res.status(502).json({ message: "The healthcare service response was too large." });
+          return;
+        }
+        chunks.push(value);
+      }
+    }
+    const text = Buffer.concat(chunks).toString("utf8");
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      res.status(502).json({ message: "The healthcare service returned an invalid response." });
+      return;
+    }
+    if (!isSafeJson(data)) {
+      res.status(502).json({ message: "The healthcare service returned an invalid response." });
+      return;
+    }
+    if (!upstream.ok) {
+      const record = typeof data === "object" && data !== null && !Array.isArray(data)
+        ? data as Record<string, unknown>
+        : {};
+      const csrfCodes = new Set([
+        "CSRF_TOKEN_MISSING",
+        "CSRF_TOKEN_INVALID",
+        "CSRF_SESSION_INVALID",
+      ]);
+      const code = typeof record.code === "string" && csrfCodes.has(record.code)
+        ? record.code
+        : undefined;
+      const message = upstream.status === 401
+        ? "Authentication was not accepted."
+        : upstream.status === 403
+          ? "This request was not authorized."
+          : upstream.status === 404
+            ? "The requested operation is not available."
+            : upstream.status === 429
+              ? "Too many requests. Please try again shortly."
+              : "The healthcare service could not process the request.";
+      res.status(upstream.status).json({ message, ...(code ? { code } : {}) });
+      return;
+    }
+    res.status(upstream.status).json(data);
+  } catch {
+    if (!res.headersSent) {
+      res.status(502).json({ message: "The healthcare service is temporarily unavailable." });
+    }
+  } finally {
+    clearTimeout(timeout);
+    req.off("aborted", cancel);
+    res.off("close", cancel);
   }
 });
 
-app.use(express.json({ limit: "5mb" }));
-app.use(express.urlencoded({ extended: true }));
-
+app.use(express.json({ limit: "256kb" }));
+app.use(express.urlencoded({ extended: false, limit: "64kb" }));
 app.use("/api", router);
+
+app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  res.locals.relayCategory = "request_error";
+  if (!res.headersSent) {
+    const status = typeof error === "object" && error !== null &&
+      "status" in error && error.status === 413 ? 413 : 400;
+    res.status(status).json({
+      message: status === 413 ? "The request is too large." : "The request could not be processed.",
+    });
+  }
+});
 
 export default app;
