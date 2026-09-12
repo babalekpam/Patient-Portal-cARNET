@@ -44,6 +44,20 @@ Use a release pipeline authenticated as the owner of the existing Expo/Apple
 identity. Keep that release tooling and all credentials outside app source and
 managed through supported secret/credential interfaces.
 
+## Cross-platform package-manager compatibility
+
+Pin the same pnpm version in the workspace and native build profile; preserve
+macOS optional binaries even when developing on Linux.
+
+**Why:** A frozen install with pnpm 9 rejected pnpm 10 workspace overrides as a
+lockfile mismatch. Linux-only platform pruning also excluded dependencies needed
+by macOS build workers. Regenerating a lockfile alone does not fix a runner using
+the wrong package manager.
+
+**How to apply:** Reproduce installation with the intended runner version, retain
+frozen-lockfile validation, and verify native platform entries before another
+paid build. A Linux preview is not proof of a successful macOS install.
+
 ## Historical manual tooling is not a current publishing recipe
 
 **Why:** Earlier manual experiments had different authentication and terminal

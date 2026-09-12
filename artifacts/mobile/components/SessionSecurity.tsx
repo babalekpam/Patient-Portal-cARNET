@@ -17,13 +17,14 @@ export function SessionSecurity({
   children: React.ReactNode;
 }) {
   const [concealed, setConcealed] = useState(
-    Platform.OS !== "web" && AppState.currentState !== "active",
+    authenticated && Platform.OS !== "web" && AppState.currentState !== "active",
   );
   const [captureBlocked, setCaptureBlocked] = useState(true);
   const [captureAttempt, setCaptureAttempt] = useState(0);
   const protectedContentRef = useRef<View>(null);
   const viewingBlocked = authenticated && Platform.OS !== "web" && captureBlocked;
-  const isVisible = !concealed && !viewingBlocked;
+  const privacyConcealed = authenticated && concealed;
+  const isVisible = !privacyConcealed && !viewingBlocked;
 
   useLayoutEffect(() => {
     if (Platform.OS !== "web" || typeof HTMLElement === "undefined") return;
@@ -53,7 +54,10 @@ export function SessionSecurity({
   }, [authenticated]);
 
   useEffect(() => {
-    if (!authenticated) return;
+    if (!authenticated) {
+      setConcealed(false);
+      return;
+    }
     if (Platform.OS !== "web") setConcealed(AppState.currentState !== "active");
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active") {
@@ -116,7 +120,7 @@ export function SessionSecurity({
             </Pressable>
           </View>
         ) : null}
-        {concealed ? <View style={styles.curtain} /> : null}
+        {privacyConcealed ? <View style={styles.curtain} /> : null}
       </View>
     </AccessibilityVisibilityProvider>
   );

@@ -18,6 +18,10 @@
       }
     },
     "production": {
+      "pnpm": "10.26.1",
+      "ios": {
+        "image": "auto"
+      },
       "android": {
         "buildType": "app-bundle"
       }
