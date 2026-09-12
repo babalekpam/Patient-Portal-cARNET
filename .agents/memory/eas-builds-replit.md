@@ -46,6 +46,15 @@ managed through supported secret/credential interfaces.
 
 ## Cross-platform package-manager compatibility
 
+Use an explicit SDK-compatible iOS image for GitHub builds, not `auto`.
+
+**Why:** The GitHub worker selected Xcode 15.4 with `auto` even for SDK 54 /
+React Native 0.81; CocoaPods then rejected it because React Native requires
+Xcode 16.1 or newer. A nonempty image field is not sufficient validation.
+
+**How to apply:** Check Expo's infrastructure table for the current SDK and
+pin a compatible image. Verify the resolved worker image in the native log.
+
 Pin the same pnpm version in the workspace and native build profile; preserve
 macOS optional binaries even when developing on Linux.
 

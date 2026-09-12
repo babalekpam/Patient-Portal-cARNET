@@ -9,7 +9,7 @@ const eas = JSON.parse(read("artifacts/mobile/eas.json"));
 test("Expo production builds use the same pinned pnpm as the workspace", () => {
   assert.equal(root.packageManager, "pnpm@10.26.1");
   assert.equal(`pnpm@${eas.build.production.pnpm}`, root.packageManager);
-  assert.ok(eas.build.production.ios.image);
+  assert.equal(eas.build.production.ios.image, "macos-sequoia-15.6-xcode-26.0");
 });
 
 test("workspace and lockfile preserve native macOS build dependencies", () => {

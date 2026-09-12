@@ -20,7 +20,7 @@
     "production": {
       "pnpm": "10.26.1",
       "ios": {
-        "image": "auto"
+        "image": "macos-sequoia-15.6-xcode-26.0"
       },
       "android": {
         "buildType": "app-bundle"
