@@ -10,7 +10,10 @@ import {
 } from "@/lib/session";
 import {
   type BoundedResponse,
+  MAX_AUTH_PROFILE_BODY_BYTES,
+  getServerErrorMessage,
   requestJson,
+  requireCsrfToken,
   requireAuthenticationToken,
   requireJsonObject,
 } from "@/lib/ehr/network";
@@ -25,6 +28,19 @@ function getBaseUrl(): string {
     }
   }
   return DIRECT_URL;
+}
+
+function nativeCookieCredentials(): RequestCredentials | undefined {
+  // The browser relay owns its own handshake. Native fetch needs explicit
+  // cookie transport because the pre-auth CSRF token is bound to the cookie
+  // set by the upstream response.
+  return Platform.OS === "web" ? undefined : "include";
+}
+
+function assertLoginGeneration(expectedGeneration: number): void {
+  if (sessionGeneration() !== expectedGeneration) {
+    throw new StaleSessionRequestError();
+  }
 }
 
 const TOKEN_KEY = "carnet_auth_token";
@@ -272,21 +288,52 @@ class ApiClient {
     try {
       const response = await this.protectedFetch(`${getBaseUrl()}/csrf-token`, {
         headers: await this.getHeaders(),
+        credentials: nativeCookieCredentials(),
       });
       const generation = this.responseGenerations.get(response);
-      if (!response.ok) return null;
+      if (!response.ok || response.bodyError) return null;
       assertSession(null, generation);
-      const data = response.body;
-      this.csrfToken =
-        data && typeof data === "object" && !Array.isArray(data) &&
-        typeof (data as Record<string, unknown>).csrfToken === "string"
-          ? (data as Record<string, string>).csrfToken
-          : null;
+      try {
+        this.csrfToken = requireCsrfToken(response.body);
+      } catch {
+        this.csrfToken = null;
+      }
       return this.csrfToken;
     } catch (error) {
       if (error instanceof StaleSessionRequestError) throw error;
       return null;
     }
+  }
+
+  /**
+   * Native login has to establish the upstream CSRF cookie before sending
+   * credentials. Do not put this token in the authenticated CSRF state: it is
+   * scoped to the anonymous pre-auth cookie and must not be reused after login.
+   */
+  private async fetchPreauthCsrfToken(expectedGeneration: number): Promise<string> {
+    let response: BoundedResponse;
+    try {
+      response = await requestJson(
+        `${getBaseUrl()}/csrf-token`,
+        {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          credentials: "include",
+        },
+        { maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES },
+      );
+    } catch (error) {
+      assertLoginGeneration(expectedGeneration);
+      throw error;
+    }
+    assertLoginGeneration(expectedGeneration);
+    if (!response.ok || response.bodyError) {
+      throw new Error(
+        getServerErrorMessage(response.body) ||
+          "Unable to obtain a CSRF token. Please try again.",
+      );
+    }
+    return requireCsrfToken(response.body);
   }
 
   private async getMutatingHeaders(): Promise<HeadersInit> {
@@ -313,6 +360,7 @@ class ApiClient {
       this.protectedFetch(url, {
         method,
         headers: await this.getMutatingHeaders(),
+        credentials: nativeCookieCredentials(),
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
     let response = await send();
@@ -344,11 +392,7 @@ class ApiClient {
     if (isProtected) assertSession(this._adapter?.sessionKey ?? null, generation);
     if (!response.ok) {
       if (isProtected) assertSession(this._adapter?.sessionKey ?? null, generation);
-      const serverMessage =
-        response.body && typeof response.body === "object" && !Array.isArray(response.body) &&
-        typeof (response.body as Record<string, unknown>).message === "string"
-          ? (response.body as Record<string, string>).message
-          : "";
+      const serverMessage = getServerErrorMessage(response.body);
 
       if (response.status === 401) {
         if (isProtected) {
@@ -393,19 +437,67 @@ class ApiClient {
     if (credentials.tenantId) {
       body.tenantId = credentials.tenantId;
     }
-    let response = await requestJson(`${getBaseUrl()}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+
+    // A login can follow a previous session in the same process. Never let an
+    // authenticated CSRF token leak into this pre-auth exchange.
+    this.csrfToken = null;
+    const loginGeneration = sessionGeneration();
+    let csrfToken: string | null = Platform.OS === "web"
+      ? null
+      : await this.fetchPreauthCsrfToken(loginGeneration);
+    let endpoint = "/auth/login";
+
+    const sendLogin = async (): Promise<BoundedResponse> => {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      let response: BoundedResponse;
+      try {
+        response = await requestJson(`${getBaseUrl()}${endpoint}`, {
+          method: "POST",
+          headers,
+          credentials: nativeCookieCredentials(),
+          body: JSON.stringify(body),
+        }, { maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES });
+      } catch (error) {
+        assertLoginGeneration(loginGeneration);
+        throw error;
+      }
+      assertLoginGeneration(loginGeneration);
+      return response;
+    };
+
+    let response = await sendLogin();
     if (response.status === 404) {
-      response = await requestJson(`${getBaseUrl()}/auth/patient-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      endpoint = "/auth/patient-login";
+      response = await sendLogin();
     }
-    return this.handleResponse<LoginResponse>(response, true);
+
+    // Only an explicit CSRF failure may replay credentials. A normal 401/403
+    // is an authentication/authorization result and is surfaced unchanged.
+    const csrfCodes = ["CSRF_TOKEN_MISSING", "CSRF_TOKEN_INVALID", "CSRF_SESSION_INVALID"];
+    const errorCode =
+      response.status === 403 &&
+      response.body && typeof response.body === "object" && !Array.isArray(response.body)
+        ? (response.body as Record<string, unknown>).code
+        : undefined;
+    if (
+      Platform.OS !== "web" &&
+      typeof errorCode === "string" &&
+      csrfCodes.includes(errorCode)
+    ) {
+      csrfToken = await this.fetchPreauthCsrfToken(loginGeneration);
+      response = await sendLogin();
+      if (response.status === 404 && endpoint === "/auth/login") {
+        endpoint = "/auth/patient-login";
+        response = await sendLogin();
+      }
+    }
+
+    const result = await this.handleResponse<LoginResponse>(response, true);
+    // The anonymous token must never become the token used by authenticated
+    // mutations. Authenticated writes will obtain a fresh token lazily.
+    this.csrfToken = null;
+    return result;
   }
 
   async forgotPassword(email: string): Promise<any> {

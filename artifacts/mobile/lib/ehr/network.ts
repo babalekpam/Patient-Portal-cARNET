@@ -4,6 +4,8 @@ export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 // using the stricter cap below for authentication and profile payloads.
 export const MAX_RESPONSE_BODY_BYTES = 1024 * 1024;
 export const MAX_AUTH_PROFILE_BODY_BYTES = 64 * 1024;
+export const MAX_ERROR_MESSAGE_CHARS = 512;
+export const MAX_CSRF_TOKEN_CHARS = 4096;
 
 export type FetchTransport = (
   input: RequestInfo | URL,
@@ -21,6 +23,38 @@ export interface RequestJsonOptions {
   fetchImpl?: FetchTransport;
   timeoutMs?: number;
   maxBodyBytes?: number;
+}
+
+/**
+ * Only accept server-provided error text when it is a bounded string.  Error
+ * responses from the upstream service have used both `message` and `error`;
+ * keeping the extraction here prevents each client from accidentally exposing
+ * an unbounded or non-string value in a user-facing error.
+ */
+export function getServerErrorMessage(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  const record = value as Record<string, unknown>;
+  for (const candidate of [record.message, record.error]) {
+    if (typeof candidate !== "string") continue;
+    const message = candidate.trim();
+    if (message) return message.slice(0, MAX_ERROR_MESSAGE_CHARS);
+  }
+  return "";
+}
+
+export function requireCsrfToken(value: unknown): string {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Server did not return a valid CSRF token. Please try again.");
+  }
+  const candidate = (value as Record<string, unknown>).csrfToken;
+  if (typeof candidate !== "string") {
+    throw new Error("Server did not return a valid CSRF token. Please try again.");
+  }
+  const token = candidate.trim();
+  if (!token || token.length > MAX_CSRF_TOKEN_CHARS) {
+    throw new Error("Server did not return a valid CSRF token. Please try again.");
+  }
+  return token;
 }
 
 export class RequestTimeoutError extends Error {

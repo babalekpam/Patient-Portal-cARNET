@@ -23,9 +23,12 @@ import {
   StaleSessionRequestError,
 } from "@/lib/session";
 import {
+  MAX_AUTH_PROFILE_BODY_BYTES,
   type BoundedResponse,
   type FetchTransport,
+  getServerErrorMessage,
   requestJson,
+  requireCsrfToken,
   requireAuthenticationToken,
   requireJsonObject,
 } from "../network";
@@ -60,6 +63,18 @@ export class NavimediAdapter implements EHRAdapter {
       }
     }
     return this.baseUrl;
+  }
+
+  private nativeCookieCredentials(): RequestCredentials | undefined {
+    // The web relay owns its CSRF handshake. Native fetch must explicitly
+    // retain the upstream cookie set by the pre-auth CSRF response.
+    return Platform.OS === "web" ? undefined : "include";
+  }
+
+  private assertLoginGeneration(expectedGeneration: number): void {
+    if (sessionGeneration() !== expectedGeneration) {
+      throw new StaleSessionRequestError();
+    }
   }
 
   setToken(token: string): void {
@@ -108,21 +123,55 @@ export class NavimediAdapter implements EHRAdapter {
     try {
       const response = await this.protectedFetch(`${this.getUrl()}/csrf-token`, {
         headers: this.getHeaders(),
+        credentials: this.nativeCookieCredentials(),
       });
       const generation = this.responseGenerations.get(response);
-      if (!response.ok) return null;
+      if (!response.ok || response.bodyError) return null;
       assertSession(this.sessionKey, generation);
-      const data = response.body;
-      this.csrfToken =
-        data && typeof data === "object" && !Array.isArray(data) &&
-        typeof (data as Record<string, unknown>).csrfToken === "string"
-          ? (data as Record<string, string>).csrfToken
-          : null;
+      try {
+        this.csrfToken = requireCsrfToken(response.body);
+      } catch {
+        this.csrfToken = null;
+      }
       return this.csrfToken;
     } catch (error) {
       if (error instanceof StaleSessionRequestError) throw error;
       return null;
     }
+  }
+
+  /**
+   * Fetch the anonymous CSRF token only for native direct requests. The token
+   * is intentionally returned to the caller instead of being stored in the
+   * authenticated CSRF slot: the upstream binds it to the pre-auth cookie.
+   */
+  private async fetchPreauthCsrfToken(expectedGeneration: number): Promise<string> {
+    let response: BoundedResponse;
+    try {
+      response = await requestJson(
+        `${this.getUrl()}/csrf-token`,
+        {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          credentials: "include",
+        },
+        {
+          fetchImpl: this.fetchImpl,
+          maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES,
+        },
+      );
+    } catch (error) {
+      this.assertLoginGeneration(expectedGeneration);
+      throw error;
+    }
+    this.assertLoginGeneration(expectedGeneration);
+    if (!response.ok || response.bodyError) {
+      throw new Error(
+        getServerErrorMessage(response.body) ||
+          "Unable to obtain a CSRF token. Please try again.",
+      );
+    }
+    return requireCsrfToken(response.body);
   }
 
   private async getMutatingHeaders(): Promise<HeadersInit> {
@@ -149,6 +198,7 @@ export class NavimediAdapter implements EHRAdapter {
       this.protectedFetch(url, {
         method,
         headers: await this.getMutatingHeaders(),
+        credentials: this.nativeCookieCredentials(),
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
     let response = await send();
@@ -180,11 +230,7 @@ export class NavimediAdapter implements EHRAdapter {
     if (isProtected) assertSession(this.sessionKey, generation);
     if (!response.ok) {
       if (isProtected) assertSession(this.sessionKey, generation);
-      const serverMessage =
-        response.body && typeof response.body === "object" && !Array.isArray(response.body) &&
-        typeof (response.body as Record<string, unknown>).message === "string"
-          ? (response.body as Record<string, string>).message
-          : "";
+      const serverMessage = getServerErrorMessage(response.body);
       if (response.status === 401) {
         if (isProtected) {
           this.token = null;
@@ -225,20 +271,68 @@ export class NavimediAdapter implements EHRAdapter {
       password: credentials.password,
     };
     if (credentials.tenantId) body.tenantId = credentials.tenantId;
-    let response: BoundedResponse;
-    response = await requestJson(`${this.getUrl()}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }, { fetchImpl: this.fetchImpl });
+
+    // Do not carry an authenticated CSRF token into a new pre-auth exchange.
+    this.csrfToken = null;
+    const loginGeneration = sessionGeneration();
+    let csrfToken: string | null = Platform.OS === "web"
+      ? null
+      : await this.fetchPreauthCsrfToken(loginGeneration);
+    let endpoint = "/auth/login";
+
+    const sendLogin = async (): Promise<BoundedResponse> => {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
+      let response: BoundedResponse;
+      try {
+        response = await requestJson(`${this.getUrl()}${endpoint}`, {
+          method: "POST",
+          headers,
+          credentials: this.nativeCookieCredentials(),
+          body: JSON.stringify(body),
+        }, {
+          fetchImpl: this.fetchImpl,
+          maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES,
+        });
+      } catch (error) {
+        this.assertLoginGeneration(loginGeneration);
+        throw error;
+      }
+      this.assertLoginGeneration(loginGeneration);
+      return response;
+    };
+
+    let response = await sendLogin();
     if (response.status === 404) {
-      response = await requestJson(`${this.getUrl()}/auth/patient-login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }, { fetchImpl: this.fetchImpl });
+      endpoint = "/auth/patient-login";
+      response = await sendLogin();
     }
-    return this.handleResponse<LoginResponse>(response, true);
+
+    // Only retry a request after an explicit CSRF failure. Credential errors
+    // and ordinary authorization failures must never be replayed.
+    const csrfCodes = ["CSRF_TOKEN_MISSING", "CSRF_TOKEN_INVALID", "CSRF_SESSION_INVALID"];
+    const errorCode =
+      response.status === 403 &&
+      response.body && typeof response.body === "object" && !Array.isArray(response.body)
+        ? (response.body as Record<string, unknown>).code
+        : undefined;
+    if (
+      Platform.OS !== "web" &&
+      typeof errorCode === "string" &&
+      csrfCodes.includes(errorCode)
+    ) {
+      csrfToken = await this.fetchPreauthCsrfToken(loginGeneration);
+      response = await sendLogin();
+      if (response.status === 404 && endpoint === "/auth/login") {
+        endpoint = "/auth/patient-login";
+        response = await sendLogin();
+      }
+    }
+
+    const result = await this.handleResponse<LoginResponse>(response, true);
+    // Never reuse the anonymous pre-auth token for authenticated writes.
+    this.csrfToken = null;
+    return result;
   }
 
   async forgotPassword(email: string): Promise<any> {

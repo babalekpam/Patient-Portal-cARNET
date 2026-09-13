@@ -6,11 +6,13 @@ description: The navimedi.org server enforces CSRF on all mutating requests; the
 # NaviMED requires CSRF token on all writes
 
 The navimedi.org API enforces CSRF protection on **every** mutating request
-(POST/PUT/PATCH/DELETE) except auth/public routes. A write without a valid
+(POST/PUT/PATCH/DELETE), including login. A write without a valid
 `X-CSRF-Token` header returns **403** (this is what made telehealth session
 creation fail in TestFlight while reads worked).
 
-**Flow the app must follow (mirrors server reference NaviMEDClient.ts):**
+**Flow the app must follow:**
+- Before login, obtain `/csrf-token` and preserve its matching server-issued
+  cookie for the login request. The token header alone is not sufficient.
 - After auth, lazily `GET /csrf-token` with the Bearer auth header → `{ csrfToken }`.
 - Attach `X-CSRF-Token: <csrfToken>` to all writes.
 - On a 403 whose JSON body `code` is `CSRF_TOKEN_MISSING`, `CSRF_TOKEN_INVALID`,
@@ -22,6 +24,15 @@ creation fail in TestFlight while reads worked).
 **Why:** the token is session-keyed, so it must be primed per login and dropped
 per logout, and a single retry recovers from a rotated/expired token without
 masking genuine authorization failures.
+
+Do not assume authentication endpoints are exempt from CSRF protection.
+**Why:** That assumption caused TestFlight login failure despite passing mocked
+tests. The upstream pre-auth token is bound to a server-issued cookie;
+the token header alone is not a complete authentication handshake.
+
+**How to apply:** Keep test fixtures consistent with this observed upstream
+contract. Native transport must carry cookies; server-side relays need their
+own isolated handshake and cannot rely on a server fetch cookie jar.
 
 **How to apply:** the app uses `fetch` (NOT axios like the server reference).
 The logic lives in a `mutate()` helper in BOTH `lib/api.ts` (ApiClient) and
