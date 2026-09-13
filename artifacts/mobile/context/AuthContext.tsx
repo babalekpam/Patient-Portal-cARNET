@@ -21,7 +21,9 @@ import {
   clearSessionMetadata,
   createSession,
   getServerExpiry,
+  hasCurrentSession,
   restoreSession,
+  sessionGeneration,
   subscribeToSessionEnd,
   type SessionEndReason,
 } from "@/lib/session";
@@ -76,21 +78,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const terminate = useCallback(async (reason: SessionEndReason) => {
     if (termination.current) return termination.current;
+    const capturedGeneration = sessionGeneration();
+    const capturedAdapter = api.adapter;
     operation.current += 1;
-    setIsAuthenticated(false);
-    setIsLoading(true);
-    setProfile(null);
-    setSessionEndReason(reason === "logout" ? null : reason);
-    setSessionError(null);
-    api.clearCsrfToken();
-    api.adapter?.clearToken();
-    // Both calls invalidate their in-memory state synchronously, before any await.
-    const metadataClear = clearSessionMetadata();
-    const phiClear = clearSecureSession();
+    if (reason !== "logout") {
+      setIsAuthenticated(false);
+      setIsLoading(true);
+      setProfile(null);
+      setSessionEndReason(reason);
+      setSessionError(null);
+    }
+
+    // A replacement session is never allowed to be erased by an older logout.
+    // During ordinary logout the current generation remains unchanged until
+    // this operation owns the destructive cleanup below.
+    const ownsCapturedSession = () =>
+      sessionGeneration() === capturedGeneration ||
+      !hasCurrentSession();
+
     let cleanupNoticeTimer: ReturnType<typeof setTimeout> | undefined;
     let cleanupSucceeded = false;
     const work = (async () => {
       try {
+        // Keep the captured bearer in memory until the server-bound logout
+        // completes. A network failure is deliberately non-fatal: local
+        // cleanup still runs in finally.
+        if (reason === "logout") {
+          try {
+            await api.logout(capturedAdapter);
+          } catch {
+            // The server may be unreachable. Never retain local patient data
+            // solely because revocation could not be delivered.
+          }
+        }
+        if (!ownsCapturedSession()) return;
+
+        setIsAuthenticated(false);
+        setIsLoading(true);
+        setProfile(null);
+        setSessionEndReason(reason === "logout" ? null : reason);
+        setSessionError(null);
+
+        // Both calls invalidate local state synchronously, before any await.
+        api.clearCsrfToken();
+        capturedAdapter?.clearToken();
+        const metadataClear = clearSessionMetadata();
+        const phiClear = clearSecureSession();
         cleanupNoticeTimer = setTimeout(() => {
           if (termination.current === work) {
             setSessionError("Secure local data cleanup is taking longer than expected. Keep the app open and retry.");
@@ -111,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } finally {
         if (cleanupNoticeTimer) clearTimeout(cleanupNoticeTimer);
         if (cleanupSucceeded) setSessionError(null);
-        setIsLoading(false);
+        if (ownsCapturedSession()) setIsLoading(false);
         termination.current = null;
       }
     })();
@@ -258,8 +291,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     setSessionEndReason(null);
     const loginAdapter = api.adapter;
+    let response: Awaited<ReturnType<typeof api.login>> | undefined;
     try {
-      const response = await withTimeout(api.login(credentials), PROFILE_TIMEOUT_MS, "Sign in");
+      response = await withTimeout(api.login(credentials), PROFILE_TIMEOUT_MS, "Sign in");
+
+      // NaviMED (and the direct NaviMED fallback) must prove the fresh,
+      // bearer-bound profile before secure storage or session metadata is
+      // touched. FHIR adapters intentionally keep their existing OAuth/FHIR
+      // context flow and are not forced into the NaviMED response schema.
+      let verifiedProfile: Profile | null = null;
+      if (loginAdapter?.verifyLoginProfile || !loginAdapter) {
+        verifiedProfile = await withTimeout(
+          api.verifyLoginProfile(response, loginAdapter),
+          PROFILE_TIMEOUT_MS,
+          "Patient profile verification",
+        );
+      }
+
       if (id !== operation.current || api.adapter !== loginAdapter) {
         throw new Error("The selected provider changed during sign in. Please try again.");
       }
@@ -277,12 +325,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       );
       if (id !== operation.current || api.adapter !== loginAdapter) throw new Error("Sign in was cancelled.");
       if (adapter) adapter.setLoginContext(response);
-      const p = await withTimeout(api.getProfile(), PROFILE_TIMEOUT_MS, "Profile loading");
+      const p = verifiedProfile ?? await withTimeout(api.getProfile(), PROFILE_TIMEOUT_MS, "Profile loading");
       if (id !== operation.current || api.adapter !== loginAdapter) throw new Error("Sign in was cancelled.");
       setProfile(p);
       setIsAuthenticated(true);
       setIsLoading(false);
     } catch (error) {
+      if (response) {
+        // This request uses only the captured token and cannot clear a
+        // replacement session. It covers profile mismatches, stale
+        // completions, storage failures and provider changes after issuance.
+        await api.revokeToken(response.token, loginAdapter).catch(() => {});
+      }
       if (id === operation.current) {
         if (isAsyncOperationTimeout(error) || isSecureStorageQuarantined()) {
           quarantineSecureStorage();

@@ -26,12 +26,20 @@ import {
   MAX_AUTH_PROFILE_BODY_BYTES,
   type BoundedResponse,
   type FetchTransport,
+  captureAuthenticationToken,
   getServerErrorMessage,
   requestJson,
   requireCsrfToken,
   requireAuthenticationToken,
   requireJsonObject,
+  requireMatchingPatientProfile,
+  requirePatientLoginResponse,
 } from "../network";
+
+function normalizedOptionalField(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized || undefined;
+}
 
 export class NavimediAdapter implements EHRAdapter {
   readonly providerId: string;
@@ -185,6 +193,17 @@ export class NavimediAdapter implements EHRAdapter {
     return headers;
   }
 
+  private isCsrfFailure(value: unknown): boolean {
+    const code =
+      value && typeof value === "object" && !Array.isArray(value)
+        ? (value as Record<string, unknown>).code
+        : undefined;
+    return (
+      typeof code === "string" &&
+      ["CSRF_TOKEN_MISSING", "CSRF_TOKEN_INVALID", "CSRF_SESSION_INVALID"].includes(code)
+    );
+  }
+
   // Performs a mutating request, retrying once with a fresh CSRF token if the
   // server rejects it with a CSRF-specific 403. A plain 403 (genuine
   // authorization failure) is surfaced to the caller unchanged.
@@ -267,18 +286,22 @@ export class NavimediAdapter implements EHRAdapter {
 
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
     const body: Record<string, string> = {
-      email: credentials.email,
+      email: credentials.email.trim(),
       password: credentials.password,
     };
-    if (credentials.tenantId) body.tenantId = credentials.tenantId;
+    const tenantId = normalizedOptionalField(credentials.tenantId);
+    if (tenantId) body.tenantId = tenantId;
+    const mfaCode = normalizedOptionalField(credentials.mfaCode);
+    if (mfaCode) body.mfaCode = mfaCode;
 
     // Do not carry an authenticated CSRF token into a new pre-auth exchange.
     this.csrfToken = null;
     const loginGeneration = sessionGeneration();
+    let issuedToken: string | null = null;
     let csrfToken: string | null = Platform.OS === "web"
       ? null
       : await this.fetchPreauthCsrfToken(loginGeneration);
-    let endpoint = "/auth/login";
+    const endpoint = "/auth/patient-login";
 
     const sendLogin = async (): Promise<BoundedResponse> => {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -298,15 +321,15 @@ export class NavimediAdapter implements EHRAdapter {
         this.assertLoginGeneration(loginGeneration);
         throw error;
       }
+      if (response.ok && !response.bodyError) {
+        issuedToken = captureAuthenticationToken(response.body) ?? issuedToken;
+      }
       this.assertLoginGeneration(loginGeneration);
       return response;
     };
 
-    let response = await sendLogin();
-    if (response.status === 404) {
-      endpoint = "/auth/patient-login";
-      response = await sendLogin();
-    }
+    try {
+      let response = await sendLogin();
 
     // Only retry a request after an explicit CSRF failure. Credential errors
     // and ordinary authorization failures must never be replayed.
@@ -316,23 +339,98 @@ export class NavimediAdapter implements EHRAdapter {
       response.body && typeof response.body === "object" && !Array.isArray(response.body)
         ? (response.body as Record<string, unknown>).code
         : undefined;
-    if (
-      Platform.OS !== "web" &&
-      typeof errorCode === "string" &&
-      csrfCodes.includes(errorCode)
-    ) {
-      csrfToken = await this.fetchPreauthCsrfToken(loginGeneration);
-      response = await sendLogin();
-      if (response.status === 404 && endpoint === "/auth/login") {
-        endpoint = "/auth/patient-login";
-        response = await sendLogin();
+    if (typeof errorCode === "string" && csrfCodes.includes(errorCode)) {
+      if (Platform.OS !== "web") {
+        csrfToken = await this.fetchPreauthCsrfToken(loginGeneration);
       }
+      response = await sendLogin();
     }
 
-    const result = await this.handleResponse<LoginResponse>(response, true);
-    // Never reuse the anonymous pre-auth token for authenticated writes.
-    this.csrfToken = null;
-    return result;
+      const result = await this.handleResponse<LoginResponse>(response, true);
+      const validated = requirePatientLoginResponse(result);
+      // Never reuse the anonymous pre-auth token for authenticated writes.
+      this.csrfToken = null;
+      return validated;
+    } catch (error) {
+      if (issuedToken) await this.revokeToken(issuedToken).catch(() => {});
+      throw error;
+    }
+  }
+
+  /**
+   * Profile verification is deliberately isolated from the active session.
+   * Login callers use it before storing a token or creating session metadata.
+   */
+  async verifyLoginProfile(response: LoginResponse): Promise<Profile> {
+    const login = requirePatientLoginResponse(response);
+    const profileResponse = await requestJson(`${this.getUrl()}/patient/profile`, {
+      headers: { Authorization: `Bearer ${login.token}` },
+    }, {
+      fetchImpl: this.fetchImpl,
+      maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES,
+    });
+    if (!profileResponse.ok || profileResponse.bodyError) {
+      throw new Error(
+        getServerErrorMessage(profileResponse.body) ||
+          "Unable to verify the signed-in patient profile. Please try again.",
+      );
+    }
+    const profile = requireMatchingPatientProfile(
+      requireJsonObject<Profile>(
+        profileResponse.body,
+        "The server returned an invalid patient profile. Please try again.",
+      ),
+      login,
+    );
+    return profile as Profile;
+  }
+
+  /**
+   * Revoke an issued token even when no local session exists yet. This method
+   * intentionally does not call protectedFetch/assertSession: a stale login
+   * must still be able to revoke its own captured token without touching a
+   * newer patient's session.
+   */
+  async revokeToken(token: string): Promise<void> {
+    const requestCsrf = async (): Promise<string> => {
+      const response = await requestJson(`${this.getUrl()}/csrf-token`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        credentials: this.nativeCookieCredentials(),
+      }, {
+        fetchImpl: this.fetchImpl,
+        maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES,
+      });
+      if (!response.ok || response.bodyError) {
+        throw new Error(getServerErrorMessage(response.body) || "Unable to revoke the sign-in session.");
+      }
+      return requireCsrfToken(response.body);
+    };
+
+    let csrf = await requestCsrf();
+    const send = () => requestJson(`${this.getUrl()}/auth/patient-logout`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-CSRF-Token": csrf,
+      },
+      credentials: this.nativeCookieCredentials(),
+    }, {
+      fetchImpl: this.fetchImpl,
+      maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES,
+    });
+    let response = await send();
+    if (response.status === 403 && this.isCsrfFailure(response.body)) {
+      csrf = await requestCsrf();
+      response = await send();
+    }
+    if (!response.ok) {
+      throw new Error(getServerErrorMessage(response.body) || "Unable to revoke the sign-in session.");
+    }
+  }
+
+  async logout(): Promise<void> {
+    if (!this.token) return;
+    await this.revokeToken(this.token);
   }
 
   async forgotPassword(email: string): Promise<any> {

@@ -89,15 +89,18 @@ export default function LoginScreen() {
   const { providers, activeProvider, selectProvider, addCustomFHIREndpoint, search } = useEHR();
   const { t } = useI18n();
   const a11y = useAccessibilityLabels();
+  const isNavimediLogin = !activeProvider || activeProvider.type === "navimedi";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tenantId, setTenantId] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const passwordRef = useRef<TextInput>(null);
   const tenantRef = useRef<TextInput>(null);
+  const mfaRef = useRef<TextInput>(null);
 
   const [resetSending, setResetSending] = useState(false);
   const [showProviderPicker, setShowProviderPicker] = useState(false);
@@ -155,6 +158,7 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
+    if (loading) return;
     if (!email || !password) {
       setError(t("enterCredentials"));
       return;
@@ -164,12 +168,19 @@ export default function LoginScreen() {
     setShowProviderPicker(false);
     impactLight();
     try {
-      await login({ email, password, tenantId });
+      await login({
+        email, password,
+        ...(tenantId.trim() ? { tenantId: tenantId.trim() } : {}),
+        ...(isNavimediLogin && mfaCode.trim()
+          ? { mfaCode: mfaCode.trim() }
+          : {}),
+      });
       router.replace("/(tabs)");
     } catch (err: any) {
       notificationError();
       setError(err.message || t("loginFailed"));
     } finally {
+      setMfaCode("");
       setLoading(false);
     }
   };
@@ -379,13 +390,42 @@ export default function LoginScreen() {
                   onChangeText={setTenantId}
                   placeholder={t("yourHospitalName")}
                   placeholderTextColor={C.textTertiary}
-                  returnKeyType="done"
-                  onSubmitEditing={handleLogin}
+                  returnKeyType={isNavimediLogin ? "next" : "done"}
+                  onSubmitEditing={() => isNavimediLogin
+                    ? mfaRef.current?.focus()
+                    : handleLogin()}
                   testID="input-tenant"
                   accessibilityLabel={t("hospitalOptional")}
                 />
               </View>
             </View>
+
+            {isNavimediLogin ? (
+              <View style={styles.fieldGroup}>
+                <Text style={[styles.label, { color: C.textSecondary }]}>{t("mfaCodeOptional")}</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: C.surfaceSecondary, borderColor: C.controlBorder }]}>
+                  <Feather name="shield" size={18} color={C.textTertiary} style={styles.inputIcon} />
+                  <TextInput
+                    ref={mfaRef}
+                    style={[styles.input, { color: C.text }]}
+                    value={mfaCode}
+                    onChangeText={setMfaCode}
+                    placeholder={t("mfaCodePlaceholder")}
+                    placeholderTextColor={C.textTertiary}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="oneTimeCode"
+                    autoComplete="one-time-code"
+                    maxLength={128}
+                    editable={!loading}
+                    returnKeyType="done"
+                    onSubmitEditing={handleLogin}
+                    testID="input-mfa-code"
+                    accessibilityLabel={t("mfaCodeOptional")}
+                  />
+                </View>
+              </View>
+            ) : null}
 
             {error || sessionEndReason ? (
               <View style={[styles.errorBox, { backgroundColor: C.dangerLight }]}>

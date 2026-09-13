@@ -4,6 +4,8 @@ const en = {
   signOut: "Sign Out",
   email: "Email Address",
   password: "Password",
+  mfaCodeOptional: "Verification code (if enabled)",
+  mfaCodePlaceholder: "Code from your authenticator",
   forgotPassword: "Forgot Password?",
   hospitalOptional: "Hospital / Clinic (optional)",
   yourHospitalName: "Your hospital name",

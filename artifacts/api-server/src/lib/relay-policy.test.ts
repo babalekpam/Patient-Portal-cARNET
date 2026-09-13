@@ -10,8 +10,8 @@ import {
 test("allows every mobile API operation with only its supported method", () => {
   const allowed = [
     ["GET", "/csrf-token"],
-    ["POST", "/auth/login"],
     ["POST", "/auth/patient-login"],
+    ["POST", "/auth/patient-logout"],
     ["POST", "/auth/forgot-password"],
     ["GET", "/patient/profile"],
     ["PATCH", "/patient/profile"],
@@ -51,16 +51,17 @@ test("rejects query strings, traversal, encoded separators, and malformed paths"
   );
 });
 
-test("marks only login and password recovery operations public", () => {
-  assert.equal(matchRelayRoute("POST", "/auth/login")?.protected, false);
+test("marks only patient login and password recovery operations public", () => {
+  assert.equal(matchRelayRoute("POST", "/auth/login"), null);
   assert.equal(matchRelayRoute("POST", "/auth/patient-login")?.protected, false);
+  assert.equal(matchRelayRoute("POST", "/auth/patient-logout")?.protected, true);
   assert.equal(matchRelayRoute("POST", "/auth/forgot-password")?.protected, false);
   assert.equal(matchRelayRoute("GET", "/csrf-token")?.protected, true);
   assert.equal(matchRelayRoute("GET", "/patient/profile")?.protected, true);
 });
 
 test("validates actual supported mobile payload fields and rejects extras", () => {
-  const login = matchRelayRoute("POST", "/auth/login")!;
+  const login = matchRelayRoute("POST", "/auth/patient-login")!;
   assert.equal(login.validateBody({
     email: "patient@example.com",
     password: "correct horse battery staple",
@@ -68,9 +69,35 @@ test("validates actual supported mobile payload fields and rejects extras", () =
   }), true);
   assert.equal(login.validateBody({
     email: "patient@example.com",
+    password: "correct horse battery staple",
+    tenantId: "hospital-1",
+    mfaCode: "123456",
+  }), true);
+  assert.equal(login.validateBody({
+    email: "patient@example.com",
     password: "password",
     role: "admin",
   }), false);
+  assert.equal(login.validateBody({
+    email: "patient@example.com",
+    password: "password",
+    unexpected: "field",
+  }), false);
+  assert.equal(login.validateBody({
+    email: "patient@example.com",
+    password: "password",
+    mfaCode: "",
+  }), false);
+  assert.equal(login.validateBody({
+    email: "patient@example.com",
+    password: "password",
+    mfaCode: "a".repeat(129),
+  }), false);
+
+  const logout = matchRelayRoute("POST", "/auth/patient-logout")!;
+  assert.equal(logout.protected, true);
+  assert.equal(logout.validateBody(undefined), true);
+  assert.equal(logout.validateBody({}), false);
 
   const profile = matchRelayRoute("PATCH", "/patient/profile")!;
   assert.equal(profile.validateBody({ phone: "+1 555 0100", address: "1 Main St" }), true);

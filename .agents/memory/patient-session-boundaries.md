@@ -47,3 +47,15 @@ before the write permits the adapter to change underneath the new session.
 
 **How to apply:** End any mismatched session before exposing a new adapter, even
 when the UI normally disables provider selection during sign-in.
+
+Keep the patient-record identity distinct from the user-account identity.
+
+**Why:** NaviMED's patient authentication contract has separate account and
+patient IDs. Checking a profile against the account ID can reject a valid
+patient or verify the wrong relationship. Cookie-only website login is also
+not evidence that the dedicated patient bearer-token contract is available.
+
+**How to apply:** Verify the fresh profile against the returned patient-record
+ID and tenant identity before accepting credentials. Coordinate incompatible
+patient-auth changes with the backend; mocked tests do not establish live
+endpoint availability or patient/tenant isolation.

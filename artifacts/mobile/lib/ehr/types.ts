@@ -43,6 +43,9 @@ export interface EHRAdapter {
   setToken(token: string): void;
   setLoginContext(response: LoginResponse): void;
   clearToken(): void;
+  verifyLoginProfile?(response: LoginResponse): Promise<Profile>;
+  revokeToken?(token: string): Promise<void>;
+  logout?(): Promise<void>;
 }
 
 export type EHRType = "navimedi" | "fhir" | "custom";

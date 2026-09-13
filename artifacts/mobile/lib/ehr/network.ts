@@ -6,6 +6,44 @@ export const MAX_RESPONSE_BODY_BYTES = 1024 * 1024;
 export const MAX_AUTH_PROFILE_BODY_BYTES = 64 * 1024;
 export const MAX_ERROR_MESSAGE_CHARS = 512;
 export const MAX_CSRF_TOKEN_CHARS = 4096;
+export const MAX_AUTH_TOKEN_CHARS = 8192;
+const MAX_ID_CHARS = 256;
+const MAX_NAME_CHARS = 320;
+
+export interface PatientLoginUser {
+  id: string;
+  tenantId: string;
+  role: "patient";
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+export interface PatientLoginTenant {
+  id: string;
+  name: string;
+  type: string;
+}
+
+export interface PatientLoginPatient {
+  id: string;
+  tenantId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+export interface PatientLoginResponse {
+  success: true;
+  token: string;
+  user: PatientLoginUser;
+  tenant: PatientLoginTenant;
+  patient: PatientLoginPatient;
+  expires_in?: number;
+  expiresIn?: number;
+  expires_at?: number | string;
+  expiresAt?: number | string;
+}
 
 export type FetchTransport = (
   input: RequestInfo | URL,
@@ -55,6 +93,168 @@ export function requireCsrfToken(value: unknown): string {
     throw new Error("Server did not return a valid CSRF token. Please try again.");
   }
   return token;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function requiredBoundedString(
+  record: Record<string, unknown>,
+  key: string,
+  max: number,
+): string {
+  const value = record[key];
+  if (typeof value !== "string" || !value.trim() || value.length > max) {
+    throw new Error("The server returned an invalid patient authentication response. Please try again.");
+  }
+  return value;
+}
+
+function requiredObject(
+  record: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> {
+  const value = record[key];
+  if (!isRecord(value)) {
+    throw new Error("The server returned an invalid patient authentication response. Please try again.");
+  }
+  return value;
+}
+
+/**
+ * NaviMED patient login is intentionally stricter than the generic token
+ * validator used by FHIR adapters. A cookie or a token-only response must
+ * never establish a patient session.
+ */
+export function requirePatientLoginResponse(value: unknown): PatientLoginResponse {
+  if (!isRecord(value) || value.success !== true) {
+    throw new Error("The server returned an invalid patient authentication response. Please try again.");
+  }
+
+  const token = requiredBoundedString(value, "token", MAX_AUTH_TOKEN_CHARS).trim();
+  const userRecord = requiredObject(value, "user");
+  const user: PatientLoginUser = {
+    id: requiredBoundedString(userRecord, "id", MAX_ID_CHARS),
+    tenantId: requiredBoundedString(userRecord, "tenantId", MAX_ID_CHARS),
+    role: requiredBoundedString(userRecord, "role", 32) as PatientLoginUser["role"],
+    firstName: requiredBoundedString(userRecord, "firstName", MAX_NAME_CHARS),
+    lastName: requiredBoundedString(userRecord, "lastName", MAX_NAME_CHARS),
+    email: requiredBoundedString(userRecord, "email", 320),
+  };
+  if (user.role !== "patient") {
+    throw new Error("The server returned an invalid patient authentication response. Please try again.");
+  }
+
+  const tenantRecord = requiredObject(value, "tenant");
+  const tenant: PatientLoginTenant = {
+    id: requiredBoundedString(tenantRecord, "id", MAX_ID_CHARS),
+    name: requiredBoundedString(tenantRecord, "name", MAX_NAME_CHARS),
+    type: requiredBoundedString(tenantRecord, "type", MAX_NAME_CHARS),
+  };
+  const patientRecord = requiredObject(value, "patient");
+  const patient: PatientLoginPatient = {
+    id: requiredBoundedString(patientRecord, "id", MAX_ID_CHARS),
+    tenantId: requiredBoundedString(patientRecord, "tenantId", MAX_ID_CHARS),
+    firstName: requiredBoundedString(patientRecord, "firstName", MAX_NAME_CHARS),
+    lastName: requiredBoundedString(patientRecord, "lastName", MAX_NAME_CHARS),
+    email: requiredBoundedString(patientRecord, "email", 320),
+  };
+  if (user.tenantId !== patient.tenantId || tenant.id !== patient.tenantId) {
+    throw new Error("The server returned an invalid patient authentication response. Please try again.");
+  }
+
+  return {
+    success: true,
+    token,
+    user,
+    tenant,
+    patient,
+    ...(typeof value.expires_in === "number" ? { expires_in: value.expires_in } : {}),
+    ...(typeof value.expiresIn === "number" ? { expiresIn: value.expiresIn } : {}),
+    ...(typeof value.expires_at === "number" || typeof value.expires_at === "string"
+      ? { expires_at: value.expires_at }
+      : {}),
+    ...(typeof value.expiresAt === "number" || typeof value.expiresAt === "string"
+      ? { expiresAt: value.expiresAt }
+      : {}),
+  };
+}
+
+function profileIdentity(
+  profile: Record<string, unknown>,
+): { patientId: string; tenantId: string } {
+  const identityError = (): never => {
+    throw new Error("The server returned an invalid patient profile. Please try again.");
+  };
+  const readIdentity = (
+    value: unknown,
+    values: string[],
+  ): void => {
+    if (typeof value !== "string" || !value.trim() || value.length > MAX_ID_CHARS) {
+      identityError();
+    }
+    if (typeof value === "string") values.push(value);
+  };
+  const patientIds: string[] = [];
+  const tenantIds: string[] = [];
+  if ("id" in profile) readIdentity(profile.id, patientIds);
+  if ("patientId" in profile) readIdentity(profile.patientId, patientIds);
+
+  if ("patient" in profile) {
+    const nestedPatient = profile.patient;
+    if (!isRecord(nestedPatient)) {
+      identityError();
+    }
+    const patientRecord = nestedPatient as Record<string, unknown>;
+    if ("id" in patientRecord) readIdentity(patientRecord.id, patientIds);
+    if ("tenantId" in patientRecord) readIdentity(patientRecord.tenantId, tenantIds);
+  }
+
+  if ("tenantId" in profile) readIdentity(profile.tenantId, tenantIds);
+  if ("tenant" in profile) {
+    const nestedTenant = profile.tenant;
+    if (!isRecord(nestedTenant)) {
+      identityError();
+    }
+    const tenantRecord = nestedTenant as Record<string, unknown>;
+    if ("id" in tenantRecord) readIdentity(tenantRecord.id, tenantIds);
+  }
+
+  const patientId = patientIds[0];
+  const tenantId = tenantIds[0];
+  if (
+    !patientId ||
+    !tenantId ||
+    patientIds.some((candidate) => candidate !== patientId) ||
+    tenantIds.some((candidate) => candidate !== tenantId)
+  ) {
+    identityError();
+  }
+  return { patientId, tenantId };
+}
+
+/**
+ * Compare a fresh profile response with the identity returned by patient
+ * login. This deliberately does not accept cached or display-only profile
+ * fields as proof of patient ownership.
+ */
+export function requireMatchingPatientProfile(
+  profile: unknown,
+  login: PatientLoginResponse,
+): Record<string, unknown> {
+  if (!isRecord(profile)) {
+    throw new Error("The server returned an invalid patient profile. Please try again.");
+  }
+  const identity = profileIdentity(profile);
+  if (
+    identity.patientId !== login.patient.id ||
+    identity.tenantId !== login.patient.tenantId ||
+    login.user.tenantId !== login.patient.tenantId
+  ) {
+    throw new Error("The signed-in patient profile does not match this account.");
+  }
+  return profile;
 }
 
 export class RequestTimeoutError extends Error {
@@ -394,11 +594,25 @@ export function requireAuthenticationToken(value: unknown): string {
     typeof value !== "object" ||
     Array.isArray(value) ||
     typeof (value as Record<string, unknown>).token !== "string" ||
-    !(value as Record<string, string>).token.trim()
+    !(value as Record<string, string>).token.trim() ||
+    (value as Record<string, string>).token.length > MAX_AUTH_TOKEN_CHARS
   ) {
     throw new Error("Server did not return a valid authentication token. Please try again.");
   }
-  return (value as Record<string, string>).token;
+  return (value as Record<string, string>).token.trim();
+}
+
+/**
+ * Capture a bounded bearer from a successful response before generation or
+ * strict contract validation can reject the request. Callers use this only
+ * for isolated revocation and never as proof of a valid patient session.
+ */
+export function captureAuthenticationToken(value: unknown): string | null {
+  try {
+    return requireAuthenticationToken(value);
+  } catch {
+    return null;
+  }
 }
 
 export function requireJsonObject<T>(value: unknown, message: string): T {

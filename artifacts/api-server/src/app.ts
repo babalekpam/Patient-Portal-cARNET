@@ -258,8 +258,7 @@ app.use("/api/navimedi", relayLimits, (req, res, next) => {
     if (route.protected && typeof csrf === "string") headers.set("X-CSRF-Token", csrf);
     if (body !== undefined) headers.set("Content-Type", "application/json");
 
-    const requiresPreauthCsrf =
-      route.category === "login" || route.category === "patient_login";
+    const requiresPreauthCsrf = route.category === "patient_login";
     if (requiresPreauthCsrf) {
       const csrfResponse = await fetch(
         `${NAVIMEDI_ORIGIN}${NAVIMEDI_API_PREFIX}${PREAUTH_CSRF_PATH}`,

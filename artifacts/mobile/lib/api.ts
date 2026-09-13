@@ -11,11 +11,15 @@ import {
 import {
   type BoundedResponse,
   MAX_AUTH_PROFILE_BODY_BYTES,
+  captureAuthenticationToken,
   getServerErrorMessage,
   requestJson,
   requireCsrfToken,
   requireAuthenticationToken,
   requireJsonObject,
+  requireMatchingPatientProfile,
+  requirePatientLoginResponse,
+  type PatientLoginResponse,
 } from "@/lib/ehr/network";
 
 const DIRECT_URL = "https://www.navimedi.org/api";
@@ -41,6 +45,22 @@ function assertLoginGeneration(expectedGeneration: number): void {
   if (sessionGeneration() !== expectedGeneration) {
     throw new StaleSessionRequestError();
   }
+}
+
+function isCsrfFailure(value: unknown): boolean {
+  const code =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>).code
+      : undefined;
+  return (
+    typeof code === "string" &&
+    ["CSRF_TOKEN_MISSING", "CSRF_TOKEN_INVALID", "CSRF_SESSION_INVALID"].includes(code)
+  );
+}
+
+function normalizedOptionalField(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized || undefined;
 }
 
 const TOKEN_KEY = "carnet_auth_token";
@@ -69,18 +89,23 @@ export interface LoginCredentials {
   email: string;
   password: string;
   tenantId?: string;
+  mfaCode?: string;
 }
 
 export interface LoginResponse {
   token: string;
-  user: any;
-  tenant: any;
+  user: object;
+  tenant: object | null;
+  success?: boolean;
+  patient?: object;
   expires_in?: number;
   expiresIn?: number;
   expires_at?: number | string;
   expiresAt?: number | string;
   patientContext?: string;
 }
+
+export type { PatientLoginResponse };
 
 export interface Appointment {
   id?: string;
@@ -181,6 +206,11 @@ export interface Bill {
 }
 
 export interface Profile {
+  id?: string;
+  patientId?: string;
+  tenantId?: string;
+  patient?: { id?: string; tenantId?: string };
+  tenant?: { id?: string };
   firstName?: string;
   lastName?: string;
   dateOfBirth?: string;
@@ -431,21 +461,23 @@ class ApiClient {
       return result;
     }
     const body: Record<string, string> = {
-      email: credentials.email,
+      email: credentials.email.trim(),
       password: credentials.password,
     };
-    if (credentials.tenantId) {
-      body.tenantId = credentials.tenantId;
-    }
+    const tenantId = normalizedOptionalField(credentials.tenantId);
+    if (tenantId) body.tenantId = tenantId;
+    const mfaCode = normalizedOptionalField(credentials.mfaCode);
+    if (mfaCode) body.mfaCode = mfaCode;
 
     // A login can follow a previous session in the same process. Never let an
     // authenticated CSRF token leak into this pre-auth exchange.
     this.csrfToken = null;
     const loginGeneration = sessionGeneration();
+    let issuedToken: string | null = null;
     let csrfToken: string | null = Platform.OS === "web"
       ? null
       : await this.fetchPreauthCsrfToken(loginGeneration);
-    let endpoint = "/auth/login";
+    const endpoint = "/auth/patient-login";
 
     const sendLogin = async (): Promise<BoundedResponse> => {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -462,15 +494,15 @@ class ApiClient {
         assertLoginGeneration(loginGeneration);
         throw error;
       }
+      if (response.ok && !response.bodyError) {
+        issuedToken = captureAuthenticationToken(response.body) ?? issuedToken;
+      }
       assertLoginGeneration(loginGeneration);
       return response;
     };
 
-    let response = await sendLogin();
-    if (response.status === 404) {
-      endpoint = "/auth/patient-login";
-      response = await sendLogin();
-    }
+    try {
+      let response = await sendLogin();
 
     // Only an explicit CSRF failure may replay credentials. A normal 401/403
     // is an authentication/authorization result and is surfaced unchanged.
@@ -480,24 +512,115 @@ class ApiClient {
       response.body && typeof response.body === "object" && !Array.isArray(response.body)
         ? (response.body as Record<string, unknown>).code
         : undefined;
-    if (
-      Platform.OS !== "web" &&
-      typeof errorCode === "string" &&
-      csrfCodes.includes(errorCode)
-    ) {
-      csrfToken = await this.fetchPreauthCsrfToken(loginGeneration);
-      response = await sendLogin();
-      if (response.status === 404 && endpoint === "/auth/login") {
-        endpoint = "/auth/patient-login";
-        response = await sendLogin();
+    if (typeof errorCode === "string" && csrfCodes.includes(errorCode)) {
+      if (Platform.OS !== "web") {
+        csrfToken = await this.fetchPreauthCsrfToken(loginGeneration);
       }
+      response = await sendLogin();
     }
 
-    const result = await this.handleResponse<LoginResponse>(response, true);
-    // The anonymous token must never become the token used by authenticated
-    // mutations. Authenticated writes will obtain a fresh token lazily.
-    this.csrfToken = null;
-    return result;
+      const result = await this.handleResponse<LoginResponse>(response, true);
+      const validated = requirePatientLoginResponse(result);
+      // The anonymous token must never become the token used by authenticated
+      // mutations. Authenticated writes will obtain a fresh token lazily.
+      this.csrfToken = null;
+      return validated;
+    } catch (error) {
+      if (issuedToken) await this.revokeTokenDirect(issuedToken).catch(() => {});
+      throw error;
+    }
+  }
+
+  /**
+   * Verify a newly-issued NaviMED token against a fresh profile before any
+   * token/session metadata is stored. The adapter argument lets a stale login
+   * finish safely even when the selected provider has since changed.
+   */
+  async verifyLoginProfile(
+    response: LoginResponse,
+    expectedAdapter: EHRAdapter | null = this._adapter,
+  ): Promise<Profile> {
+    if (expectedAdapter?.verifyLoginProfile) {
+      return expectedAdapter.verifyLoginProfile(response);
+    }
+    if (expectedAdapter) {
+      throw new Error("This provider requires a fresh sign in to establish patient context.");
+    }
+    const token = requirePatientLoginResponse(response).token;
+    const profileResponse = await requestJson(`${getBaseUrl()}/patient/profile`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }, { maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES });
+    if (!profileResponse.ok || profileResponse.bodyError) {
+      throw new Error(
+        getServerErrorMessage(profileResponse.body) ||
+          "Unable to verify the signed-in patient profile. Please try again.",
+      );
+    }
+    const profile = requireMatchingPatientProfile(
+      requireJsonObject<Profile>(
+        profileResponse.body,
+        "The server returned an invalid patient profile. Please try again.",
+      ),
+      requirePatientLoginResponse(response),
+    );
+    return profile as Profile;
+  }
+
+  /**
+   * Revoke a captured token without consulting the current session. This is
+   * intentionally an isolated request for stale login completions and failed
+   * profile verification; it can never clear or mutate a replacement session.
+   */
+  async revokeToken(
+    token: string,
+    expectedAdapter: EHRAdapter | null = this._adapter,
+  ): Promise<void> {
+    if (expectedAdapter?.revokeToken) {
+      await expectedAdapter.revokeToken(token);
+      return;
+    }
+    if (expectedAdapter) return;
+    await this.revokeTokenDirect(token);
+  }
+
+  private async revokeTokenDirect(token: string): Promise<void> {
+    const requestCsrf = async (): Promise<string> => {
+      const response = await requestJson(`${getBaseUrl()}/csrf-token`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        credentials: nativeCookieCredentials(),
+      }, { maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES });
+      if (!response.ok || response.bodyError) {
+        throw new Error(getServerErrorMessage(response.body) || "Unable to revoke the sign-in session.");
+      }
+      return requireCsrfToken(response.body);
+    };
+    let csrf = await requestCsrf();
+    const send = () => requestJson(`${getBaseUrl()}/auth/patient-logout`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "X-CSRF-Token": csrf,
+      },
+      credentials: nativeCookieCredentials(),
+    }, { maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES });
+    let response = await send();
+    if (response.status === 403 && isCsrfFailure(response.body)) {
+      csrf = await requestCsrf();
+      response = await send();
+    }
+    if (!response.ok) {
+      throw new Error(getServerErrorMessage(response.body) || "Unable to revoke the sign-in session.");
+    }
+  }
+
+  async logout(expectedAdapter: EHRAdapter | null = this._adapter): Promise<void> {
+    if (expectedAdapter?.logout) {
+      await expectedAdapter.logout();
+      return;
+    }
+    if (expectedAdapter) return;
+    const token = await getToken();
+    if (token) await this.revokeTokenDirect(token);
   }
 
   async forgotPassword(email: string): Promise<any> {

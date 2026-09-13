@@ -50,13 +50,14 @@ function numberField(
   );
 }
 
-function loginBody(value: unknown): boolean {
-  if (!isRecord(value) || !hasOnly(value, ["email", "password", "tenantId"])) return false;
+function patientLoginBody(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnly(value, ["email", "password", "tenantId", "mfaCode"])) return false;
   return (
     stringField(value, "email", 320, true) &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email as string) &&
     stringField(value, "password", 1024, true) &&
-    stringField(value, "tenantId", 128)
+    stringField(value, "tenantId", 128) &&
+    stringField(value, "mfaCode", 128)
   );
 }
 
@@ -127,8 +128,8 @@ function messageBody(value: unknown): boolean {
 
 const staticRoutes = new Map<string, RelayRoute>([
   ["GET /csrf-token", { category: "csrf", protected: true, validateBody: noBody }],
-  ["POST /auth/login", { category: "login", protected: false, validateBody: loginBody }],
-  ["POST /auth/patient-login", { category: "patient_login", protected: false, validateBody: loginBody }],
+  ["POST /auth/patient-login", { category: "patient_login", protected: false, validateBody: patientLoginBody }],
+  ["POST /auth/patient-logout", { category: "patient_logout", protected: true, validateBody: noBody }],
   ["POST /auth/forgot-password", { category: "forgot_password", protected: false, validateBody: forgotPasswordBody }],
   ["GET /patient/profile", { category: "profile_read", protected: true, validateBody: noBody }],
   ["PATCH /patient/profile", { category: "profile_update", protected: true, validateBody: profileBody }],

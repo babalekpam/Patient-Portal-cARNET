@@ -21,17 +21,19 @@ interface PendingAction {
 }
 
 export async function isOnline(): Promise<boolean> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    timeout = setTimeout(() => controller.abort(), 5000);
     const response = await fetch("https://www.navimedi.org/api/health", {
       method: "HEAD",
       signal: controller.signal,
     });
-    clearTimeout(timeout);
     return response.ok;
   } catch {
     return false;
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
   }
 }
 

@@ -8,8 +8,10 @@ import {
   RequestCancelledError,
   RequestTimeoutError,
   requestJson,
+  requireMatchingPatientProfile,
   requireAuthenticationToken,
   requireJsonObject,
+  requirePatientLoginResponse,
 } from "../lib/ehr/network";
 
 function jsonResponse(status: number, value: unknown): Response {
@@ -17,6 +19,30 @@ function jsonResponse(status: number, value: unknown): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function patientLogin(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    success: true,
+    token: "token-a",
+    user: {
+      id: "user-a",
+      tenantId: "tenant-a",
+      role: "patient",
+      firstName: "A",
+      lastName: "Patient",
+      email: "a@example.test",
+    },
+    tenant: { id: "tenant-a", name: "Tenant A", type: "clinic" },
+    patient: {
+      id: "patient-a",
+      tenantId: "tenant-a",
+      firstName: "A",
+      lastName: "Patient",
+      email: "a@example.test",
+    },
+    ...overrides,
+  };
 }
 
 test("aborts a fetch that never produces response headers", async () => {
@@ -219,6 +245,102 @@ test("validates authentication tokens and profile objects without exposing respo
     { firstName: "Unit", lastName: "Test" },
   );
   assert.throws(() => requireJsonObject(null, "Invalid profile."), /Invalid profile/);
+});
+
+test("normalizes and validates the complete patient-login contract", () => {
+  const login = requirePatientLoginResponse(patientLogin());
+  assert.equal(login.success, true);
+  assert.equal(login.token, "token-a");
+  assert.equal(login.user.role, "patient");
+  assert.equal(login.patient.id, "patient-a");
+  assert.throws(
+    () => requirePatientLoginResponse(patientLogin({ success: false })),
+    /patient authentication response/i,
+  );
+  assert.throws(
+    () => requirePatientLoginResponse(patientLogin({ token: "x".repeat(8193) })),
+    /patient authentication response/i,
+  );
+  assert.throws(
+    () => requirePatientLoginResponse(patientLogin({
+      user: { ...(patientLogin().user as object), role: "staff" },
+    })),
+    /patient authentication response/i,
+  );
+  assert.throws(
+    () => requirePatientLoginResponse(patientLogin({
+      patient: {
+        ...(patientLogin().patient as object),
+        tenantId: "tenant-b",
+      },
+    })),
+    /patient authentication response/i,
+  );
+});
+
+test("requires fresh profile patient and tenant identities to match login", () => {
+  const login = requirePatientLoginResponse(patientLogin());
+  const fresh = {
+    id: "patient-a",
+    tenantId: "tenant-a",
+    firstName: "A",
+    lastName: "Patient",
+  };
+  assert.deepEqual(requireMatchingPatientProfile(fresh, login), fresh);
+  assert.throws(
+    () => requireMatchingPatientProfile({ ...fresh, id: "patient-b" }, login),
+    /does not match/i,
+  );
+  assert.throws(
+    () => requireMatchingPatientProfile({ ...fresh, tenantId: "tenant-b" }, login),
+    /does not match/i,
+  );
+  assert.throws(
+    () => requireMatchingPatientProfile({ firstName: "cached-only" }, login),
+    /invalid patient profile/i,
+  );
+  assert.throws(
+    () => requireMatchingPatientProfile({
+      ...fresh,
+      patientId: "patient-b",
+    }, login),
+    /invalid patient profile/i,
+  );
+  assert.throws(
+    () => requireMatchingPatientProfile({
+      ...fresh,
+      patient: { id: "patient-b", tenantId: "tenant-a" },
+    }, login),
+    /invalid patient profile/i,
+  );
+  assert.throws(
+    () => requireMatchingPatientProfile({
+      ...fresh,
+      tenant: { id: "tenant-b" },
+    }, login),
+    /invalid patient profile/i,
+  );
+  assert.throws(
+    () => requireMatchingPatientProfile({
+      ...fresh,
+      patientId: 42,
+    }, login),
+    /invalid patient profile/i,
+  );
+  assert.throws(
+    () => requireMatchingPatientProfile({
+      ...fresh,
+      patient: { id: 42, tenantId: "tenant-a" },
+    }, login),
+    /invalid patient profile/i,
+  );
+  assert.throws(
+    () => requireMatchingPatientProfile({
+      ...fresh,
+      tenant: { id: 42 },
+    }, login),
+    /invalid patient profile/i,
+  );
 });
 
 test("cancels a request through its caller signal", async () => {

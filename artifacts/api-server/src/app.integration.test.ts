@@ -57,7 +57,7 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
         { "Set-Cookie": "navimed_csrf_seed=preauth-seed; Path=/; HttpOnly" },
       );
     }
-    if (url.endsWith("/auth/login")) {
+    if (url.endsWith("/auth/patient-login")) {
       return jsonResponse(
         { token: "upstream-token", user: {}, tenant: {} },
         200,
@@ -92,7 +92,7 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
       });
       assert.equal(response.status, 403);
 
-      response = await fetch(`${baseUrl}/api/navimedi/auth/login`, {
+      response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: "not-json",
@@ -102,6 +102,16 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
       response = await fetch(`${baseUrl}/api/navimedi/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: "patient@example.com",
+          password: "password-value",
+        }),
+      });
+      assert.equal(response.status, 404);
+
+      response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: "{broken",
       });
       assert.equal(response.status, 400);
@@ -109,7 +119,18 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
       response = await fetch(`${baseUrl}/api/navimedi/capabilities`);
       assert.equal(response.status, 404);
 
-      response = await fetch(`${baseUrl}/api/navimedi/auth/login`, {
+      response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: "patient@example.com",
+          password: "password-value",
+          unexpected: "field",
+        }),
+      });
+      assert.equal(response.status, 400);
+
+      response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -119,6 +140,7 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
         body: JSON.stringify({
           email: "patient@example.com",
           password: "never-log-this-password",
+          mfaCode: "123456",
         }),
       });
       assert.equal(response.status, 200);
@@ -138,12 +160,17 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
     assert.equal(calls[0].init?.redirect, "manual");
     assert.equal(new Headers(calls[0].init?.headers).get("cookie"), null);
     assert.equal(new Headers(calls[0].init?.headers).get("x-csrf-token"), null);
-    assert.equal(calls[1].input, "https://www.navimedi.org/api/auth/login");
+    assert.equal(calls[1].input, "https://www.navimedi.org/api/auth/patient-login");
     assert.equal(calls[1].init?.redirect, "manual");
     const loginHeaders = new Headers(calls[1].init?.headers);
     assert.equal(loginHeaders.get("x-csrf-token"), "preauth-csrf-token");
     assert.equal(loginHeaders.get("cookie"), "navimed_csrf_seed=preauth-seed");
     assert.equal(loginHeaders.get("authorization"), null);
+    assert.deepEqual(JSON.parse(String(calls[1].init?.body)), {
+      email: "patient@example.com",
+      password: "never-log-this-password",
+      mfaCode: "123456",
+    });
     assert.equal(calls[2].input, "https://www.navimedi.org/api/patient/profile");
     assert.equal(new Headers(calls[2].init?.headers).get("authorization"), `Bearer ${"b".repeat(24)}`);
     const serializedLogs = JSON.stringify(logged);
@@ -173,7 +200,7 @@ test("login does not fall back to a client cookie when the pre-auth cookie is ab
 
   try {
     await withServer(async (baseUrl) => {
-      const response = await fetch(`${baseUrl}/api/navimedi/auth/login`, {
+      const response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -188,6 +215,61 @@ test("login does not fall back to a client cookie when the pre-auth cookie is ab
     });
     assert.equal(calls.length, 1);
     assert.equal(calls[0].input, "https://www.navimedi.org/api/csrf-token");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("patient logout requires bearer and session CSRF and isolates cookies", { concurrency: false }, async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: FetchCall[] = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.startsWith("http://127.0.0.1:")) {
+      return originalFetch(input, init);
+    }
+    calls.push({ input: url, init });
+    return jsonResponse(
+      { success: true },
+      200,
+      { "Set-Cookie": "navimed_session=upstream-secret; Path=/; HttpOnly" },
+    );
+  }) as typeof fetch;
+
+  try {
+    await withServer(async (baseUrl) => {
+      let response = await fetch(`${baseUrl}/api/navimedi/auth/patient-logout`, {
+        method: "POST",
+      });
+      assert.equal(response.status, 401);
+
+      response = await fetch(`${baseUrl}/api/navimedi/auth/patient-logout`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${"a".repeat(24)}` },
+      });
+      assert.equal(response.status, 403);
+
+      response = await fetch(`${baseUrl}/api/navimedi/auth/patient-logout`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${"a".repeat(24)}`,
+          "X-CSRF-Token": "session-bound-csrf-token",
+          Cookie: "navimed_session=client-controlled",
+        },
+      });
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("set-cookie"), null);
+      assert.deepEqual(await response.json(), { success: true });
+    });
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].input, "https://www.navimedi.org/api/auth/patient-logout");
+    assert.equal(calls[0].init?.method, "POST");
+    assert.equal(calls[0].init?.body, undefined);
+    const logoutHeaders = new Headers(calls[0].init?.headers);
+    assert.equal(logoutHeaders.get("authorization"), `Bearer ${"a".repeat(24)}`);
+    assert.equal(logoutHeaders.get("x-csrf-token"), "session-bound-csrf-token");
+    assert.equal(logoutHeaders.get("cookie"), null);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -214,7 +296,7 @@ test("concurrent logins keep each upstream CSRF token paired with its cookie", {
         { "Set-Cookie": `${cookie}; Path=/; HttpOnly` },
       );
     }
-    if (url.endsWith("/auth/login")) {
+    if (url.endsWith("/auth/patient-login")) {
       const headers = new Headers(init?.headers);
       loginHeaders.push(headers);
       return jsonResponse({ token: "upstream-token", user: {}, tenant: {} });
@@ -224,7 +306,7 @@ test("concurrent logins keep each upstream CSRF token paired with its cookie", {
 
   try {
     await withServer(async (baseUrl) => {
-      const makeLogin = (email: string) => fetch(`${baseUrl}/api/navimedi/auth/login`, {
+      const makeLogin = (email: string) => fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password: "password-value" }),
@@ -276,10 +358,10 @@ test("relay rejects redirects and oversized upstream responses", { concurrency: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: "patient@example.com", password: "password-value" }),
       };
-      let response = await fetch(`${baseUrl}/api/navimedi/auth/login`, login);
+      let response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, login);
       assert.equal(response.status, 502);
       mode = "large";
-      response = await fetch(`${baseUrl}/api/navimedi/auth/login`, login);
+      response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, login);
       assert.equal(response.status, 502);
     });
   } finally {
