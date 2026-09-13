@@ -17,7 +17,9 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.tabIconDefault,
         tabBarStyle: {
-          position: "absolute",
+          // Reserve layout space on web so bottom actions cannot sit behind
+          // the tab bar (including the Profile screen's Sign Out button).
+          position: isWeb ? "relative" : "absolute",
           backgroundColor: colors.surface,
           borderTopWidth: isWeb ? 1 : 0,
           borderTopColor: colors.border,

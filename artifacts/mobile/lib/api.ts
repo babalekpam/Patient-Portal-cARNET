@@ -8,6 +8,12 @@ import {
   sessionGeneration,
   StaleSessionRequestError,
 } from "@/lib/session";
+import {
+  type BoundedResponse,
+  requestJson,
+  requireAuthenticationToken,
+  requireJsonObject,
+} from "@/lib/ehr/network";
 
 const DIRECT_URL = "https://www.navimedi.org/api";
 
@@ -211,7 +217,7 @@ export interface ProfileUpdateData {
 class ApiClient {
   private _adapter: EHRAdapter | null = null;
   private csrfToken: string | null = null;
-  private responseGenerations = new WeakMap<Response, number>();
+  private responseGenerations = new WeakMap<BoundedResponse, number>();
 
   setAdapter(adapter: EHRAdapter | null): void {
     if (this._adapter && this._adapter !== adapter) this._adapter.clearToken();
@@ -229,13 +235,20 @@ class ApiClient {
     this.csrfToken = null;
   }
 
-  private async protectedFetch(url: string, init?: RequestInit): Promise<Response> {
+  private async protectedFetch(url: string, init?: RequestInit): Promise<BoundedResponse> {
     const generation = sessionGeneration();
     assertSession(null, generation);
-    const response = await fetch(url, init);
-    assertSession(null, generation);
-    this.responseGenerations.set(response, generation);
-    return response;
+    try {
+      const response = await requestJson(url, init);
+      assertSession(null, generation);
+      this.responseGenerations.set(response, generation);
+      return response;
+    } catch (error) {
+      // Do not turn an old request's timeout or transport failure into a
+      // mutation of the replacement patient's session.
+      assertSession(null, generation);
+      throw error;
+    }
   }
 
   private async getHeaders(): Promise<HeadersInit> {
@@ -262,9 +275,13 @@ class ApiClient {
       });
       const generation = this.responseGenerations.get(response);
       if (!response.ok) return null;
-      const data = await response.json().catch(() => ({}) as any);
       assertSession(null, generation);
-      this.csrfToken = data?.csrfToken ?? null;
+      const data = response.body;
+      this.csrfToken =
+        data && typeof data === "object" && !Array.isArray(data) &&
+        typeof (data as Record<string, unknown>).csrfToken === "string"
+          ? (data as Record<string, string>).csrfToken
+          : null;
       return this.csrfToken;
     } catch (error) {
       if (error instanceof StaleSessionRequestError) throw error;
@@ -302,10 +319,13 @@ class ApiClient {
     let generation = this.responseGenerations.get(response);
     assertSession(null, generation);
     if (response.status === 403) {
-      const errBody = await response.clone().json().catch(() => ({}) as any);
       assertSession(null, generation);
       const csrfCodes = ["CSRF_TOKEN_MISSING", "CSRF_TOKEN_INVALID", "CSRF_SESSION_INVALID"];
-      if (csrfCodes.includes(errBody?.code)) {
+      const errorCode =
+        response.body && typeof response.body === "object" && !Array.isArray(response.body)
+          ? (response.body as Record<string, unknown>).code
+          : undefined;
+      if (typeof errorCode === "string" && csrfCodes.includes(errorCode)) {
         await this.fetchCsrfToken();
         response = await send();
         generation = this.responseGenerations.get(response);
@@ -316,18 +336,19 @@ class ApiClient {
   }
 
   private async handleResponse<T>(
-    response: Response,
+    response: BoundedResponse,
     isLogin = false,
     isProtected = !isLogin,
   ): Promise<T> {
     const generation = this.responseGenerations.get(response);
     if (isProtected) assertSession(this._adapter?.sessionKey ?? null, generation);
     if (!response.ok) {
-      const errorBody = await response.json().catch(() => ({
-        message: `Request failed with status ${response.status}.`,
-      }));
       if (isProtected) assertSession(this._adapter?.sessionKey ?? null, generation);
-      const serverMessage = errorBody.message || "";
+      const serverMessage =
+        response.body && typeof response.body === "object" && !Array.isArray(response.body) &&
+        typeof (response.body as Record<string, unknown>).message === "string"
+          ? (response.body as Record<string, string>).message
+          : "";
 
       if (response.status === 401) {
         if (isProtected) {
@@ -346,14 +367,23 @@ class ApiClient {
       }
       throw new Error(serverMessage || `Request failed with status ${response.status}.`);
     }
-    const body = await response.json();
+    if (response.bodyError) {
+      throw new Error(
+        isLogin
+          ? "Server did not return a valid authentication token. Please try again."
+          : "The server returned an invalid response. Please try again.",
+      );
+    }
+    const body = response.body;
+    if (isLogin) requireAuthenticationToken(body);
     if (isProtected) assertSession(this._adapter?.sessionKey ?? null, generation);
-    return body;
+    return body as T;
   }
 
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
     if (this._adapter) {
       const result = await this._adapter.login(credentials);
+      requireAuthenticationToken(result);
       return result;
     }
     const body: Record<string, string> = {
@@ -363,13 +393,13 @@ class ApiClient {
     if (credentials.tenantId) {
       body.tenantId = credentials.tenantId;
     }
-    let response = await fetch(`${getBaseUrl()}/auth/login`, {
+    let response = await requestJson(`${getBaseUrl()}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     if (response.status === 404) {
-      response = await fetch(`${getBaseUrl()}/auth/patient-login`, {
+      response = await requestJson(`${getBaseUrl()}/auth/patient-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -380,7 +410,7 @@ class ApiClient {
 
   async forgotPassword(email: string): Promise<any> {
     if (this._adapter) return this._adapter.forgotPassword(email);
-    const response = await fetch(`${getBaseUrl()}/auth/forgot-password`, {
+    const response = await requestJson(`${getBaseUrl()}/auth/forgot-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
@@ -393,14 +423,20 @@ class ApiClient {
     if (this._adapter) {
       const profile = await this._adapter.getProfile();
       assertSession(this._adapter.sessionKey, generation);
-      return profile;
+      return requireJsonObject<Profile>(
+        profile,
+        "The server returned an invalid profile response. Please try again.",
+      );
     }
     const response = await this.protectedFetch(`${getBaseUrl()}/patient/profile`, {
       headers: await this.getHeaders(),
     });
     const profile = await this.handleResponse<Profile>(response);
     assertSession(null, generation);
-    return profile;
+    return requireJsonObject<Profile>(
+      profile,
+      "The server returned an invalid profile response. Please try again.",
+    );
   }
 
   async updateProfile(data: ProfileUpdateData): Promise<Profile> {

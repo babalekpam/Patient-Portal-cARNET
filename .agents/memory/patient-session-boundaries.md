@@ -29,3 +29,21 @@ distinguish these cases.
 Old failures must be rejected without signing out a newer session, and login
 responses must not modify shared adapter state until the current attempt is
 accepted.
+
+Separate optional device prompts from credential-storage failures.
+
+**Why:** Notification permission dialogs can legitimately remain open longer than
+a network deadline. Treating that delay as storage corruption would revoke a
+successfully authenticated patient's session.
+
+**How to apply:** Optional notification registration may fail independently.
+Secure-token read/write failures must still fail closed, and late optional work
+must never act on a replacement session.
+
+Recheck provider/session ownership after provider-preference persistence.
+
+**Why:** A login can finish while the preference write is pending. A check only
+before the write permits the adapter to change underneath the new session.
+
+**How to apply:** End any mismatched session before exposing a new adapter, even
+when the UI normally disables provider selection during sign-in.

@@ -30,11 +30,13 @@ function ProviderCard({
   provider,
   isSelected,
   onPress,
+  disabled,
   colors,
 }: {
   provider: EHRProviderConfig;
   isSelected: boolean;
   onPress: () => void;
+  disabled?: boolean;
   colors: any;
 }) {
   const iconName: any = provider.icon || "server";
@@ -56,8 +58,9 @@ function ProviderCard({
         pressed && { opacity: 0.8 },
       ]}
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="radio"
-      accessibilityState={{ checked: isSelected }}
+      accessibilityState={{ checked: isSelected, disabled }}
       accessibilityLabel={`${provider.name}, ${typeLabel}`}
     >
       <View style={[styles.providerIcon, { backgroundColor: isSelected ? colors.primary : colors.border }]}>
@@ -106,6 +109,7 @@ export default function LoginScreen() {
   const filteredProviders = providerSearch ? search(providerSearch) : providers;
 
   const handleSelectProvider = async (provider: EHRProviderConfig) => {
+    if (loading) return;
     impactLight();
     await selectProvider(provider);
     setShowProviderPicker(false);
@@ -113,6 +117,7 @@ export default function LoginScreen() {
   };
 
   const handleAddCustom = async () => {
+    if (loading) return;
     if (!customName.trim() || !customUrl.trim()) {
       Alert.alert(t("error"), t("ehrCustomRequired"));
       return;
@@ -156,6 +161,7 @@ export default function LoginScreen() {
     }
     setLoading(true);
     setError("");
+    setShowProviderPicker(false);
     impactLight();
     try {
       await login({ email, password, tenantId });
@@ -197,14 +203,16 @@ export default function LoginScreen() {
                   borderColor: showProviderPicker ? C.focusRing : C.controlBorder,
                 },
                 pressed && { opacity: 0.8 },
+                loading && { opacity: 0.6 },
               ]}
               onPress={() => {
                 impactLight();
                 setShowProviderPicker(!showProviderPicker);
               }}
+              disabled={loading}
               accessibilityRole="button"
               accessibilityLabel={activeProvider ? activeProvider.name : t("selectProvider")}
-              accessibilityState={{ expanded: showProviderPicker }}
+              accessibilityState={{ expanded: showProviderPicker, disabled: loading }}
             >
               <View style={[styles.providerSelectorIcon, { backgroundColor: activeProvider ? C.primaryLight : C.border }]}>
                 <Feather
@@ -235,6 +243,7 @@ export default function LoginScreen() {
                     placeholder={t("searchProviders")}
                     placeholderTextColor={C.textTertiary}
                     autoCapitalize="none"
+                    editable={!loading}
                     accessibilityLabel={t("searchProviders")}
                   />
                 </View>
@@ -244,6 +253,7 @@ export default function LoginScreen() {
                     provider={provider}
                     isSelected={activeProvider?.id === provider.id}
                     onPress={() => handleSelectProvider(provider)}
+                    disabled={loading}
                     colors={C}
                   />
                 ))}
@@ -258,8 +268,9 @@ export default function LoginScreen() {
                     impactLight();
                     setShowCustomForm(!showCustomForm);
                   }}
+                  disabled={loading}
                   accessibilityRole="button"
-                  accessibilityState={{ expanded: showCustomForm }}
+                  accessibilityState={{ expanded: showCustomForm, disabled: loading }}
                 >
                   <Feather name="plus-circle" size={16} color={C.primary} />
                   <Text style={[styles.customEndpointText, { color: C.primary }]}>{t("addCustomEndpoint")}</Text>
@@ -274,6 +285,7 @@ export default function LoginScreen() {
                       onChangeText={setCustomName}
                       placeholder={t("providerName")}
                       placeholderTextColor={C.textTertiary}
+                      editable={!loading}
                       accessibilityLabel={t("providerName")}
                     />
                     <TextInput
@@ -284,6 +296,7 @@ export default function LoginScreen() {
                       placeholderTextColor={C.textTertiary}
                       autoCapitalize="none"
                       keyboardType="url"
+                      editable={!loading}
                       accessibilityLabel={t("customFhirEndpoint")}
                     />
                     <Pressable
@@ -293,6 +306,7 @@ export default function LoginScreen() {
                         pressed && { opacity: 0.85 },
                       ]}
                       onPress={handleAddCustom}
+                      disabled={loading}
                       accessibilityRole="button"
                       accessibilityLabel={t("addAndConnect")}
                     >
