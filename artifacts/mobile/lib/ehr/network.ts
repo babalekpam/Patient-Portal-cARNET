@@ -122,6 +122,21 @@ function requiredObject(
   return value;
 }
 
+// Demographic fields are not authentication evidence. Normalize absent values
+// without relaxing identity, role, token, or tenant checks.
+function optionalDemographicString(
+  record: Record<string, unknown>,
+  key: string,
+  max: number,
+): string {
+  const value = record[key];
+  if (value === null || value === undefined) return "";
+  if (typeof value !== "string" || value.length > max) {
+    throw new Error("The server returned an invalid patient authentication response. Please try again.");
+  }
+  return value;
+}
+
 /**
  * NaviMED patient login is intentionally stricter than the generic token
  * validator used by FHIR adapters. A cookie or a token-only response must
@@ -138,9 +153,9 @@ export function requirePatientLoginResponse(value: unknown): PatientLoginRespons
     id: requiredBoundedString(userRecord, "id", MAX_ID_CHARS),
     tenantId: requiredBoundedString(userRecord, "tenantId", MAX_ID_CHARS),
     role: requiredBoundedString(userRecord, "role", 32) as PatientLoginUser["role"],
-    firstName: requiredBoundedString(userRecord, "firstName", MAX_NAME_CHARS),
-    lastName: requiredBoundedString(userRecord, "lastName", MAX_NAME_CHARS),
-    email: requiredBoundedString(userRecord, "email", 320),
+    firstName: optionalDemographicString(userRecord, "firstName", MAX_NAME_CHARS),
+    lastName: optionalDemographicString(userRecord, "lastName", MAX_NAME_CHARS),
+    email: optionalDemographicString(userRecord, "email", 320),
   };
   if (user.role !== "patient") {
     throw new Error("The server returned an invalid patient authentication response. Please try again.");
@@ -156,9 +171,9 @@ export function requirePatientLoginResponse(value: unknown): PatientLoginRespons
   const patient: PatientLoginPatient = {
     id: requiredBoundedString(patientRecord, "id", MAX_ID_CHARS),
     tenantId: requiredBoundedString(patientRecord, "tenantId", MAX_ID_CHARS),
-    firstName: requiredBoundedString(patientRecord, "firstName", MAX_NAME_CHARS),
-    lastName: requiredBoundedString(patientRecord, "lastName", MAX_NAME_CHARS),
-    email: requiredBoundedString(patientRecord, "email", 320),
+    firstName: optionalDemographicString(patientRecord, "firstName", MAX_NAME_CHARS),
+    lastName: optionalDemographicString(patientRecord, "lastName", MAX_NAME_CHARS),
+    email: optionalDemographicString(patientRecord, "email", 320),
   };
   if (user.tenantId !== patient.tenantId || tenant.id !== patient.tenantId) {
     throw new Error("The server returned an invalid patient authentication response. Please try again.");

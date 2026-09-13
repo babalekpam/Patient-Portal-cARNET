@@ -59,3 +59,14 @@ not evidence that the dedicated patient bearer-token contract is available.
 ID and tenant identity before accepting credentials. Coordinate incompatible
 patient-auth changes with the backend; mocked tests do not establish live
 endpoint availability or patient/tenant isolation.
+
+Treat nullable names and email in the patient-login response as optional
+demographics, not authentication evidence.
+
+**Why:** NaviMED can legitimately return missing or null demographic values.
+Rejecting those blocks otherwise valid patients; accepting missing identity
+or tenant fields would instead weaken the authentication boundary.
+
+**How to apply:** Normalize missing demographics to empty display values and
+retain type/size checks for supplied values. Keep patient/account IDs, tenant
+binding, patient role, and token validation strict.

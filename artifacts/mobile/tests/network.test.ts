@@ -278,6 +278,51 @@ test("normalizes and validates the complete patient-login contract", () => {
   );
 });
 
+test("allows null, missing, and empty demographics without weakening authentication", () => {
+  for (const value of [null, undefined, ""]) {
+    const input = patientLogin();
+    for (const key of ["user", "patient"]) {
+      const record = input[key] as Record<string, unknown>;
+      for (const field of ["firstName", "lastName", "email"]) {
+        if (value === undefined) delete record[field];
+        else record[field] = value;
+      }
+    }
+    const login = requirePatientLoginResponse(input);
+    for (const record of [login.user, login.patient]) {
+      assert.equal(record.firstName, "");
+      assert.equal(record.lastName, "");
+      assert.equal(record.email, "");
+    }
+    assert.equal(login.patient.id, "patient-a");
+    assert.doesNotThrow(() => requireMatchingPatientProfile({
+      id: "patient-a", tenantId: "tenant-a",
+    }, login));
+    assert.throws(() => requireMatchingPatientProfile({
+      id: "patient-b", tenantId: "tenant-a",
+    }, login), /does not match/i);
+  }
+});
+
+test("rejects malformed demographics and still requires identity fields", () => {
+  for (const key of ["user", "patient"]) {
+    for (const field of ["firstName", "lastName", "email"]) {
+      for (const value of [42, false, {}, [], "x".repeat(321)]) {
+        const input = patientLogin();
+        (input[key] as Record<string, unknown>)[field] = value;
+        assert.throws(() => requirePatientLoginResponse(input), /patient authentication response/i);
+      }
+    }
+    for (const field of ["id", "tenantId"]) {
+      for (const value of [null, undefined, ""]) {
+        const input = patientLogin();
+        (input[key] as Record<string, unknown>)[field] = value;
+        assert.throws(() => requirePatientLoginResponse(input), /patient authentication response/i);
+      }
+    }
+  }
+});
+
 test("requires fresh profile patient and tenant identities to match login", () => {
   const login = requirePatientLoginResponse(patientLogin());
   const fresh = {
