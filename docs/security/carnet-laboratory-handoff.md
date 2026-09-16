@@ -21,25 +21,48 @@ saves require a fresh read and comparison before confirmation.
 - Mobile, API server, and scripts typechecks passed after those fixes.
 - Relay policy/upstream checks, relay integration tests, adapter/config tests,
   and insurance/session regression checks passed.
+- The sanitized live harness synthetic regression passed with distinct account
+  and patient-record IDs, strict mobile login/profile parsers, retained
+  credential-to-fixture mapping, and exact password-byte preservation.
 - Security review approved the combined implementation, not the original
   unmodified laboratory pull request.
 
-## Not yet verified
+## Sanitized live evidence — 2026-09-16
 
-The temporary backend health check returned HTTP 502 during this handoff.
-Synthetic credentials and fixture identities were not available in this
-workspace. Consequently no genuine live login, clinical-data request, reply,
-read-state, cross-account isolation, or live token revocation was verified
-by CARNET during this work.
+- One bounded direct-target run covered each retained role independently
+  (A1, A2, and B1) against the exact temporary `/api` backend. Each role
+  completed patient login, tenant-bound profile validation, one laboratory
+  message GET followed by a second reload GET, one lab-results GET, logout,
+  and rejection of the old bearer.
+- One bounded local web-relay run covered A1, A2, and B1 independently. The
+  relay request used the source-defined `/api/navimedi` route and the exact
+  temporary upstream issuer header. Each role completed the same read-only
+  profile/laboratory/logout lifecycle; the relay performed its own protected
+  login pre-auth exchange.
+- The runs performed no laboratory read-state POST, reply POST, fixture
+  creation, fixture cleanup, or other clinical mutation. Returned
+  result/message IDs are checked for cross-role overlap in `--role all` mode
+  when IDs are present, without printing them.
 
-The read-only live harness is an initial single-patient smoke check, not proof
-of all-patient or cross-tenant authorization. Full retained-fixture checks for
-the other patients and laboratory actors remain required. Backend-reported
-HTTP proof must not be described as CARNET device evidence.
+The retained fixture envelope did not expose known expected laboratory-message
+or laboratory-result IDs through the supported expected-key paths. Therefore
+the runs do **not** claim message/result ownership, A1/B1 positive-result
+proof, A2 no-released-results proof, unread-state preservation, or
+cross-tenant resource ownership. The reload GETs were exercised, but a
+fixture-specific read-state assertion was intentionally skipped rather than
+replaced with a count assertion.
 
-No physical-device, supported native-build, or production-release verification
-has been performed. Preserve the initial unread laboratory message during the
-device baseline. Do not recreate fixtures or run cleanup until testing ends.
+The sequential all-role run did not keep B1 active while A1 was logged out;
+cross-session “B remains valid after A logout” isolation is not verified.
+Laboratory-actor login/tenant isolation, laboratory-authored read-state
+behavior, and laboratory reply authorization remain unverified. No physical
+device, supported native build, production release, or native-device
+read-state check has been performed. Backend HTTP evidence must not be
+described as CARNET device evidence. Preserve any initial unread laboratory
+message during future device baselines.
+
+No production requests, native-device requests, fixture
+recreation, or test cleanup were performed.
 
 Credentials and fixture data belong only in development Secrets:
 `CARNET_TEST_CREDENTIALS_JSON` and `CARNET_TEST_FIXTURE_JSON`.

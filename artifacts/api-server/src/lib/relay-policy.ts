@@ -1,5 +1,6 @@
 export const NAVIMEDI_ORIGIN = "https://www.navimedi.org";
 export const NAVIMEDI_API_PREFIX = "/api";
+export const NAVIMEDI_RELAY_PREFIX = "/api/navimedi";
 export const MAX_RELAY_BODY_BYTES = 64 * 1024;
 export const MAX_UPSTREAM_BYTES = 2 * 1024 * 1024;
 export const UPSTREAM_TIMEOUT_MS = 10_000;
@@ -159,7 +160,7 @@ const staticRoutes = new Map<string, RelayRoute>([
 ]);
 
 export function parseRelayPath(originalUrl: string): string | null {
-  const prefix = "/api/navimedi";
+  const prefix = NAVIMEDI_RELAY_PREFIX;
   if (!originalUrl.startsWith(prefix)) return null;
   const suffix = originalUrl.slice(prefix.length);
   if (!suffix.startsWith("/") || suffix.includes("#")) return null;
