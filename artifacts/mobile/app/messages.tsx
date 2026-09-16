@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import { router } from "expo-router";
 import {
   ActivityIndicator,
   FlatList,
@@ -23,6 +24,9 @@ import { LogoWatermark } from "@/components/LogoWatermark";
 import { Pressable } from "@/components/AccessiblePressable";
 import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 import { useI18n } from "@/lib/i18n";
+import { useEHR } from "@/context/EHRContext";
+import { useAuth } from "@/context/AuthContext";
+import { sessionGeneration } from "@/lib/session";
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return null;
@@ -31,14 +35,24 @@ function formatDate(dateStr?: string) {
   } catch { return null; }
 }
 
-function MessageCard({ item, index, colors }: { item: Message; index: number; colors: any }) {
+function MessageCard({
+  item,
+  index,
+  rowKey,
+  colors,
+}: {
+  item: Message;
+  index: number;
+  rowKey: string;
+  colors: any;
+}) {
   const date = formatDate(item.createdAt);
   const subject = item.originalContent?.subject || item.type?.replace(/_/g, " ") || "Message";
   const preview = item.originalContent?.message || "";
 
   return (
     <AnimatedCard index={index}>
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]} testID={`card-message-${index}`}>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderLight }]} testID={`card-message-${rowKey}`}>
         <View style={styles.cardHeader}>
           <View style={styles.iconWrap}>
             <Feather name="message-circle" size={18} color="#0284c7" />
@@ -68,7 +82,19 @@ function MessageCard({ item, index, colors }: { item: Message; index: number; co
   );
 }
 
-function ComposeSheet({ onSend, sending, onClose, colors }: { onSend: (s: string, m: string) => void; sending: boolean; onClose: () => void; colors: any }) {
+function ComposeSheet({
+  onSend,
+  sending,
+  error,
+  onClose,
+  colors,
+}: {
+  onSend: (s: string, m: string) => void;
+  sending: boolean;
+  error?: string;
+  onClose: () => void;
+  colors: any;
+}) {
   const a11y = useAccessibilityLabels();
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
@@ -107,6 +133,11 @@ function ComposeSheet({ onSend, sending, onClose, colors }: { onSend: (s: string
           accessibilityLabel="Message"
         />
       </View>
+      {error ? (
+        <Text accessibilityRole="alert" accessibilityLiveRegion="assertive" style={[styles.errorText, { color: colors.danger }]}>
+          {error}
+        </Text>
+      ) : null}
       <Pressable
         style={({ pressed }) => [styles.sendBtn, { backgroundColor: colors.primary }, !canSend && styles.sendBtnDisabled, pressed && { opacity: 0.85 }]}
         disabled={!canSend}
@@ -143,20 +174,53 @@ export default function MessagesScreen() {
   const { t } = useI18n();
   const a11y = useAccessibilityLabels();
   const queryClient = useQueryClient();
+  const { adapter, isLoading: ehrLoading } = useEHR();
+  const { isAuthenticated, profile } = useAuth();
   const [composing, setComposing] = useState(false);
+  const sessionKey = adapter?.sessionKey || "direct-navimedi";
+  const patientKey = profile?.patientId || profile?.id || "unknown";
+  const generation = sessionGeneration();
+  const queryKey = ["messages", sessionKey, patientKey, generation] as const;
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
-    queryKey: ["messages"],
+    queryKey,
     queryFn: () => api.getMessages(),
+    enabled: isAuthenticated && !ehrLoading,
   });
+  const messageRows = useMemo(() => {
+    const occurrences = new Map<string, number>();
+    return (data || []).map((item) => {
+      const base = item.id?.trim() ||
+        JSON.stringify([
+          item.type,
+          item.priority,
+          item.createdAt,
+          item.sender,
+          item.originalContent?.subject,
+          item.originalContent?.message,
+        ]);
+      const occurrence = (occurrences.get(base) || 0) + 1;
+      occurrences.set(base, occurrence);
+      return { item, key: `${base}:${occurrence}` };
+    });
+  }, [data]);
+  const invalidateCurrentQuery = async () => {
+    if (sessionGeneration() === generation) {
+      await queryClient.invalidateQueries({ queryKey });
+    }
+  };
   const sendMutation = useMutation({
     mutationFn: ({ subject, message }: { subject: string; message: string }) => api.sendMessage(subject, message),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["messages"] }); setComposing(false); },
+    onSuccess: async () => {
+      if (sessionGeneration() !== generation) return;
+      await invalidateCurrentQuery();
+      setComposing(false);
+    },
   });
 
   const composeBtn = (
     <Pressable
       style={({ pressed }) => [styles.composeBtn, pressed && { opacity: 0.7 }]}
-      onPress={() => { impactLight(); setComposing(true); }}
+      onPress={() => { impactLight(); sendMutation.reset(); setComposing(true); }}
       accessibilityRole="button"
       accessibilityLabel="Compose message"
     >
@@ -164,11 +228,34 @@ export default function MessagesScreen() {
     </Pressable>
   );
 
+  const laboratoryMessagesBtn = !ehrLoading && (!adapter || adapter.providerId === "navimedi") ? (
+    <Pressable
+      style={({ pressed }) => [styles.composeBtn, pressed && { opacity: 0.7 }]}
+      onPress={() => { impactLight(); router.push("/lab-messages"); }}
+      accessibilityRole="button"
+      accessibilityLabel="Laboratory messages"
+    >
+      <Feather name="activity" size={18} color={colors.whiteText} />
+    </Pressable>
+  ) : null;
+  const headerActions = (
+    <View style={styles.headerActions}>
+      {laboratoryMessagesBtn}
+      {composeBtn}
+    </View>
+  );
+
   if (composing) {
     return (
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScreenHeader title="Compose" showBack={false} />
-        <ComposeSheet onSend={(s, m) => sendMutation.mutate({ subject: s, message: m })} sending={sendMutation.isPending} onClose={() => setComposing(false)} colors={colors} />
+        <ComposeSheet
+          onSend={(s, m) => sendMutation.mutate({ subject: s, message: m })}
+          sending={sendMutation.isPending}
+          error={sendMutation.error instanceof Error ? sendMutation.error.message : undefined}
+          onClose={() => { sendMutation.reset(); setComposing(false); }}
+          colors={colors}
+        />
       </KeyboardAvoidingView>
     );
   }
@@ -182,7 +269,7 @@ export default function MessagesScreen() {
         aria-busy
         aria-live="polite"
       >
-        <ScreenHeader title="Messages" rightElement={composeBtn} />
+        <ScreenHeader title="Messages" rightElement={headerActions} />
         <ListSkeleton />
       </View>
     );
@@ -191,7 +278,7 @@ export default function MessagesScreen() {
   if (error) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ScreenHeader title="Messages" rightElement={composeBtn} />
+        <ScreenHeader title="Messages" rightElement={headerActions} />
         <View style={styles.centered}>
           <Feather name="wifi-off" size={36} color={colors.textTertiary} />
           <Text style={[styles.errorTitle, { color: colors.text }]}>{t("unableToLoad")}</Text>
@@ -209,11 +296,13 @@ export default function MessagesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LogoWatermark />
-      <ScreenHeader title="Messages" subtitle={data && data.length > 0 ? `${data.length} message${data.length !== 1 ? "s" : ""}` : undefined} rightElement={composeBtn} />
+      <ScreenHeader title="Messages" subtitle={messageRows.length > 0 ? `${messageRows.length} message${messageRows.length !== 1 ? "s" : ""}` : undefined} rightElement={headerActions} />
       <FlatList
-        data={data || []}
-        keyExtractor={(_, i) => i.toString()}
-        renderItem={({ item, index }) => <MessageCard item={item} index={index} colors={colors} />}
+        data={messageRows}
+        keyExtractor={(row) => row.key}
+        renderItem={({ item: row, index }) => (
+          <MessageCard item={row.item} rowKey={row.key} index={index} colors={colors} />
+        )}
         contentContainerStyle={[styles.listContent, { paddingBottom: 40 }]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={<EmptyState colors={colors} />}
@@ -239,6 +328,7 @@ const styles = StyleSheet.create({
   senderRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   senderText: { fontSize: 12, fontFamily: "Inter_400Regular" },
   composeBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   composeContainer: { flex: 1, padding: 16, gap: 16 },
   composeHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   composeTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },

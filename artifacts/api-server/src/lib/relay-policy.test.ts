@@ -20,10 +20,14 @@ test("allows every mobile API operation with only its supported method", () => {
     ["POST", "/patient/appointment-requests"],
     ["GET", "/patient/prescriptions"],
     ["GET", "/patient/lab-results"],
+    ["GET", "/patient/laboratory-messages"],
+    ["POST", "/patient/laboratory-messages/550e8400-e29b-41d4-a716-446655440000/reply"],
+    ["POST", "/patient/laboratory-messages/550e8400-e29b-41d4-a716-446655440000/read"],
     ["GET", "/medical-communications"],
     ["POST", "/medical-communications"],
     ["GET", "/patient/visit-summaries"],
     ["GET", "/patient/bills"],
+    ["GET", "/patient/insurance-history"],
     ["GET", "/patient/telehealth/appointments"],
     ["GET", "/patient/telehealth/sessions/appt_123"],
     ["POST", "/patient/telehealth/sessions/appt_123"],
@@ -48,6 +52,17 @@ test("rejects query strings, traversal, encoded separators, and malformed paths"
   assert.equal(
     parseRelayPath("/api/navimedi/patient/profile"),
     "/patient/profile",
+  );
+  assert.equal(
+    parseRelayPath("/api/navimedi/patient/insurance-history?limit=20&offset=0&filingType=medication"),
+    "/patient/insurance-history?limit=20&offset=0&filingType=medication",
+  );
+  assert.equal(parseRelayPath("/api/navimedi/patient/profile?limit=20"), null);
+  assert.equal(parseRelayPath("/api/navimedi/patient/insurance-history?limit=101"), null);
+  assert.equal(parseRelayPath("/api/navimedi/patient/insurance-history?patientId=other"), null);
+  assert.equal(
+    matchRelayRoute("GET", "/patient/insurance-history?limit=20&offset=0")?.protected,
+    true,
   );
 });
 
@@ -124,6 +139,29 @@ test("validates actual supported mobile payload fields and rejects extras", () =
     priority: "normal",
     originalContent: { subject: "Question", message: "Text", html: "<script>" },
   }), false);
+
+  const laboratoryReply = matchRelayRoute(
+    "POST",
+    "/patient/laboratory-messages/550e8400-e29b-41d4-a716-446655440000/reply",
+  )!;
+  assert.equal(laboratoryReply.protected, true);
+  assert.equal(laboratoryReply.validateBody({ content: "Please clarify this result." }), true);
+  assert.equal(laboratoryReply.validateBody({ content: "" }), false);
+  assert.equal(laboratoryReply.validateBody({ content: "   " }), false);
+  assert.equal(laboratoryReply.validateBody({ content: "reply", patientId: "patient-b" }), false);
+  assert.equal(laboratoryReply.validateBody({ content: "reply", labOrderId: "order-b" }), false);
+
+  const laboratoryRead = matchRelayRoute(
+    "POST",
+    "/patient/laboratory-messages/550e8400-e29b-41d4-a716-446655440000/read",
+  )!;
+  assert.equal(laboratoryRead.protected, true);
+  assert.equal(laboratoryRead.validateBody(undefined), true);
+  assert.equal(laboratoryRead.validateBody({}), false);
+  assert.equal(
+    matchRelayRoute("POST", "/patient/laboratory-messages/not-a-uuid/read"),
+    null,
+  );
 });
 
 test("requires a syntactically bounded bearer credential", () => {

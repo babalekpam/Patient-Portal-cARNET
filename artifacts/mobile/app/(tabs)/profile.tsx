@@ -22,7 +22,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { Avatar } from "@/components/Avatar";
 import { ProfileSkeleton } from "@/components/SkeletonLoader";
 import { AnimatedCard } from "@/components/AnimatedCard";
-import { api, type ProfileUpdateData } from "@/lib/api";
+import { api, type Profile, type ProfileUpdateData } from "@/lib/api";
 import {
   isBiometricAvailable,
   isBiometricEnabled,
@@ -38,6 +38,33 @@ import { Pressable } from "@/components/AccessiblePressable";
 import { useAccessibilityLabels } from "@/lib/accessibilityLabels";
 
 const READ_ONLY_FIELDS = ["mrn", "bloodType", "allergies", "insurancePolicyNumber"];
+const EDITABLE_PROFILE_FIELDS: Array<keyof ProfileUpdateData> = [
+  "firstName",
+  "lastName",
+  "phone",
+  "email",
+  "address",
+  "gender",
+  "dateOfBirth",
+  "emergencyContact",
+  "emergencyPhone",
+];
+
+function profileUpdateMismatch(
+  submitted: ProfileUpdateData,
+  refreshed: Profile,
+): string | null {
+  for (const field of EDITABLE_PROFILE_FIELDS) {
+    const submittedValue = submitted[field];
+    if (
+      submittedValue !== undefined &&
+      (refreshed[field] ?? "") !== submittedValue
+    ) {
+      return field;
+    }
+  }
+  return null;
+}
 
 function InfoRow({ icon, label, value, colors }: { icon: React.ComponentProps<typeof Feather>["name"]; label: string; value?: string; colors: any }) {
   if (!value) return null;
@@ -269,8 +296,14 @@ export default function ProfileScreen() {
     setSaving(true);
     try {
       await api.updateProfile(editData);
+      const refreshed = await refreshProfile();
+      const mismatch = refreshed ? profileUpdateMismatch(editData, refreshed) : "profile";
+      if (mismatch) {
+        throw new Error(
+          `The server did not confirm the updated ${mismatch}. Review the profile and try again.`,
+        );
+      }
       notificationSuccess();
-      await refreshProfile();
       setEditing(false);
     } catch (err: any) {
       notificationError();

@@ -9,12 +9,14 @@ import {
   matchRelayRoute,
   MAX_RELAY_BODY_BYTES,
   MAX_UPSTREAM_BYTES,
-  NAVIMEDI_API_PREFIX,
-  NAVIMEDI_ORIGIN,
   parseRelayPath,
   UPSTREAM_TIMEOUT_MS,
 } from "./lib/relay-policy";
 import { isAllowedOrigin, relayLimits, securityHeaders } from "./middlewares/security";
+import {
+  getRelayUpstreamBaseUrl,
+  RELAY_EXPECTED_ISSUER_HEADER,
+} from "./lib/relay-upstream";
 
 const app: Express = express();
 app.disable("x-powered-by");
@@ -151,7 +153,12 @@ app.use(cors((req, callback) => {
   callback(null, {
     origin: allowed,
     methods: ["GET", "POST", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Authorization", "Content-Type", "X-CSRF-Token"],
+    allowedHeaders: [
+      "Authorization",
+      "Content-Type",
+      "X-CSRF-Token",
+      RELAY_EXPECTED_ISSUER_HEADER,
+    ],
     exposedHeaders: ["X-Correlation-ID", "X-RateLimit-Scope", "Retry-After"],
     credentials: false,
     maxAge: 600,
@@ -186,6 +193,39 @@ const jsonBody = express.raw({
   limit: MAX_RELAY_BODY_BYTES,
 });
 
+app.use("/api/navimedi", (req, res, next) => {
+  if (req.method === "OPTIONS") {
+    next();
+    return;
+  }
+  const path = parseRelayPath(req.originalUrl);
+  const route = path ? matchRelayRoute(req.method, path) : null;
+  if (!route) {
+    next();
+    return;
+  }
+  try {
+    // Resolve once for the complete request, including pre-auth/login. The
+    // operation handler reuses this value so a live switch cannot cross the
+    // anonymous CSRF seed and the credential request.
+    res.locals.relayUpstream = getRelayUpstreamBaseUrl();
+  } catch {
+    res.status(503).json({ message: "The healthcare service is temporarily unavailable." });
+    return;
+  }
+  const expectedIssuer = req.headers[RELAY_EXPECTED_ISSUER_HEADER.toLowerCase()];
+  if (
+    typeof expectedIssuer !== "string" ||
+    expectedIssuer !== res.locals.relayUpstream
+  ) {
+    res.status(409).json({
+      message: "The healthcare service session identity changed. Please sign in again.",
+    });
+    return;
+  }
+  next();
+});
+
 app.use("/api/navimedi", relayLimits, (req, res, next) => {
   if (req.method === "OPTIONS") {
     const path = parseRelayPath(req.originalUrl);
@@ -217,6 +257,8 @@ app.use("/api/navimedi", relayLimits, (req, res, next) => {
     res.status(404).json({ message: "This API operation is not available." });
     return;
   }
+
+  const relayUpstream = res.locals.relayUpstream as string;
 
   const authorization = req.headers.authorization;
   // This is presence/shape enforcement only. Navimedi remains responsible for
@@ -261,7 +303,7 @@ app.use("/api/navimedi", relayLimits, (req, res, next) => {
     const requiresPreauthCsrf = route.category === "patient_login";
     if (requiresPreauthCsrf) {
       const csrfResponse = await fetch(
-        `${NAVIMEDI_ORIGIN}${NAVIMEDI_API_PREFIX}${PREAUTH_CSRF_PATH}`,
+        `${relayUpstream}${PREAUTH_CSRF_PATH}`,
         {
           method: "GET",
           headers: new Headers({
@@ -308,7 +350,7 @@ app.use("/api/navimedi", relayLimits, (req, res, next) => {
       headers.set("Cookie", preauthCsrfCookie);
     }
 
-    const upstream = await fetch(`${NAVIMEDI_ORIGIN}${NAVIMEDI_API_PREFIX}${path}`, {
+    const upstream = await fetch(`${relayUpstream}${path}`, {
       method: req.method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),

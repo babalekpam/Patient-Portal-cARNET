@@ -4,6 +4,27 @@ import test from "node:test";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { MAX_UPSTREAM_BYTES } from "./lib/relay-policy";
+import {
+  NAVIMEDI_RELAY_UPSTREAM,
+  RELAY_EXPECTED_ISSUER_HEADER,
+  TEMPORARY_HANDOFF_RELAY_UPSTREAM,
+} from "./lib/relay-upstream";
+
+const relayIdentityHeader = {
+  [RELAY_EXPECTED_ISSUER_HEADER]: NAVIMEDI_RELAY_UPSTREAM,
+};
+const mutableEnv = process.env as Record<string, string | undefined>;
+const originalNodeEnv = mutableEnv.NODE_ENV;
+const originalRelayOverride = mutableEnv.CARNET_NAVIMEDI_RELAY_UPSTREAM_URL;
+mutableEnv.NODE_ENV = "production";
+delete mutableEnv.CARNET_NAVIMEDI_RELAY_UPSTREAM_URL;
+
+test.after(() => {
+  if (originalNodeEnv === undefined) delete mutableEnv.NODE_ENV;
+  else mutableEnv.NODE_ENV = originalNodeEnv;
+  if (originalRelayOverride === undefined) delete mutableEnv.CARNET_NAVIMEDI_RELAY_UPSTREAM_URL;
+  else mutableEnv.CARNET_NAVIMEDI_RELAY_UPSTREAM_URL = originalRelayOverride;
+});
 
 type FetchCall = { input: string; init?: RequestInit };
 
@@ -79,7 +100,9 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
       let response = await fetch(`${baseUrl}/api/download-mobile`);
       assert.equal(response.status, 404);
 
-      response = await fetch(`${baseUrl}/api/navimedi/patient/profile`);
+      response = await fetch(`${baseUrl}/api/navimedi/patient/profile`, {
+        headers: relayIdentityHeader,
+      });
       assert.equal(response.status, 401);
 
       response = await fetch(`${baseUrl}/api/navimedi/patient/profile`, {
@@ -87,6 +110,7 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
         headers: {
           Authorization: `Bearer ${"a".repeat(24)}`,
           "Content-Type": "application/json",
+          ...relayIdentityHeader,
         },
         body: JSON.stringify({ phone: "555-0100" }),
       });
@@ -94,7 +118,7 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
 
       response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
         method: "POST",
-        headers: { "Content-Type": "text/plain" },
+        headers: { "Content-Type": "text/plain", ...relayIdentityHeader },
         body: "not-json",
       });
       assert.equal(response.status, 415);
@@ -111,7 +135,7 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
 
       response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...relayIdentityHeader },
         body: "{broken",
       });
       assert.equal(response.status, 400);
@@ -119,9 +143,23 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
       response = await fetch(`${baseUrl}/api/navimedi/capabilities`);
       assert.equal(response.status, 404);
 
+      response = await fetch(`${baseUrl}/api/navimedi/patient/profile`, {
+        method: "OPTIONS",
+        headers: {
+          Origin: `https://${new URL(baseUrl).host}`,
+          "Access-Control-Request-Method": "GET",
+          "Access-Control-Request-Headers": "x-carnet-expected-issuer",
+        },
+      });
+      assert.equal(response.status, 204);
+      assert.match(
+        response.headers.get("access-control-allow-headers") || "",
+        /X-CARNET-Expected-Issuer/i,
+      );
+
       response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...relayIdentityHeader },
         body: JSON.stringify({
           email: "patient@example.com",
           password: "password-value",
@@ -132,10 +170,22 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
 
       response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: "patient@example.com",
+          password: "password-value",
+        }),
+      });
+      assert.equal(response.status, 409);
+      assert.equal(calls.length, 0);
+
+      response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Cookie: "navimed_csrf_seed=client-controlled",
           "X-CSRF-Token": "client-controlled-token",
+          ...relayIdentityHeader,
         },
         body: JSON.stringify({
           email: "patient@example.com",
@@ -148,7 +198,10 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
       assert.equal((await response.json() as { token: string }).token, "upstream-token");
 
       response = await fetch(`${baseUrl}/api/navimedi/patient/profile`, {
-        headers: { Authorization: `Bearer ${"b".repeat(24)}` },
+        headers: {
+          Authorization: `Bearer ${"b".repeat(24)}`,
+          ...relayIdentityHeader,
+        },
       });
       assert.equal(response.status, 200);
       assert.equal((await response.json() as { firstName: string }).firstName, "A");
@@ -186,6 +239,65 @@ test("relay HTTP enforcement and forwarding", { concurrency: false }, async () =
   }
 });
 
+test("rejects a stale relay issuer before login pre-auth and follows an explicit server switch", { concurrency: false }, async () => {
+  const originalFetch = globalThis.fetch;
+  const mutableEnv = process.env as Record<string, string | undefined>;
+  const originalNodeEnv = mutableEnv.NODE_ENV;
+  const originalRelayOverride = mutableEnv.CARNET_NAVIMEDI_RELAY_UPSTREAM_URL;
+  const calls: FetchCall[] = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.startsWith("http://127.0.0.1:")) return originalFetch(input, init);
+    calls.push({ input: url, init });
+    if (url.endsWith("/csrf-token")) {
+      return jsonResponse(
+        { csrfToken: "preauth-csrf-token" },
+        200,
+        { "Set-Cookie": "navimed_csrf_seed=preauth-seed; Path=/; HttpOnly" },
+      );
+    }
+    return jsonResponse({ token: "upstream-token", user: {}, tenant: {} });
+  }) as typeof fetch;
+
+  try {
+    mutableEnv.NODE_ENV = "development";
+    mutableEnv.CARNET_NAVIMEDI_RELAY_UPSTREAM_URL = TEMPORARY_HANDOFF_RELAY_UPSTREAM;
+    await withServer(async (baseUrl) => {
+      const login = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [RELAY_EXPECTED_ISSUER_HEADER]: NAVIMEDI_RELAY_UPSTREAM,
+        },
+        body: JSON.stringify({
+          email: "patient@example.com",
+          password: "password-value",
+        }),
+      };
+      let response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, login);
+      assert.equal(response.status, 409);
+      assert.equal(calls.length, 0);
+
+      response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
+        ...login,
+        headers: {
+          ...login.headers,
+          [RELAY_EXPECTED_ISSUER_HEADER]: TEMPORARY_HANDOFF_RELAY_UPSTREAM,
+        },
+      });
+      assert.equal(response.status, 200);
+      assert.equal(calls.length, 2);
+      assert.ok(calls.every(({ input }) => input.startsWith(TEMPORARY_HANDOFF_RELAY_UPSTREAM)));
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalNodeEnv === undefined) delete mutableEnv.NODE_ENV;
+    else mutableEnv.NODE_ENV = originalNodeEnv;
+    if (originalRelayOverride === undefined) delete mutableEnv.CARNET_NAVIMEDI_RELAY_UPSTREAM_URL;
+    else mutableEnv.CARNET_NAVIMEDI_RELAY_UPSTREAM_URL = originalRelayOverride;
+  }
+});
+
 test("login does not fall back to a client cookie when the pre-auth cookie is absent", { concurrency: false }, async () => {
   const originalFetch = globalThis.fetch;
   const calls: FetchCall[] = [];
@@ -205,6 +317,7 @@ test("login does not fall back to a client cookie when the pre-auth cookie is ab
         headers: {
           "Content-Type": "application/json",
           Cookie: "navimed_csrf_seed=client-controlled",
+          ...relayIdentityHeader,
         },
         body: JSON.stringify({
           email: "patient@example.com",
@@ -240,12 +353,16 @@ test("patient logout requires bearer and session CSRF and isolates cookies", { c
     await withServer(async (baseUrl) => {
       let response = await fetch(`${baseUrl}/api/navimedi/auth/patient-logout`, {
         method: "POST",
+        headers: relayIdentityHeader,
       });
       assert.equal(response.status, 401);
 
       response = await fetch(`${baseUrl}/api/navimedi/auth/patient-logout`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${"a".repeat(24)}` },
+        headers: {
+          Authorization: `Bearer ${"a".repeat(24)}`,
+          ...relayIdentityHeader,
+        },
       });
       assert.equal(response.status, 403);
 
@@ -255,6 +372,7 @@ test("patient logout requires bearer and session CSRF and isolates cookies", { c
           Authorization: `Bearer ${"a".repeat(24)}`,
           "X-CSRF-Token": "session-bound-csrf-token",
           Cookie: "navimed_session=client-controlled",
+          ...relayIdentityHeader,
         },
       });
       assert.equal(response.status, 200);
@@ -308,7 +426,7 @@ test("concurrent logins keep each upstream CSRF token paired with its cookie", {
     await withServer(async (baseUrl) => {
       const makeLogin = (email: string) => fetch(`${baseUrl}/api/navimedi/auth/patient-login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...relayIdentityHeader },
         body: JSON.stringify({ email, password: "password-value" }),
       });
       const responses = await Promise.all([
@@ -355,7 +473,7 @@ test("relay rejects redirects and oversized upstream responses", { concurrency: 
     await withServer(async (baseUrl) => {
       const login = {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...relayIdentityHeader },
         body: JSON.stringify({ email: "patient@example.com", password: "password-value" }),
       };
       let response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, login);
@@ -364,6 +482,59 @@ test("relay rejects redirects and oversized upstream responses", { concurrency: 
       response = await fetch(`${baseUrl}/api/navimedi/auth/patient-login`, login);
       assert.equal(response.status, 502);
     });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("insurance-history relay is patient-bearer-only and forwards bounded category pagination", { concurrency: false }, async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: FetchCall[] = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    if (url.startsWith("http://127.0.0.1:")) return originalFetch(input, init);
+    calls.push({ input: url, init });
+    return jsonResponse({
+      items: [],
+      pagination: { limit: 20, offset: 0, hasMore: false, nextOffset: null },
+    });
+  }) as typeof fetch;
+
+  try {
+    await withServer(async (baseUrl) => {
+      let response = await fetch(
+        `${baseUrl}/api/navimedi/patient/insurance-history?limit=20&offset=0&filingType=medication`,
+        { headers: relayIdentityHeader },
+      );
+      assert.equal(response.status, 401);
+
+      response = await fetch(
+        `${baseUrl}/api/navimedi/patient/insurance-history?limit=20&offset=0&filingType=medication`,
+        {
+          headers: {
+            Authorization: `Bearer ${"p".repeat(24)}`,
+            ...relayIdentityHeader,
+          },
+        },
+      );
+      assert.equal(response.status, 200);
+
+      response = await fetch(
+        `${baseUrl}/api/navimedi/staff/insurance-history`,
+        { headers: { Authorization: `Bearer ${"p".repeat(24)}` } },
+      );
+      assert.equal(response.status, 404);
+    });
+
+    assert.equal(calls.length, 1);
+    assert.equal(
+      calls[0].input,
+      "https://www.navimedi.org/api/patient/insurance-history?limit=20&offset=0&filingType=medication",
+    );
+    assert.equal(
+      new Headers(calls[0].init?.headers).get("authorization"),
+      `Bearer ${"p".repeat(24)}`,
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }

@@ -4,6 +4,7 @@ import type {
   AppointmentRequest,
   Bill,
   LabResult,
+  LaboratoryMessage,
   LoginCredentials,
   LoginResponse,
   Message,
@@ -14,6 +15,10 @@ import type {
   TelehealthSession,
   VisitSummary,
 } from "@/lib/api";
+import type {
+  InsuranceHistoryPage,
+  InsuranceHistoryRequest,
+} from "@/lib/insuranceHistory";
 
 export interface EHRAdapter {
   readonly providerId: string;
@@ -32,9 +37,13 @@ export interface EHRAdapter {
   getPrescriptions(): Promise<Prescription[]>;
   getLabResults(): Promise<LabResult[]>;
   getMessages(): Promise<Message[]>;
+  getLaboratoryMessages?(): Promise<LaboratoryMessage[]>;
+  replyToLaboratoryMessage?(id: string, content: string): Promise<LaboratoryMessage>;
+  markLaboratoryMessageRead?(id: string): Promise<LaboratoryMessage>;
   sendMessage(subject: string, message: string, recipientId?: string): Promise<any>;
   getVisitSummaries(): Promise<VisitSummary[]>;
   getBills(): Promise<Bill[]>;
+  getInsuranceHistory?(request?: InsuranceHistoryRequest): Promise<InsuranceHistoryPage>;
 
   getTelehealthAppointments(): Promise<TelehealthAppointment[]>;
   createTelehealthSession(appointmentId: string): Promise<TelehealthSession>;

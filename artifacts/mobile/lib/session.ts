@@ -121,6 +121,17 @@ export async function clearSessionMetadata(): Promise<void> {
   await deleteSecureItem(SESSION_KEY);
 }
 
+/**
+ * Ends the in-memory session synchronously without touching secure storage.
+ * Logout uses this before remote revocation so late requests become stale
+ * immediately, while a replacement session can safely write its own metadata
+ * before the old session's best-effort cleanup runs.
+ */
+export function invalidateSessionBoundary(): void {
+  current = null;
+  generation += 1;
+}
+
 export function sessionGeneration(): number {
   return generation;
 }

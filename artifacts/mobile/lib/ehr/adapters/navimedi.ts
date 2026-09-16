@@ -6,6 +6,7 @@ import type {
   AppointmentRequest,
   Bill,
   LabResult,
+  LaboratoryMessage,
   LoginCredentials,
   LoginResponse,
   Message,
@@ -16,6 +17,13 @@ import type {
   TelehealthSession,
   VisitSummary,
 } from "@/lib/api";
+import {
+  insuranceHistoryQuery,
+  normalizeInsuranceHistoryRequest,
+  requireInsuranceHistoryPage,
+  type InsuranceHistoryPage,
+  type InsuranceHistoryRequest,
+} from "@/lib/insuranceHistory";
 import {
   assertSession,
   notifySessionEnd,
@@ -35,10 +43,34 @@ import {
   requireMatchingPatientProfile,
   requirePatientLoginResponse,
 } from "../network";
+import {
+  getNavimediWebRelayUpstreamBaseUrl,
+  NAVIMEDI_EXPECTED_ISSUER_HEADER,
+  resolveNavimediNativeBaseUrl,
+  resolveNavimediSessionBaseUrl,
+} from "../navimediConfig";
 
 function normalizedOptionalField(value: string | undefined): string | undefined {
   const normalized = value?.trim();
   return normalized || undefined;
+}
+
+const LABORATORY_MESSAGE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function requireLaboratoryMessageId(value: string): string {
+  if (!LABORATORY_MESSAGE_ID_PATTERN.test(value)) {
+    throw new Error("A valid laboratory message ID is required.");
+  }
+  return value;
+}
+
+function requireLaboratoryMessageContent(value: string): string {
+  const content = value.trim();
+  if (!content || content.length > 10_000) {
+    throw new Error("Laboratory message content must be between 1 and 10,000 characters.");
+  }
+  return content;
 }
 
 export class NavimediAdapter implements EHRAdapter {
@@ -54,7 +86,7 @@ export class NavimediAdapter implements EHRAdapter {
     this.providerId = providerId;
     this.baseUrl = baseUrl;
     this.fetchImpl = fetchImpl;
-    const issuer = new URL(baseUrl);
+    const issuer = new URL(resolveNavimediSessionBaseUrl(baseUrl));
     issuer.username = "";
     issuer.password = "";
     issuer.search = "";
@@ -70,7 +102,13 @@ export class NavimediAdapter implements EHRAdapter {
         return `https://${devDomain}/api/navimedi`;
       }
     }
-    return this.baseUrl;
+    return resolveNavimediNativeBaseUrl(this.baseUrl);
+  }
+
+  private relayIssuerHeaders(): Record<string, string> {
+    return Platform.OS === "web"
+      ? { [NAVIMEDI_EXPECTED_ISSUER_HEADER]: getNavimediWebRelayUpstreamBaseUrl() }
+      : {};
   }
 
   private nativeCookieCredentials(): RequestCredentials | undefined {
@@ -101,7 +139,10 @@ export class NavimediAdapter implements EHRAdapter {
 
   private getHeaders(): HeadersInit {
     assertSession(this.sessionKey);
-    const headers: HeadersInit = { "Content-Type": "application/json" };
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+      ...this.relayIssuerHeaders(),
+    };
     if (this.token) {
       headers["Authorization"] = `Bearer ${this.token}`;
     }
@@ -160,7 +201,7 @@ export class NavimediAdapter implements EHRAdapter {
         `${this.getUrl()}/csrf-token`,
         {
           method: "GET",
-          headers: { Accept: "application/json" },
+          headers: { Accept: "application/json", ...this.relayIssuerHeaders() },
           credentials: "include",
         },
         {
@@ -263,6 +304,14 @@ export class NavimediAdapter implements EHRAdapter {
               : "Session expired. Please log in again.")
         );
       }
+      if (response.status === 409 && isProtected) {
+        this.token = null;
+        this.csrfToken = null;
+        notifySessionEnd("provider_changed");
+        throw new Error(
+          serverMessage || "The healthcare service session changed. Please sign in again.",
+        );
+      }
       if (response.status === 404) {
         throw new Error(serverMessage || "This feature is not yet available.");
       }
@@ -304,7 +353,10 @@ export class NavimediAdapter implements EHRAdapter {
     const endpoint = "/auth/patient-login";
 
     const sendLogin = async (): Promise<BoundedResponse> => {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...this.relayIssuerHeaders(),
+      };
       if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
       let response: BoundedResponse;
       try {
@@ -364,7 +416,10 @@ export class NavimediAdapter implements EHRAdapter {
   async verifyLoginProfile(response: LoginResponse): Promise<Profile> {
     const login = requirePatientLoginResponse(response);
     const profileResponse = await requestJson(`${this.getUrl()}/patient/profile`, {
-      headers: { Authorization: `Bearer ${login.token}` },
+      headers: {
+        Authorization: `Bearer ${login.token}`,
+        ...this.relayIssuerHeaders(),
+      },
     }, {
       fetchImpl: this.fetchImpl,
       maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES,
@@ -394,7 +449,11 @@ export class NavimediAdapter implements EHRAdapter {
   async revokeToken(token: string): Promise<void> {
     const requestCsrf = async (): Promise<string> => {
       const response = await requestJson(`${this.getUrl()}/csrf-token`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          ...this.relayIssuerHeaders(),
+        },
         credentials: this.nativeCookieCredentials(),
       }, {
         fetchImpl: this.fetchImpl,
@@ -412,6 +471,7 @@ export class NavimediAdapter implements EHRAdapter {
       headers: {
         Authorization: `Bearer ${token}`,
         "X-CSRF-Token": csrf,
+        ...this.relayIssuerHeaders(),
       },
       credentials: this.nativeCookieCredentials(),
     }, {
@@ -436,7 +496,7 @@ export class NavimediAdapter implements EHRAdapter {
   async forgotPassword(email: string): Promise<any> {
     const response = await requestJson(`${this.getUrl()}/auth/forgot-password`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...this.relayIssuerHeaders() },
       body: JSON.stringify({ email }),
     }, { fetchImpl: this.fetchImpl });
     return this.handleResponse<any>(response, false, false);
@@ -496,6 +556,33 @@ export class NavimediAdapter implements EHRAdapter {
     return this.handleResponse<Message[]>(response);
   }
 
+  async getLaboratoryMessages(): Promise<LaboratoryMessage[]> {
+    const response = await this.protectedFetch(`${this.getUrl()}/patient/laboratory-messages`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<LaboratoryMessage[]>(response);
+  }
+
+  async replyToLaboratoryMessage(
+    id: string,
+    content: string,
+  ): Promise<LaboratoryMessage> {
+    const messageId = requireLaboratoryMessageId(id);
+    return this.mutate<LaboratoryMessage>(
+      "POST",
+      `${this.getUrl()}/patient/laboratory-messages/${encodeURIComponent(messageId)}/reply`,
+      { content: requireLaboratoryMessageContent(content) },
+    );
+  }
+
+  async markLaboratoryMessageRead(id: string): Promise<LaboratoryMessage> {
+    const messageId = requireLaboratoryMessageId(id);
+    return this.mutate<LaboratoryMessage>(
+      "POST",
+      `${this.getUrl()}/patient/laboratory-messages/${encodeURIComponent(messageId)}/read`,
+    );
+  }
+
   async sendMessage(subject: string, message: string, recipientId?: string): Promise<any> {
     return this.mutate("POST", `${this.getUrl()}/medical-communications`, {
       type: "general_message",
@@ -517,6 +604,18 @@ export class NavimediAdapter implements EHRAdapter {
       headers: this.getHeaders(),
     });
     return this.handleResponse<Bill[]>(response);
+  }
+
+  async getInsuranceHistory(
+    request: InsuranceHistoryRequest = {},
+  ): Promise<InsuranceHistoryPage> {
+    const normalized = normalizeInsuranceHistoryRequest(request);
+    const response = await this.protectedFetch(
+      `${this.getUrl()}/patient/insurance-history?${insuranceHistoryQuery(normalized)}`,
+      { headers: this.getHeaders() },
+    );
+    const body = await this.handleResponse<unknown>(response);
+    return requireInsuranceHistoryPage(body);
   }
 
   async getTelehealthAppointments(): Promise<TelehealthAppointment[]> {
