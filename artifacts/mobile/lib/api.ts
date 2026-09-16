@@ -62,6 +62,22 @@ function normalizedOptionalField(value: string | undefined): string | undefined 
   const normalized = value?.trim();
   return normalized || undefined;
 }
+const LABORATORY_MESSAGE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function requireLaboratoryMessageId(value: string): string {
+  if (!LABORATORY_MESSAGE_ID_PATTERN.test(value)) {
+    throw new Error("A valid laboratory message ID is required.");
+  }
+  return value;
+}
+
+function requireLaboratoryMessageContent(value: string): string {
+  const content = value.trim();
+  if (!content || content.length > 10_000) {
+    throw new Error("Laboratory message content must be between 1 and 10,000 characters.");
+  }
+  return content;
+}
 
 const TOKEN_KEY = "carnet_auth_token";
 
@@ -151,6 +167,23 @@ export interface Message {
   createdAt?: string;
   status?: string;
   sender?: string;
+}
+export interface LaboratoryMessage {
+  id?: string;
+  patientTenantId?: string;
+  laboratoryTenantId?: string;
+  patientId?: string;
+  labOrderId?: string;
+  senderId?: string;
+  recipientId?: string | null;
+  direction?: string;
+  subject?: string;
+  content?: string;
+  priority?: string;
+  readByPatientAt?: string | null;
+  readByLaboratoryAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface VisitSummary {
@@ -697,6 +730,37 @@ class ApiClient {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<Message[]>(response);
+  }
+
+  async getLaboratoryMessages(): Promise<LaboratoryMessage[]> {
+    if (this._adapter?.getLaboratoryMessages) return this._adapter.getLaboratoryMessages();
+    if (this._adapter) throw new Error("Laboratory handoff messages are only available for NaviMED sessions.");
+    const response = await this.protectedFetch(`${getBaseUrl()}/patient/laboratory-messages`, {
+      headers: await this.getHeaders(),
+    });
+    return this.handleResponse<LaboratoryMessage[]>(response);
+  }
+
+  async replyToLaboratoryMessage(id: string, content: string): Promise<LaboratoryMessage> {
+    if (this._adapter?.replyToLaboratoryMessage) return this._adapter.replyToLaboratoryMessage(id, content);
+    if (this._adapter) throw new Error("Laboratory handoff messages are only available for NaviMED sessions.");
+    const messageId = requireLaboratoryMessageId(id);
+    const body = { content: requireLaboratoryMessageContent(content) };
+    return this.mutate<LaboratoryMessage>(
+      "POST",
+      `${getBaseUrl()}/patient/laboratory-messages/${encodeURIComponent(messageId)}/reply`,
+      body,
+    );
+  }
+
+  async markLaboratoryMessageRead(id: string): Promise<LaboratoryMessage> {
+    if (this._adapter?.markLaboratoryMessageRead) return this._adapter.markLaboratoryMessageRead(id);
+    if (this._adapter) throw new Error("Laboratory handoff messages are only available for NaviMED sessions.");
+    const messageId = requireLaboratoryMessageId(id);
+    return this.mutate<LaboratoryMessage>(
+      "POST",
+      `${getBaseUrl()}/patient/laboratory-messages/${encodeURIComponent(messageId)}/read`,
+    );
   }
 
   async sendMessage(subject: string, message: string, recipientId?: string): Promise<any> {

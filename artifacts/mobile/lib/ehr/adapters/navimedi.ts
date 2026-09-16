@@ -6,6 +6,7 @@ import type {
   AppointmentRequest,
   Bill,
   LabResult,
+  LaboratoryMessage,
   LoginCredentials,
   LoginResponse,
   Message,
@@ -39,6 +40,22 @@ import {
 function normalizedOptionalField(value: string | undefined): string | undefined {
   const normalized = value?.trim();
   return normalized || undefined;
+}
+const LABORATORY_MESSAGE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function requireLaboratoryMessageId(value: string): string {
+  if (!LABORATORY_MESSAGE_ID_PATTERN.test(value)) {
+    throw new Error("A valid laboratory message ID is required.");
+  }
+  return value;
+}
+
+function requireLaboratoryMessageContent(value: string): string {
+  const content = value.trim();
+  if (!content || content.length > 10_000) {
+    throw new Error("Laboratory message content must be between 1 and 10,000 characters.");
+  }
+  return content;
 }
 
 export class NavimediAdapter implements EHRAdapter {
@@ -494,6 +511,30 @@ export class NavimediAdapter implements EHRAdapter {
       headers: this.getHeaders(),
     });
     return this.handleResponse<Message[]>(response);
+  }
+
+  async getLaboratoryMessages(): Promise<LaboratoryMessage[]> {
+    const response = await this.protectedFetch(`${this.getUrl()}/patient/laboratory-messages`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse<LaboratoryMessage[]>(response);
+  }
+
+  async replyToLaboratoryMessage(id: string, content: string): Promise<LaboratoryMessage> {
+    const messageId = requireLaboratoryMessageId(id);
+    return this.mutate<LaboratoryMessage>(
+      "POST",
+      `${this.getUrl()}/patient/laboratory-messages/${encodeURIComponent(messageId)}/reply`,
+      { content: requireLaboratoryMessageContent(content) },
+    );
+  }
+
+  async markLaboratoryMessageRead(id: string): Promise<LaboratoryMessage> {
+    const messageId = requireLaboratoryMessageId(id);
+    return this.mutate<LaboratoryMessage>(
+      "POST",
+      `${this.getUrl()}/patient/laboratory-messages/${encodeURIComponent(messageId)}/read`,
+    );
   }
 
   async sendMessage(subject: string, message: string, recipientId?: string): Promise<any> {

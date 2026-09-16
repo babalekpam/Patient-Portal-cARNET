@@ -126,6 +126,16 @@ function messageBody(value: unknown): boolean {
   );
 }
 
+function laboratoryReplyBody(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnly(value, ["content"])) return false;
+  const content = value.content;
+  if (typeof content !== "string") return false;
+  const normalized = content.trim();
+  return normalized.length > 0 && normalized.length <= 10_000;
+}
+
+const LABORATORY_MESSAGE_ID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+
 const staticRoutes = new Map<string, RelayRoute>([
   ["GET /csrf-token", { category: "csrf", protected: true, validateBody: noBody }],
   ["POST /auth/patient-login", { category: "patient_login", protected: false, validateBody: patientLoginBody }],
@@ -138,6 +148,7 @@ const staticRoutes = new Map<string, RelayRoute>([
   ["POST /patient/appointment-requests", { category: "appointment_request", protected: true, validateBody: appointmentRequestBody }],
   ["GET /patient/prescriptions", { category: "prescriptions_read", protected: true, validateBody: noBody }],
   ["GET /patient/lab-results", { category: "labs_read", protected: true, validateBody: noBody }],
+  ["GET /patient/laboratory-messages", { category: "laboratory_messages_read", protected: true, validateBody: noBody }],
   ["GET /medical-communications", { category: "messages_read", protected: true, validateBody: noBody }],
   ["POST /medical-communications", { category: "message_create", protected: true, validateBody: messageBody }],
   ["GET /patient/visit-summaries", { category: "visits_read", protected: true, validateBody: noBody }],
@@ -159,14 +170,25 @@ export function parseRelayPath(originalUrl: string): string | null {
 export function matchRelayRoute(method: string, path: string): RelayRoute | null {
   const route = staticRoutes.get(`${method.toUpperCase()} ${path}`);
   if (route) return route;
+  const normalizedMethod = method.toUpperCase();
+  const laboratoryMessage = new RegExp(
+    "^\\/patient\\/laboratory-messages\\/" + LABORATORY_MESSAGE_ID + "\\/(reply|read)$",
+  ).exec(path);
+  if (normalizedMethod === "POST" && laboratoryMessage) {
+    return {
+      category: laboratoryMessage[1] === "reply" ? "laboratory_message_reply" : "laboratory_message_read",
+      protected: true,
+      validateBody: laboratoryMessage[1] === "reply" ? laboratoryReplyBody : noBody,
+    };
+  }
   if (
-    (method === "GET" || method === "POST") &&
+    (normalizedMethod === "GET" || normalizedMethod === "POST") &&
     /^\/patient\/telehealth\/sessions\/[A-Za-z0-9_-]{1,128}$/.test(path)
   ) {
     return {
-      category: method === "GET" ? "telehealth_session_read" : "telehealth_session_create",
+      category: normalizedMethod === "GET" ? "telehealth_session_read" : "telehealth_session_create",
       protected: true,
-      validateBody: method === "GET" ? noBody : emptyBody,
+      validateBody: normalizedMethod === "GET" ? noBody : emptyBody,
     };
   }
   return null;

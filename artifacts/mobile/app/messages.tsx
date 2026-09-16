@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { impactLight, impactMedium, impactHeavy, notificationSuccess, notificationError, selectionClick } from "@/lib/haptics";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import React, { useState } from "react";
+import { router } from "expo-router";
 import {
   ActivityIndicator,
   FlatList,
@@ -164,6 +165,19 @@ export default function MessagesScreen() {
     </Pressable>
   );
 
+  const laboratoryMessagesBtn = !api.adapter || api.adapter.providerId === "navimedi" ? (
+    <Pressable
+      style={({ pressed }) => [styles.composeBtn, pressed && { opacity: 0.7 }]}
+      onPress={() => { impactLight(); router.push("/lab-messages"); }}
+      accessibilityRole="button"
+      accessibilityLabel="Laboratory messages"
+    >
+      <Feather name="activity" size={18} color={colors.whiteText} />
+    </Pressable>
+  ) : null;
+
+  const headerActions = <View style={styles.headerActions}>{laboratoryMessagesBtn}{composeBtn}</View>;
+
   if (composing) {
     return (
       <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -182,7 +196,7 @@ export default function MessagesScreen() {
         aria-busy
         aria-live="polite"
       >
-        <ScreenHeader title="Messages" rightElement={composeBtn} />
+        <ScreenHeader title="Messages" rightElement={headerActions} />
         <ListSkeleton />
       </View>
     );
@@ -191,7 +205,7 @@ export default function MessagesScreen() {
   if (error) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <ScreenHeader title="Messages" rightElement={composeBtn} />
+        <ScreenHeader title="Messages" rightElement={headerActions} />
         <View style={styles.centered}>
           <Feather name="wifi-off" size={36} color={colors.textTertiary} />
           <Text style={[styles.errorTitle, { color: colors.text }]}>{t("unableToLoad")}</Text>
@@ -209,7 +223,7 @@ export default function MessagesScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LogoWatermark />
-      <ScreenHeader title="Messages" subtitle={data && data.length > 0 ? `${data.length} message${data.length !== 1 ? "s" : ""}` : undefined} rightElement={composeBtn} />
+      <ScreenHeader title="Messages" subtitle={data && data.length > 0 ? `${data.length} message${data.length !== 1 ? "s" : ""}` : undefined} rightElement={headerActions} />
       <FlatList
         data={data || []}
         keyExtractor={(_, i) => i.toString()}
@@ -239,6 +253,7 @@ const styles = StyleSheet.create({
   senderRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   senderText: { fontSize: 12, fontFamily: "Inter_400Regular" },
   composeBtn: { width: 44, height: 44, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   composeContainer: { flex: 1, padding: 16, gap: 16 },
   composeHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   composeTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },

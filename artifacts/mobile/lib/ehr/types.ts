@@ -4,6 +4,7 @@ import type {
   AppointmentRequest,
   Bill,
   LabResult,
+  LaboratoryMessage,
   LoginCredentials,
   LoginResponse,
   Message,
@@ -32,6 +33,9 @@ export interface EHRAdapter {
   getPrescriptions(): Promise<Prescription[]>;
   getLabResults(): Promise<LabResult[]>;
   getMessages(): Promise<Message[]>;
+  getLaboratoryMessages?(): Promise<LaboratoryMessage[]>;
+  replyToLaboratoryMessage?(id: string, content: string): Promise<LaboratoryMessage>;
+  markLaboratoryMessageRead?(id: string): Promise<LaboratoryMessage>;
   sendMessage(subject: string, message: string, recipientId?: string): Promise<any>;
   getVisitSummaries(): Promise<VisitSummary[]>;
   getBills(): Promise<Bill[]>;
