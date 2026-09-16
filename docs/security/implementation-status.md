@@ -41,6 +41,13 @@ attestation, independent penetration test, or approval to handle real patients.
 - Static Expo delivery serves only bounded startup asset snapshots, not
   request-derived filesystem paths; traversal and source/key-like files are
   rejected.
+- The CARNET patient client integrates the read-only
+  `GET /patient/insurance-history` contract through the NaviMED adapter and
+  direct fallback. Strict parsing preserves null versus explicit zero amounts,
+  keeps medical-treatment and medication pages separate, and uses
+  session-generation/account-scoped caches that are cleared on logout or
+  provider changes. The web relay allowlist accepts only this patient route's
+  bounded pagination parameters and always requires a Bearer credential.
 - CI definitions cover redacted secret scanning, CodeQL and dependency audit.
   An added workflow is not evidence that GitHub Actions, branch protection,
   required checks or review approvals have been enabled.
@@ -107,6 +114,13 @@ process and are not distributed WAF/DDoS or account-lockout protection.
 6. **Distribution:** these changes are not in the existing App Store binary.
    The previously reported Expo Launch/App Store association issue is a
    separate release blocker. No publishing was attempted in this pass.
+7. **Insurance-history deployment and live verification:** the endpoint is
+    documented as implemented in NaviMED development only; no production VPS
+    deployment was performed. The only available backend evidence is the
+    uploaded synthetic API summary. No separate fixture source or test
+    accounts/credentials were provided, and no live/native-device verification
+    was possible. Do not treat the client contract tests as production endpoint
+    or upstream patient-isolation evidence.
 
 ## Verification scope
 

@@ -22,6 +22,7 @@ const ACTIONS: Action[] = [
   { labelKey: "testResults", icon: "bar-chart-2", route: "/lab-results", tone: "successLight" },
   { labelKey: "medications", icon: "package", route: "/prescriptions", tone: "warningLight" },
   { labelKey: "accountSummary", icon: "credit-card", route: "/bills", tone: "dangerLight" },
+  { labelKey: "insuranceHistory", icon: "file-text", route: "/insurance-history", tone: "infoLight" },
   { labelKey: "documents", icon: "file-text", route: "/documents", tone: "primaryLight" },
   { labelKey: "familyMembers", icon: "users", route: "/family", tone: "primaryLight" },
   { labelKey: "emergencyCard", icon: "alert-circle", route: "/emergency-card", tone: "dangerLight" },

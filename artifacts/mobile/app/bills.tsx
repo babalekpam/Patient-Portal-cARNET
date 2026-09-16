@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import React from "react";
 import {
   FlatList,
@@ -143,7 +144,19 @@ export default function BillsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LogoWatermark />
-      <ScreenHeader title="Bills & Payments" />
+      <ScreenHeader
+        title="Bills & Payments"
+        rightElement={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="View insurance history"
+            onPress={() => router.push("/insurance-history")}
+            style={styles.headerLink}
+          >
+            <Feather name="file-text" size={18} color={colors.whiteText} />
+          </Pressable>
+        }
+      />
       <FlatList
         data={bills}
         keyExtractor={(_, i) => i.toString()}
@@ -196,4 +209,5 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
   retryBtn: { marginTop: 8, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   retryText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  headerLink: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" },
 });

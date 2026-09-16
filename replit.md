@@ -97,13 +97,21 @@ Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHea
 
 Expo React Native mobile app — NaviMED Patient Health Portal by Argilette. Multi-EHR support with adapter pattern.
 
-- **Screens**: Login (with EHR provider selector), Home (Dashboard), Profile (editable), Appointments (with calendar sync), Prescriptions, Lab Results, Bills, Messages (with compose), Visit Summaries, Request Appointment, Emergency Card, Health Timeline, Symptom Checker, Documents (scanner), Family Members, Drug Interactions, Export Records, Telehealth, Health Metrics
+- **Screens**: Login (with EHR provider selector), Home (Dashboard), Profile (editable), Appointments (with calendar sync), Prescriptions, Lab Results, Bills, Insurance History, Messages (with compose), Visit Summaries, Request Appointment, Emergency Card, Health Timeline, Symptom Checker, Documents (scanner), Family Members, Drug Interactions, Export Records, Telehealth, Health Metrics
 - **Auth**: `context/AuthContext.tsx` manages login/logout/profile state with AsyncStorage token persistence. Supports biometric auth on app resume and push notification registration on login.
 - **EHR Integration**: `lib/ehr/` — adapter pattern for multi-EHR support. `context/EHRContext.tsx` manages active provider. Built-in adapters: `NavimediAdapter` (Navimedi API), `FHIRAdapter` (any FHIR R4 server). Registry in `lib/ehr/registry.ts` with built-in providers (Navimedi, HAPI FHIR, SMART Health IT). Users can add custom FHIR endpoints.
 - **API Client**: `lib/api.ts` — typed API client that delegates to the active EHR adapter. Falls back to direct Navimedi API calls when no adapter is set. Base URL: `https://www.navimedi.org/api`. Login endpoint: `/auth/patient-login`. Profile update: `PATCH`. Includes `updateProfile()`, `getVisitSummaries()`, `requestAppointment()`.
 - **Proxy**: On web, API calls route through the API server's relay endpoint at `/api/navimedi/...` to avoid CORS restrictions from the Navimedi API
 - **Theme**: Dark mode support via `context/ThemeContext.tsx` with system/light/dark toggle. Colors defined in `constants/colors.ts` with full light/dark palettes. All screens use `useTheme()` hook.
 - **Data fetching**: React Query (`@tanstack/react-query`)
+- **Insurance history**: The patient-only read-only
+  `GET /patient/insurance-history` integration uses the existing NaviMED
+  bearer session through the adapter and direct fallback. Medical-treatment
+  and medication pages are separate, amounts preserve null versus explicit
+  zero, and session-scoped cache pages are cleared at logout/account
+  transitions. The backend contract is development-only in the uploaded
+  summary; no production VPS deployment, fixture source/accounts, or
+  live/native verification was available.
 - **Navigation**: Expo Router with NativeTabs (liquid glass on iOS 26+), Stack for other screens
 - **i18n**: Multi-language support via `lib/i18n.ts` with 10 languages (en, fr, es, pt, ar, zh, de, it, ja, ko). Translation files in `lib/translations/`. Language selector in profile settings. Uses React Context + AsyncStorage persistence.
 - **Key Components**:

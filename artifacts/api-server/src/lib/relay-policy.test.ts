@@ -27,6 +27,7 @@ test("allows every mobile API operation with only its supported method", () => {
     ["POST", "/medical-communications"],
     ["GET", "/patient/visit-summaries"],
     ["GET", "/patient/bills"],
+    ["GET", "/patient/insurance-history"],
     ["GET", "/patient/telehealth/appointments"],
     ["GET", "/patient/telehealth/sessions/appt_123"],
     ["POST", "/patient/telehealth/sessions/appt_123"],
@@ -51,6 +52,17 @@ test("rejects query strings, traversal, encoded separators, and malformed paths"
   assert.equal(
     parseRelayPath("/api/navimedi/patient/profile"),
     "/patient/profile",
+  );
+  assert.equal(
+    parseRelayPath("/api/navimedi/patient/insurance-history?limit=20&offset=0&filingType=medication"),
+    "/patient/insurance-history?limit=20&offset=0&filingType=medication",
+  );
+  assert.equal(parseRelayPath("/api/navimedi/patient/profile?limit=20"), null);
+  assert.equal(parseRelayPath("/api/navimedi/patient/insurance-history?limit=101"), null);
+  assert.equal(parseRelayPath("/api/navimedi/patient/insurance-history?patientId=other"), null);
+  assert.equal(
+    matchRelayRoute("GET", "/patient/insurance-history?limit=20&offset=0")?.protected,
+    true,
   );
 });
 

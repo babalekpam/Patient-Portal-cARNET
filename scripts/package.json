@@ -8,6 +8,7 @@
   },
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "carnet:live:test": "tsx ./src/carnet-live-test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

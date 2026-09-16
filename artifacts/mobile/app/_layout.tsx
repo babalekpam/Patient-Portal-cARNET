@@ -143,6 +143,7 @@ function RootLayoutNav() {
               <Stack.Screen name="messages" options={{ headerShown: false }} />
               <Stack.Screen name="lab-messages" options={{ headerShown: false }} />
               <Stack.Screen name="bills" options={{ headerShown: false }} />
+              <Stack.Screen name="insurance-history" options={{ headerShown: false }} />
               <Stack.Screen name="visit-summaries" options={{ headerShown: false }} />
               <Stack.Screen name="request-appointment" options={{ headerShown: false }} />
               <Stack.Screen name="emergency-card" options={{ headerShown: false }} />

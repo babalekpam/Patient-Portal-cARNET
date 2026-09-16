@@ -24,6 +24,7 @@ const en = {
 
   scheduleAppointment: "Schedule an\nAppointment",
   accountSummary: "Account\nSummary",
+  insuranceHistory: "Insurance History",
   testResults: "Test Results",
   medications: "Medications",
 

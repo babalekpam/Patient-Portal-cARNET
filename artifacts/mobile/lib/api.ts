@@ -21,8 +21,33 @@ import {
   requirePatientLoginResponse,
   type PatientLoginResponse,
 } from "@/lib/ehr/network";
+import {
+  insuranceHistoryQuery,
+  normalizeInsuranceHistoryRequest,
+  requireInsuranceHistoryPage,
+  type InsuranceFilingType,
+  type InsuranceHistoryPage,
+  type InsuranceHistoryRequest,
+} from "@/lib/insuranceHistory";
+import {
+  clearInsuranceHistoryCache,
+  getInsuranceHistoryPage,
+  setInsuranceHistoryPage,
+} from "@/lib/insuranceHistoryCache";
+import {
+  getNavimediNativeApiBaseUrl,
+  getNavimediWebRelayUpstreamBaseUrl,
+  NAVIMEDI_EXPECTED_ISSUER_HEADER,
+} from "@/lib/ehr/navimediConfig";
 
-const DIRECT_URL = "https://www.navimedi.org/api";
+export type {
+  InsuranceFilingType,
+  InsuranceHistoryAmounts,
+  InsuranceHistoryItem,
+  InsuranceHistoryPage,
+  InsuranceHistoryPagination,
+  InsuranceHistoryRequest,
+} from "@/lib/insuranceHistory";
 
 function getBaseUrl(): string {
   if (Platform.OS === "web") {
@@ -31,7 +56,7 @@ function getBaseUrl(): string {
       return `https://${devDomain}/api/navimedi`;
     }
   }
-  return DIRECT_URL;
+  return getNavimediNativeApiBaseUrl();
 }
 
 function nativeCookieCredentials(): RequestCredentials | undefined {
@@ -39,6 +64,12 @@ function nativeCookieCredentials(): RequestCredentials | undefined {
   // cookie transport because the pre-auth CSRF token is bound to the cookie
   // set by the upstream response.
   return Platform.OS === "web" ? undefined : "include";
+}
+
+function relayIssuerHeaders(): Record<string, string> {
+  return Platform.OS === "web"
+    ? { [NAVIMEDI_EXPECTED_ISSUER_HEADER]: getNavimediWebRelayUpstreamBaseUrl() }
+    : {};
 }
 
 function assertLoginGeneration(expectedGeneration: number): void {
@@ -62,7 +93,9 @@ function normalizedOptionalField(value: string | undefined): string | undefined 
   const normalized = value?.trim();
   return normalized || undefined;
 }
-const LABORATORY_MESSAGE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const LABORATORY_MESSAGE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function requireLaboratoryMessageId(value: string): string {
   if (!LABORATORY_MESSAGE_ID_PATTERN.test(value)) {
@@ -168,6 +201,7 @@ export interface Message {
   status?: string;
   sender?: string;
 }
+
 export interface LaboratoryMessage {
   id?: string;
   patientTenantId?: string;
@@ -335,6 +369,7 @@ class ApiClient {
     assertSession(null, generation);
     const headers: HeadersInit = {
       "Content-Type": "application/json",
+      ...relayIssuerHeaders(),
     };
     const token = await getToken();
     assertSession(null, generation);
@@ -380,7 +415,7 @@ class ApiClient {
         `${getBaseUrl()}/csrf-token`,
         {
           method: "GET",
-          headers: { Accept: "application/json" },
+          headers: { Accept: "application/json", ...relayIssuerHeaders() },
           credentials: "include",
         },
         { maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES },
@@ -466,6 +501,15 @@ class ApiClient {
         }
         throw new Error(serverMessage || (isLogin ? "Invalid credentials. Please check your email, password, and hospital." : "Session expired. Please log in again."));
       }
+      if (response.status === 409 && isProtected) {
+        await clearToken();
+        this.csrfToken = null;
+        this._adapter?.clearToken();
+        notifySessionEnd("provider_changed");
+        throw new Error(
+          serverMessage || "The healthcare service session changed. Please sign in again.",
+        );
+      }
       if (response.status === 404) {
         throw new Error(serverMessage || "This feature is not yet available.");
       }
@@ -513,7 +557,10 @@ class ApiClient {
     const endpoint = "/auth/patient-login";
 
     const sendLogin = async (): Promise<BoundedResponse> => {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...relayIssuerHeaders(),
+      };
       if (csrfToken) headers["X-CSRF-Token"] = csrfToken;
       let response: BoundedResponse;
       try {
@@ -581,7 +628,7 @@ class ApiClient {
     }
     const token = requirePatientLoginResponse(response).token;
     const profileResponse = await requestJson(`${getBaseUrl()}/patient/profile`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...relayIssuerHeaders() },
     }, { maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES });
     if (!profileResponse.ok || profileResponse.bodyError) {
       throw new Error(
@@ -619,7 +666,11 @@ class ApiClient {
   private async revokeTokenDirect(token: string): Promise<void> {
     const requestCsrf = async (): Promise<string> => {
       const response = await requestJson(`${getBaseUrl()}/csrf-token`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          ...relayIssuerHeaders(),
+        },
         credentials: nativeCookieCredentials(),
       }, { maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES });
       if (!response.ok || response.bodyError) {
@@ -633,6 +684,7 @@ class ApiClient {
       headers: {
         Authorization: `Bearer ${token}`,
         "X-CSRF-Token": csrf,
+        ...relayIssuerHeaders(),
       },
       credentials: nativeCookieCredentials(),
     }, { maxBodyBytes: MAX_AUTH_PROFILE_BODY_BYTES });
@@ -660,7 +712,7 @@ class ApiClient {
     if (this._adapter) return this._adapter.forgotPassword(email);
     const response = await requestJson(`${getBaseUrl()}/auth/forgot-password`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...relayIssuerHeaders() },
       body: JSON.stringify({ email }),
     });
     return this.handleResponse<any>(response, false, false);
@@ -734,28 +786,40 @@ class ApiClient {
 
   async getLaboratoryMessages(): Promise<LaboratoryMessage[]> {
     if (this._adapter?.getLaboratoryMessages) return this._adapter.getLaboratoryMessages();
-    if (this._adapter) throw new Error("Laboratory handoff messages are only available for NaviMED sessions.");
+    if (this._adapter) {
+      throw new Error("Laboratory handoff messages are only available for NaviMED sessions.");
+    }
     const response = await this.protectedFetch(`${getBaseUrl()}/patient/laboratory-messages`, {
       headers: await this.getHeaders(),
     });
     return this.handleResponse<LaboratoryMessage[]>(response);
   }
 
-  async replyToLaboratoryMessage(id: string, content: string): Promise<LaboratoryMessage> {
-    if (this._adapter?.replyToLaboratoryMessage) return this._adapter.replyToLaboratoryMessage(id, content);
-    if (this._adapter) throw new Error("Laboratory handoff messages are only available for NaviMED sessions.");
+  async replyToLaboratoryMessage(
+    id: string,
+    content: string,
+  ): Promise<LaboratoryMessage> {
+    if (this._adapter?.replyToLaboratoryMessage) {
+      return this._adapter.replyToLaboratoryMessage(id, content);
+    }
+    if (this._adapter) {
+      throw new Error("Laboratory handoff messages are only available for NaviMED sessions.");
+    }
     const messageId = requireLaboratoryMessageId(id);
-    const body = { content: requireLaboratoryMessageContent(content) };
     return this.mutate<LaboratoryMessage>(
       "POST",
       `${getBaseUrl()}/patient/laboratory-messages/${encodeURIComponent(messageId)}/reply`,
-      body,
+      { content: requireLaboratoryMessageContent(content) },
     );
   }
 
   async markLaboratoryMessageRead(id: string): Promise<LaboratoryMessage> {
-    if (this._adapter?.markLaboratoryMessageRead) return this._adapter.markLaboratoryMessageRead(id);
-    if (this._adapter) throw new Error("Laboratory handoff messages are only available for NaviMED sessions.");
+    if (this._adapter?.markLaboratoryMessageRead) {
+      return this._adapter.markLaboratoryMessageRead(id);
+    }
+    if (this._adapter) {
+      throw new Error("Laboratory handoff messages are only available for NaviMED sessions.");
+    }
     const messageId = requireLaboratoryMessageId(id);
     return this.mutate<LaboratoryMessage>(
       "POST",
@@ -794,6 +858,52 @@ class ApiClient {
     return this.handleResponse<Bill[]>(response);
   }
 
+  async getInsuranceHistory(
+    request: InsuranceHistoryRequest = {},
+  ): Promise<InsuranceHistoryPage> {
+    const normalized = normalizeInsuranceHistoryRequest(request);
+    const generation = sessionGeneration();
+    const sessionKey = this._adapter?.sessionKey ?? "direct-navimedi";
+    const cached = getInsuranceHistoryPage(
+      generation,
+      sessionKey,
+      normalized.filingType,
+      normalized.limit,
+      normalized.offset,
+    );
+    if (cached) {
+      assertSession(this._adapter?.sessionKey ?? null, generation);
+      return cached;
+    }
+
+    let page: InsuranceHistoryPage;
+    if (this._adapter) {
+      if (!this._adapter.getInsuranceHistory) {
+        throw new Error("Insurance history is not available for this provider.");
+      }
+      page = await this._adapter.getInsuranceHistory(normalized);
+      assertSession(this._adapter.sessionKey, generation);
+    } else {
+      const response = await this.protectedFetch(
+        `${getBaseUrl()}/patient/insurance-history?${insuranceHistoryQuery(normalized)}`,
+        { headers: await this.getHeaders() },
+      );
+      page = requireInsuranceHistoryPage(await this.handleResponse<unknown>(response));
+      assertSession(null, generation);
+    }
+
+    assertSession(this._adapter?.sessionKey ?? null, generation);
+    setInsuranceHistoryPage(
+      generation,
+      sessionKey,
+      normalized.filingType,
+      normalized.limit,
+      normalized.offset,
+      page,
+    );
+    return page;
+  }
+
   async getTelehealthAppointments(): Promise<TelehealthAppointment[]> {
     if (this._adapter) return this._adapter.getTelehealthAppointments();
     const response = await this.protectedFetch(`${getBaseUrl()}/patient/telehealth/appointments`, {
@@ -820,3 +930,5 @@ class ApiClient {
 }
 
 export const api = new ApiClient();
+
+export { clearInsuranceHistoryCache };

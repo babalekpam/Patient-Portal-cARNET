@@ -1,7 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, clearToken, getToken, saveToken, type LoginCredentials, type Profile } from "@/lib/api";
+import {
+  api,
+  clearToken,
+  getToken,
+  saveToken,
+  type LoginCredentials,
+  type Profile,
+} from "@/lib/api";
 import { registerForPushNotifications } from "@/lib/notifications";
 import { isBiometricAvailable, isBiometricEnabled, authenticateWithBiometrics } from "@/lib/biometrics";
 import { useEHR } from "@/context/EHRContext";
@@ -16,12 +23,15 @@ import {
 } from "@/lib/secureStorage";
 import { AsyncOperationTimeoutError, isAsyncOperationTimeout, withTimeout } from "@/lib/async";
 import { syncOptionalPushToken } from "@/lib/optionalPush";
+import { beginProtectedSessionTermination } from "@/lib/sessionBoundary";
+import { isNavimediNativeApiOverrideActive } from "@/lib/ehr/navimediConfig";
 import {
   assertSession,
   clearSessionMetadata,
   createSession,
   getServerExpiry,
   hasCurrentSession,
+  invalidateSessionBoundary,
   restoreSession,
   sessionGeneration,
   subscribeToSessionEnd,
@@ -35,7 +45,7 @@ interface AuthContextType {
   profile: Profile | null;
   login: (credentials: LoginCredentials) => Promise<void>;
   logout: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<Profile | null>;
   sessionEndReason: SessionEndReason | null;
   sessionError: string | null;
   startupError: string | null;
@@ -81,17 +91,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const capturedGeneration = sessionGeneration();
     const capturedAdapter = api.adapter;
     operation.current += 1;
-    if (reason !== "logout") {
-      setIsAuthenticated(false);
-      setIsLoading(true);
-      setProfile(null);
-      setSessionEndReason(reason);
-      setSessionError(null);
-    }
+    // A logout is a local security boundary immediately, not after the
+    // best-effort remote revocation. Conceal the protected tree, invalidate
+    // history pages, and bump the in-memory generation while retaining only
+    // the captured bearer for api.logout.
+    setIsAuthenticated(false);
+    setIsLoading(true);
+    setProfile(null);
+    setSessionEndReason(reason === "logout" ? null : reason);
+    setSessionError(null);
+    beginProtectedSessionTermination(queryClient, invalidateSessionBoundary);
 
     // A replacement session is never allowed to be erased by an older logout.
-    // During ordinary logout the current generation remains unchanged until
-    // this operation owns the destructive cleanup below.
+    // The in-memory boundary above changes the generation before remote
+    // revocation starts, so this guard protects any newer session.
     const ownsCapturedSession = () =>
       sessionGeneration() === capturedGeneration ||
       !hasCurrentSession();
@@ -113,16 +126,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         if (!ownsCapturedSession()) return;
 
+        const metadataClear = clearSessionMetadata();
         setIsAuthenticated(false);
         setIsLoading(true);
         setProfile(null);
         setSessionEndReason(reason === "logout" ? null : reason);
         setSessionError(null);
 
-        // Both calls invalidate local state synchronously, before any await.
+        // Release the captured bearer only after best-effort remote revocation;
+        // the protected tree and history generation were already invalidated.
         api.clearCsrfToken();
         capturedAdapter?.clearToken();
-        const metadataClear = clearSessionMetadata();
         const phiClear = clearSecureSession();
         cleanupNoticeTimer = setTimeout(() => {
           if (termination.current === work) {
@@ -190,6 +204,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const token = await withTimeout(getToken(), STORAGE_TIMEOUT_MS, "Saved credential loading");
       if (id !== operation.current) return;
       if (token) {
+        // A direct NaviMED session has no provider-specific session key. Never
+        // send a bearer saved under the production direct endpoint to a
+        // development-only native override; require a fresh sign in instead.
+        if (!adapter && isNavimediNativeApiOverrideActive()) {
+          await terminate("invalid");
+          return;
+        }
         const metadata = await withTimeout(
           restoreSession(adapter?.sessionKey ?? null),
           STORAGE_TIMEOUT_MS,
@@ -353,12 +374,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await terminate("logout");
   };
 
-  const refreshProfile = async () => {
+  const refreshProfile = async (): Promise<Profile | null> => {
     try {
       const requestId = operation.current;
       const p = await withTimeout(api.getProfile(), PROFILE_TIMEOUT_MS, "Profile refresh");
-      if (requestId !== operation.current) return;
+      if (requestId !== operation.current) return null;
       setProfile(p);
+      return p;
     } catch (error) {
       const cleanup = terminate("invalid");
       void cleanup.catch(() => {});

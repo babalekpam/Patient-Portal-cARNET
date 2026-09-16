@@ -92,6 +92,8 @@ export function createAdapter(provider: EHRProviderConfig): EHRAdapter {
   validateProviderUrl(provider.baseUrl);
   switch (provider.type) {
     case "navimedi":
+      // Keep the provider's production identity for persistence while the
+      // adapter resolves a development-only native endpoint at request time.
       return new NavimediAdapter(provider.id, provider.baseUrl);
     case "fhir":
       return new FHIRAdapter(provider.id, provider.baseUrl);

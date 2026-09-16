@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { Platform } from "react-native";
 import { NavimediAdapter } from "../lib/ehr/adapters/navimedi";
 import type { FetchTransport } from "../lib/ehr/network";
 
 const TEST_BASE_URL = "https://navimedi.example.test/api";
+const TEMPORARY_RELAY_UPSTREAM =
+  "https://942dd837-7012-47ef-8574-574ac5ab89f8-00-2gel21gszwmqv.picard.replit.dev/api";
 const testSession = globalThis as typeof globalThis & {
   __navimediSessionGeneration?: number;
 };
@@ -21,6 +24,10 @@ function response(status: number, body: unknown): Response {
 
 function path(input: RequestInfo | URL): string {
   return new URL(typeof input === "string" ? input : input instanceof URL ? input : input.url).pathname;
+}
+
+function url(input: RequestInfo | URL): URL {
+  return new URL(typeof input === "string" ? input : input instanceof URL ? input : input.url);
 }
 
 function header(init: RequestInit | undefined, name: string): string | null {
@@ -49,6 +56,41 @@ const patientLogin = {
 };
 
 test.beforeEach(resetSessionGeneration);
+
+test("binds a web adapter session to the effective relay issuer and restores production identity", () => {
+  const originalPlatform = Platform.OS;
+  const mutableEnv = process.env as Record<string, string | undefined>;
+  const originalNodeEnv = mutableEnv.NODE_ENV;
+  const originalRelayOverride = mutableEnv.EXPO_PUBLIC_CARNET_NAVIMEDI_RELAY_UPSTREAM_URL;
+  try {
+    (Platform as unknown as { OS: string }).OS = "web";
+    mutableEnv.NODE_ENV = "development";
+    mutableEnv.EXPO_PUBLIC_CARNET_NAVIMEDI_RELAY_UPSTREAM_URL =
+      TEMPORARY_RELAY_UPSTREAM;
+    const temporary = new NavimediAdapter("navimedi-test", TEST_BASE_URL);
+    assert.equal(
+      temporary.sessionKey,
+      `navimedi-test|${TEMPORARY_RELAY_UPSTREAM}`,
+    );
+
+    delete mutableEnv.EXPO_PUBLIC_CARNET_NAVIMEDI_RELAY_UPSTREAM_URL;
+    const production = new NavimediAdapter("navimedi-test", TEST_BASE_URL);
+    assert.equal(
+      production.sessionKey,
+      "navimedi-test|https://www.navimedi.org/api",
+    );
+    assert.notEqual(temporary.sessionKey, production.sessionKey);
+  } finally {
+    (Platform as unknown as { OS: string }).OS = originalPlatform;
+    if (originalNodeEnv === undefined) delete mutableEnv.NODE_ENV;
+    else mutableEnv.NODE_ENV = originalNodeEnv;
+    if (originalRelayOverride === undefined) {
+      delete mutableEnv.EXPO_PUBLIC_CARNET_NAVIMEDI_RELAY_UPSTREAM_URL;
+    } else {
+      mutableEnv.EXPO_PUBLIC_CARNET_NAVIMEDI_RELAY_UPSTREAM_URL = originalRelayOverride;
+    }
+  }
+});
 
 test("runs a mocked NaviMED login then profile request with the bearer token", async () => {
   const calls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
@@ -502,4 +544,180 @@ test("rejects a native login response after the session generation changes", asy
       error instanceof Error &&
       error.name === "StaleSessionRequestError",
   );
+});
+
+test("fetches strict patient insurance history pages with the existing bearer", async () => {
+  const calls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+  const fetchImpl: FetchTransport = async (input, init) => {
+    calls.push({ input, init });
+    return response(200, {
+      items: [{
+        filingId: "11111111-1111-4111-8111-111111111111",
+        filingType: "medical_treatment",
+        date: "2026-09-13T14:00:00.000Z",
+        status: "approved",
+        currency: "USD",
+        amounts: { billed: "240.00", approved: "180.00", paid: "0.00" },
+      }],
+      pagination: { limit: 20, offset: 0, hasMore: true, nextOffset: 20 },
+    });
+  };
+  const adapter = new NavimediAdapter("navimedi-test", TEST_BASE_URL, fetchImpl);
+  adapter.setToken("unit-test-token");
+
+  const page = await adapter.getInsuranceHistory({
+    filingType: "medical_treatment",
+    limit: 20,
+    offset: 0,
+  });
+
+  assert.equal(page.items[0].amounts.paid, "0.00");
+  assert.equal(url(calls[0].input).pathname, "/api/patient/insurance-history");
+  assert.equal(url(calls[0].input).search, "?limit=20&offset=0&filingType=medical_treatment");
+  assert.equal(header(calls[0].init, "Authorization"), "Bearer unit-test-token");
+  assert.equal(header(calls[0].init, "Cookie"), null);
+});
+
+test("keeps medical-treatment and medication pagination requests independent", async () => {
+  const requests: string[] = [];
+  const fetchImpl: FetchTransport = async (input) => {
+    const request = url(input);
+    requests.push(request.search);
+    const medication = request.searchParams.get("filingType") === "medication";
+    const offset = Number(request.searchParams.get("offset"));
+    return response(200, {
+      items: [{
+        filingId: `${medication ? "2" : "1"}-${offset}`,
+        filingType: medication ? "medication" : "medical_treatment",
+        date: "2026-09-13T14:00:00.000Z",
+        status: "draft",
+        currency: "USD",
+        amounts: { billed: null, approved: null, paid: null },
+      }],
+      pagination: { limit: 20, offset, hasMore: false, nextOffset: null },
+    });
+  };
+  const adapter = new NavimediAdapter("navimedi-test", TEST_BASE_URL, fetchImpl);
+  adapter.setToken("unit-test-token");
+
+  await adapter.getInsuranceHistory({ filingType: "medical_treatment", offset: 20 });
+  await adapter.getInsuranceHistory({ filingType: "medication", offset: 40 });
+
+  assert.deepEqual(requests, [
+    "?limit=20&offset=20&filingType=medical_treatment",
+    "?limit=20&offset=40&filingType=medication",
+  ]);
+});
+
+test("rejects insurance history responses that use a staff category or collapse null and zero", async () => {
+  const adapter = new NavimediAdapter(
+    "navimedi-test",
+    TEST_BASE_URL,
+    async () => response(200, {
+      items: [{
+        filingId: "staff-route",
+        filingType: "staff",
+        date: "2026-09-13T14:00:00.000Z",
+        status: "approved",
+        currency: "USD",
+        amounts: { billed: 0, approved: "0.00", paid: null },
+      }],
+      pagination: { limit: 20, offset: 0, hasMore: false, nextOffset: null },
+    }),
+  );
+  adapter.setToken("unit-test-token");
+  await assert.rejects(
+    adapter.getInsuranceHistory(),
+    /invalid insurance history response/i,
+  );
+});
+
+test("does not accept a late insurance-history page after an account switch", async () => {
+  let release!: (value: Response) => void;
+  const delayed = new Promise<Response>((resolve) => { release = resolve; });
+  const adapter = new NavimediAdapter(
+    "navimedi-test",
+    TEST_BASE_URL,
+    async () => delayed,
+  );
+  adapter.setToken("patient-a-token");
+  const request = adapter.getInsuranceHistory({ filingType: "medication" });
+  await Promise.resolve();
+  testSession.__navimediSessionGeneration = 2;
+  release(response(200, {
+    items: [],
+    pagination: { limit: 20, offset: 0, hasMore: false, nextOffset: null },
+  }));
+  await assert.rejects(
+    request,
+    (error: unknown) =>
+      error instanceof Error &&
+      error.name === "StaleSessionRequestError",
+  );
+  adapter.clearToken();
+});
+
+test("supports laboratory message reads, explicit replies, and explicit read actions", async () => {
+  const messageId = "550e8400-e29b-41d4-a716-446655440000";
+  const calls: Array<{ path: string; init?: RequestInit }> = [];
+  let csrfFetches = 0;
+  const fetchImpl: FetchTransport = async (input, init) => {
+    const requestPath = path(input);
+    calls.push({ path: requestPath, init });
+    if (requestPath.endsWith("/csrf-token")) {
+      csrfFetches += 1;
+      return response(200, { csrfToken: `laboratory-csrf-${csrfFetches}` });
+    }
+    if (requestPath.endsWith("/patient/laboratory-messages")) {
+      return response(200, [{
+        id: messageId,
+        labOrderId: "order-test",
+        direction: "laboratory_to_patient",
+        content: "Your result is ready.",
+        readByPatientAt: null,
+      }]);
+    }
+    if (requestPath.endsWith(`/patient/laboratory-messages/${messageId}/reply`)) {
+      assert.equal(JSON.parse(String(init?.body)).content, "Thank you.");
+      assert.equal(header(init, "X-CSRF-Token"), "laboratory-csrf-1");
+      return response(200, { id: "660e8400-e29b-41d4-a716-446655440000", content: "Thank you." });
+    }
+    if (requestPath.endsWith(`/patient/laboratory-messages/${messageId}/read`)) {
+      assert.equal(header(init, "X-CSRF-Token"), "laboratory-csrf-1");
+      return response(200, { id: messageId, readByPatientAt: "2026-01-01T00:00:00.000Z" });
+    }
+    throw new Error(`Unexpected laboratory route: ${requestPath}`);
+  };
+  const adapter = new NavimediAdapter("navimedi-test", TEST_BASE_URL, fetchImpl);
+  adapter.setToken("unit-test-token");
+
+  const messages = await adapter.getLaboratoryMessages();
+  assert.equal(messages[0].id, messageId);
+  await adapter.replyToLaboratoryMessage(messageId, " Thank you. ");
+  await adapter.markLaboratoryMessageRead(messageId);
+  assert.deepEqual(calls.map((call) => call.path), [
+    "/api/patient/laboratory-messages",
+    "/api/csrf-token",
+    `/api/patient/laboratory-messages/${messageId}/reply`,
+    `/api/patient/laboratory-messages/${messageId}/read`,
+  ]);
+});
+
+test("rejects laboratory message selectors and blank replies before network access", async () => {
+  let requests = 0;
+  const adapter = new NavimediAdapter(
+    "navimedi-test",
+    TEST_BASE_URL,
+    async () => {
+      requests += 1;
+      return response(200, {});
+    },
+  );
+  adapter.setToken("unit-test-token");
+  await assert.rejects(adapter.markLaboratoryMessageRead("message-1"), /valid laboratory message ID/i);
+  await assert.rejects(
+    adapter.replyToLaboratoryMessage("550e8400-e29b-41d4-a716-446655440000", "  "),
+    /content must be between/i,
+  );
+  assert.equal(requests, 0);
 });

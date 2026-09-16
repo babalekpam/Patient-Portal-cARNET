@@ -134,7 +134,8 @@ function laboratoryReplyBody(value: unknown): boolean {
   return normalized.length > 0 && normalized.length <= 10_000;
 }
 
-const LABORATORY_MESSAGE_ID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+const LABORATORY_MESSAGE_ID =
+  "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 
 const staticRoutes = new Map<string, RelayRoute>([
   ["GET /csrf-token", { category: "csrf", protected: true, validateBody: noBody }],
@@ -153,6 +154,7 @@ const staticRoutes = new Map<string, RelayRoute>([
   ["POST /medical-communications", { category: "message_create", protected: true, validateBody: messageBody }],
   ["GET /patient/visit-summaries", { category: "visits_read", protected: true, validateBody: noBody }],
   ["GET /patient/bills", { category: "bills_read", protected: true, validateBody: noBody }],
+  ["GET /patient/insurance-history", { category: "insurance_history_read", protected: true, validateBody: noBody }],
   ["GET /patient/telehealth/appointments", { category: "telehealth_read", protected: true, validateBody: noBody }],
 ]);
 
@@ -160,25 +162,61 @@ export function parseRelayPath(originalUrl: string): string | null {
   const prefix = "/api/navimedi";
   if (!originalUrl.startsWith(prefix)) return null;
   const suffix = originalUrl.slice(prefix.length);
-  if (!suffix.startsWith("/") || suffix.includes("?") || suffix.includes("#")) return null;
-  if (suffix.includes("%") || suffix.includes("\\") || suffix.includes("//")) return null;
-  const segments = suffix.split("/");
+  if (!suffix.startsWith("/") || suffix.includes("#")) return null;
+  const queryIndex = suffix.indexOf("?");
+  const path = queryIndex === -1 ? suffix : suffix.slice(0, queryIndex);
+  const query = queryIndex === -1 ? "" : suffix.slice(queryIndex + 1);
+  if (
+    !path.startsWith("/") ||
+    path.includes("%") ||
+    path.includes("\\") ||
+    path.includes("//") ||
+    (queryIndex !== -1 && (!query || query.length > 256))
+  ) return null;
+  const segments = path.split("/");
   if (segments.some((segment) => segment === "." || segment === "..")) return null;
-  return suffix;
+  if (queryIndex === -1) return path;
+
+  // Pagination is the only query-bearing relay operation. Keep this allowlist
+  // intentionally narrow so credentials, patient selectors, and arbitrary
+  // upstream query features cannot be smuggled through the relay.
+  if (path !== "/patient/insurance-history") return null;
+  const params = new URLSearchParams(query);
+  const keys = [...params.keys()];
+  if (keys.some((key) => !["filingType", "limit", "offset"].includes(key))) return null;
+  if (new Set(keys).size !== keys.length) return null;
+  const filingType = params.get("filingType");
+  if (filingType !== null && !["medical_treatment", "medication"].includes(filingType)) return null;
+  for (const key of ["limit", "offset"]) {
+    const value = params.get(key);
+    if (value === null) continue;
+    if (!/^(?:0|[1-9]\d{0,8})$/.test(value)) return null;
+    const number = Number(value);
+    if (!Number.isSafeInteger(number) || (key === "limit" && (number < 1 || number > 100))) {
+      return null;
+    }
+  }
+  return `${path}?${query}`;
 }
 
 export function matchRelayRoute(method: string, path: string): RelayRoute | null {
-  const route = staticRoutes.get(`${method.toUpperCase()} ${path}`);
+  const routePath = path.split("?", 1)[0];
+  const route = staticRoutes.get(`${method.toUpperCase()} ${routePath}`);
   if (route) return route;
   const normalizedMethod = method.toUpperCase();
   const laboratoryMessage = new RegExp(
     "^\\/patient\\/laboratory-messages\\/" + LABORATORY_MESSAGE_ID + "\\/(reply|read)$",
+    "i",
   ).exec(path);
   if (normalizedMethod === "POST" && laboratoryMessage) {
+    const operation = laboratoryMessage[1].toLowerCase();
     return {
-      category: laboratoryMessage[1] === "reply" ? "laboratory_message_reply" : "laboratory_message_read",
+      category:
+        operation === "reply"
+          ? "laboratory_message_reply"
+          : "laboratory_message_read",
       protected: true,
-      validateBody: laboratoryMessage[1] === "reply" ? laboratoryReplyBody : noBody,
+      validateBody: operation === "reply" ? laboratoryReplyBody : noBody,
     };
   }
   if (
