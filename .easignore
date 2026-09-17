@@ -1,0 +1,62 @@
+# EAS resolves this file from the Git repository root. Keep the repository's
+# existing ignored output and secret patterns effective for a monorepo archive.
+dist
+tmp
+out-tsc
+*.tsbuildinfo
+.expo
+.expo-shared
+node_modules
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+.DS_Store
+Thumbs.db
+.cache/
+.local/
+attached_assets/carnet-498712-*.json
+
+# Nested app credential, signing, environment, and key files.
+**/credentials/
+**/credentials/**
+**/credentials/*.json
+**/*.jks
+**/*.p8
+**/*.p12
+**/*.key
+**/*.mobileprovision
+**/*.pem
+**/.env
+**/.env.*
+**/.env*.local
+
+# Release archives do not contain development harnesses or test fixtures.
+scripts/src/
+scripts/tests/
+artifacts/mobile/scripts/test-*.sh
+**/tests/
+**/fixtures/
+**/__fixtures__/
+**/*.test.*
+attached_assets/
+screenshots/
+store-screenshots/
+**/*.log
+**/*.ips
+
+# Expo and generated web output.
+.expo/
+static-build/
+web-build/

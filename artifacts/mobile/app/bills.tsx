@@ -18,6 +18,7 @@ import { ListSkeleton } from "@/components/SkeletonLoader";
 import { useTheme } from "@/context/ThemeContext";
 import { api, type Bill } from "@/lib/api";
 import { LogoWatermark } from "@/components/LogoWatermark";
+import { restrictedProductionFeaturesEnabled } from "@/lib/productionFeatures";
 
 function formatCurrency(amount?: number) {
   if (amount === undefined || amount === null) return "\u2014";
@@ -146,7 +147,7 @@ export default function BillsScreen() {
       <LogoWatermark />
       <ScreenHeader
         title="Bills & Payments"
-        rightElement={
+        rightElement={restrictedProductionFeaturesEnabled() ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="View insurance history"
@@ -155,7 +156,7 @@ export default function BillsScreen() {
           >
             <Feather name="file-text" size={18} color={colors.whiteText} />
           </Pressable>
-        }
+        ) : undefined}
       />
       <FlatList
         data={bills}

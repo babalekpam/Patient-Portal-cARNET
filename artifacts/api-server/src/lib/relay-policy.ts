@@ -159,6 +159,16 @@ const staticRoutes = new Map<string, RelayRoute>([
   ["GET /patient/telehealth/appointments", { category: "telehealth_read", protected: true, validateBody: noBody }],
 ]);
 
+function restrictedRelayRouteOutsideDevelopment(route: RelayRoute): boolean {
+  return (
+    process.env.NODE_ENV !== "development" &&
+    (route.category === "laboratory_messages_read" ||
+      route.category === "laboratory_message_reply" ||
+      route.category === "laboratory_message_read" ||
+      route.category === "insurance_history_read")
+  );
+}
+
 export function parseRelayPath(originalUrl: string): string | null {
   const prefix = NAVIMEDI_RELAY_PREFIX;
   if (!originalUrl.startsWith(prefix)) return null;
@@ -203,7 +213,7 @@ export function parseRelayPath(originalUrl: string): string | null {
 export function matchRelayRoute(method: string, path: string): RelayRoute | null {
   const routePath = path.split("?", 1)[0];
   const route = staticRoutes.get(`${method.toUpperCase()} ${routePath}`);
-  if (route) return route;
+  if (route) return restrictedRelayRouteOutsideDevelopment(route) ? null : route;
   const normalizedMethod = method.toUpperCase();
   const laboratoryMessage = new RegExp(
     "^\\/patient\\/laboratory-messages\\/" + LABORATORY_MESSAGE_ID + "\\/(reply|read)$",
@@ -211,7 +221,7 @@ export function matchRelayRoute(method: string, path: string): RelayRoute | null
   ).exec(path);
   if (normalizedMethod === "POST" && laboratoryMessage) {
     const operation = laboratoryMessage[1].toLowerCase();
-    return {
+    const route: RelayRoute = {
       category:
         operation === "reply"
           ? "laboratory_message_reply"
@@ -219,6 +229,7 @@ export function matchRelayRoute(method: string, path: string): RelayRoute | null
       protected: true,
       validateBody: operation === "reply" ? laboratoryReplyBody : noBody,
     };
+    return restrictedRelayRouteOutsideDevelopment(route) ? null : route;
   }
   if (
     (normalizedMethod === "GET" || normalizedMethod === "POST") &&

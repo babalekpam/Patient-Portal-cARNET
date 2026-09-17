@@ -27,6 +27,7 @@ import { useI18n } from "@/lib/i18n";
 import { useEHR } from "@/context/EHRContext";
 import { useAuth } from "@/context/AuthContext";
 import { sessionGeneration } from "@/lib/session";
+import { restrictedProductionFeaturesEnabled } from "@/lib/productionFeatures";
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return null;
@@ -228,7 +229,8 @@ export default function MessagesScreen() {
     </Pressable>
   );
 
-  const laboratoryMessagesBtn = !ehrLoading && (!adapter || adapter.providerId === "navimedi") ? (
+  const laboratoryMessagesBtn = restrictedProductionFeaturesEnabled() &&
+    !ehrLoading && (!adapter || adapter.providerId === "navimedi") ? (
     <Pressable
       style={({ pressed }) => [styles.composeBtn, pressed && { opacity: 0.7 }]}
       onPress={() => { impactLight(); router.push("/lab-messages"); }}

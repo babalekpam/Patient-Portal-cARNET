@@ -489,7 +489,9 @@ test("relay rejects redirects and oversized upstream responses", { concurrency: 
 
 test("insurance-history relay is patient-bearer-only and forwards bounded category pagination", { concurrency: false }, async () => {
   const originalFetch = globalThis.fetch;
+  const originalTestNodeEnv = mutableEnv.NODE_ENV;
   const calls: FetchCall[] = [];
+  mutableEnv.NODE_ENV = "development";
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     if (url.startsWith("http://127.0.0.1:")) return originalFetch(input, init);
@@ -537,5 +539,7 @@ test("insurance-history relay is patient-bearer-only and forwards bounded catego
     );
   } finally {
     globalThis.fetch = originalFetch;
+    if (originalTestNodeEnv === undefined) delete mutableEnv.NODE_ENV;
+    else mutableEnv.NODE_ENV = originalTestNodeEnv;
   }
 });

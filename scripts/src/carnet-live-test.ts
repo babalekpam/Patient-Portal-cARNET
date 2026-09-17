@@ -42,7 +42,7 @@ const MAX_RESPONSE_BYTES = 1_000_000;
 const MAX_ENV_BYTES = 1_000_000;
 const MAX_RATE_LIMIT_WAIT_MS = 15 * 60 * 1_000;
 
-type RequestedRole = PatientRole | "all";
+type RequestedRole = PatientRole | "all" | "isolation";
 type TargetMode = "direct" | "relay";
 type Stage =
   | "config"
@@ -93,8 +93,18 @@ interface RunOptions {
 }
 
 interface RoleObservation {
+  orderIds: string[];
   messageIds: string[];
   resultIds: string[];
+}
+
+interface ConcurrentSession {
+  role: PatientRole;
+  fixture: FixtureExpectation;
+  cookie: string;
+  token: string;
+  tokenRevoked: boolean;
+  parsedLogin?: PatientLoginResponse;
 }
 
 class HarnessFailure extends Error {
@@ -197,7 +207,12 @@ function argumentValue(name: string): string | undefined {
 function parseRunOptions(): RunOptions {
   const rawRole = argumentValue("--role")?.toUpperCase();
   const rawTarget = argumentValue("--target")?.toLowerCase();
-  if (!rawRole || (rawRole !== "ALL" && !PATIENT_ROLES.includes(rawRole as PatientRole))) {
+  if (
+    !rawRole ||
+    (rawRole !== "ALL" &&
+      rawRole !== "ISOLATION" &&
+      !PATIENT_ROLES.includes(rawRole as PatientRole))
+  ) {
     fail("config", "SCHEMA_INVALID");
   }
   if (rawTarget !== "direct" && rawTarget !== "relay") {
@@ -206,7 +221,11 @@ function parseRunOptions(): RunOptions {
 
   if (rawTarget === "direct") {
     return {
-      role: rawRole === "ALL" ? "all" : (rawRole as PatientRole),
+       role: rawRole === "ALL"
+         ? "all"
+         : rawRole === "ISOLATION"
+           ? "isolation"
+           : (rawRole as PatientRole),
       target: {
         mode: "direct",
         baseUrl: TEMPORARY_HANDOFF_RELAY_UPSTREAM,
@@ -226,7 +245,11 @@ function parseRunOptions(): RunOptions {
     fail("config", "SCHEMA_INVALID");
   }
   return {
-    role: rawRole === "ALL" ? "all" : (rawRole as PatientRole),
+     role: rawRole === "ALL"
+       ? "all"
+       : rawRole === "ISOLATION"
+         ? "isolation"
+         : (rawRole as PatientRole),
     target: {
       mode: "relay",
       baseUrl: `https://${normalizedDomain}${NAVIMEDI_RELAY_PREFIX}`,
@@ -313,6 +336,10 @@ function issuedTokenFrom(body: unknown): string | undefined {
 
 function messageIdentifier(record: JsonRecord): string | undefined {
   return stringValue(record, "id") || stringValue(record, "messageId");
+}
+
+function laboratoryOrderIdentifier(record: JsonRecord): string | undefined {
+  return stringValue(record, "labOrderId");
 }
 
 function isUnreadMessage(record: JsonRecord): boolean {
@@ -404,6 +431,64 @@ function runSyntheticIdentityRegression(): void {
     ) {
       fail("config", "SCHEMA_INVALID");
     }
+
+    const clinicalFixtureEnvelope = {
+      patientA1: {
+        patientId: "synthetic-patient-record",
+        tenantId: "synthetic-tenant",
+        initialLabOrderId: "synthetic-lab-order-a1",
+        initialLaboratoryMessageId: "synthetic-lab-message-a1",
+        expectedLabResultIds: ["synthetic-lab-result-a1"],
+      },
+      patientB1: {
+        patientId: "synthetic-patient-b1",
+        tenantId: "synthetic-tenant-b",
+        initialLabOrderId: "synthetic-lab-order-b1",
+        initialLaboratoryMessageId: "synthetic-lab-message-b1",
+        expectedLabResultIds: ["synthetic-lab-result-b1"],
+      },
+    };
+    const a1ClinicalFixture = fixtureRecord(
+      clinicalFixtureEnvelope,
+      { record: clinicalFixtureEnvelope.patientA1 },
+      "A1",
+    );
+    const b1ClinicalFixture = fixtureRecord(
+      clinicalFixtureEnvelope,
+      { record: clinicalFixtureEnvelope.patientB1 },
+      "B1",
+    );
+    if (
+      a1ClinicalFixture.labOrderId !== "synthetic-lab-order-a1" ||
+      a1ClinicalFixture.messageId !== "synthetic-lab-message-a1" ||
+      a1ClinicalFixture.resultIds.length !== 1 ||
+      a1ClinicalFixture.resultIds[0] !== "synthetic-lab-result-a1" ||
+      b1ClinicalFixture.labOrderId !== "synthetic-lab-order-b1" ||
+      b1ClinicalFixture.messageId !== "synthetic-lab-message-b1" ||
+      b1ClinicalFixture.resultIds.length !== 1 ||
+      b1ClinicalFixture.resultIds[0] !== "synthetic-lab-result-b1"
+    ) {
+      fail("config", "SCHEMA_INVALID");
+    }
+    const ambiguousClinicalFixtureEnvelope = {
+      patientA1: {
+        patientId: "synthetic-patient-record",
+        tenantId: "synthetic-tenant",
+      },
+      patientB1: {
+        patientId: "synthetic-patient-b1",
+        tenantId: "synthetic-tenant-b",
+      },
+      initialLaboratoryMessageId: "synthetic-unassigned-message",
+    };
+    const ambiguousA1 = fixtureRecord(
+      ambiguousClinicalFixtureEnvelope,
+      { record: ambiguousClinicalFixtureEnvelope.patientA1 },
+      "A1",
+    );
+    if (ambiguousA1.messageId || ambiguousA1.labOrderId || ambiguousA1.resultIds.length > 0) {
+      fail("config", "SCHEMA_INVALID");
+    }
   } catch (error) {
     if (error instanceof HarnessFailure) throw error;
     fail("config", "SCHEMA_INVALID");
@@ -412,15 +497,18 @@ function runSyntheticIdentityRegression(): void {
 
 function assertNoCrossPatientOverlap(
   role: PatientRole,
+  orderIds: string[],
   messageIds: string[],
   resultIds: string[],
   observations: Map<PatientRole, RoleObservation>,
 ): void {
-  const currentIds = new Set([...messageIds, ...resultIds]);
+  const currentIds = new Set([...orderIds, ...messageIds, ...resultIds]);
   for (const [otherRole, observation] of observations) {
     if (
       [...currentIds].some((id) =>
-        observation.messageIds.includes(id) || observation.resultIds.includes(id),
+        observation.orderIds.includes(id) ||
+        observation.messageIds.includes(id) ||
+        observation.resultIds.includes(id),
       )
     ) {
       void role;
@@ -429,9 +517,318 @@ function assertNoCrossPatientOverlap(
     }
   }
   observations.set(role, {
+    orderIds: [...new Set(orderIds)],
     messageIds: [...new Set(messageIds)],
     resultIds: [...new Set(resultIds)],
   });
+}
+
+interface PreparedRole {
+  credential: LocatedRecord;
+  fixture: FixtureExpectation;
+  loginBody: JsonRecord;
+}
+
+function prepareRole(
+  role: PatientRole,
+  credentialsValue: unknown,
+  fixtureValue: unknown,
+): PreparedRole {
+  let credential: LocatedRecord;
+  try {
+    credential = findCredentialRecord(credentialsValue, role);
+  } catch (error) {
+    if (error instanceof FixtureSchemaError) fail("credentials", "SCHEMA_INVALID");
+    throw error;
+  }
+  let fixture: FixtureExpectation;
+  try {
+    fixture = fixtureRecord(fixtureValue, credential, role);
+  } catch (error) {
+    if (error instanceof FixtureSchemaError) fail("fixture", "SCHEMA_INVALID");
+    throw error;
+  }
+
+  const email = stringValue(credential.record, "email");
+  const password = credential.record.password;
+  if (!email || typeof password !== "string" || password.length === 0) {
+    fail("credentials", "SCHEMA_INVALID");
+  }
+  const loginBody: JsonRecord = { email, password };
+  for (const key of ["tenantId", "mfaCode"]) {
+    const optional = credential.record[key];
+    if (typeof optional === "string" && optional.length > 0) loginBody[key] = optional;
+  }
+  return { credential, fixture, loginBody };
+}
+
+async function concurrentRequest(
+  session: ConcurrentSession,
+  stage: Stage,
+  path: string,
+  options: {
+    method?: string;
+    token?: string;
+    csrf?: string;
+    cookie?: string;
+    body?: unknown;
+  } = {},
+): Promise<RequestResult> {
+  const result = await requestAt(stage, path, {
+    ...options,
+    token: options.token ?? session.token,
+    cookie: options.cookie ?? session.cookie,
+  });
+  session.cookie = result.cookie;
+  return result;
+}
+
+async function revokeConcurrentSession(session: ConcurrentSession): Promise<void> {
+  if (!session.token || session.tokenRevoked) return;
+  const authCsrf = await concurrentRequest(session, "cleanup", "/csrf-token");
+  expectStatus(authCsrf, "cleanup", [200]);
+  const logout = await concurrentRequest(session, "cleanup", "/auth/patient-logout", {
+    method: "POST",
+    csrf: csrfToken(authCsrf.body, "cleanup"),
+  });
+  expectStatus(logout, "cleanup", [200, 204]);
+  session.tokenRevoked = true;
+}
+
+async function cleanupConcurrentSessions(sessions: ConcurrentSession[]): Promise<void> {
+  const outcomes = await Promise.allSettled(
+    sessions.map((session) => revokeConcurrentSession(session)),
+  );
+  if (outcomes.some((outcome) => outcome.status === "rejected")) {
+    fail("cleanup", "CLEANUP_FAILED");
+  }
+}
+
+async function establishConcurrentSession(
+  options: RunOptions,
+  role: PatientRole,
+  prepared: PreparedRole,
+): Promise<ConcurrentSession> {
+  const session: ConcurrentSession = {
+    role,
+    fixture: prepared.fixture,
+    cookie: "",
+    token: "",
+    tokenRevoked: false,
+  };
+  try {
+    let preauthCsrf = "";
+    if (options.target.mode === "direct") {
+      const preauth = await requestAt("preauth", "/csrf-token");
+      session.cookie = preauth.cookie;
+      expectStatus(preauth, "preauth", [200]);
+      preauthCsrf = csrfToken(preauth.body, "preauth");
+    }
+
+    const login = await requestAt("login", "/auth/patient-login", {
+      method: "POST",
+      ...(preauthCsrf ? { csrf: preauthCsrf } : {}),
+      cookie: session.cookie,
+      body: prepared.loginBody,
+    });
+    session.cookie = login.cookie;
+    session.token = issuedTokenFrom(login.body) || "";
+    expectStatus(login, "login", [200]);
+    let parsedLogin: PatientLoginResponse;
+    try {
+      parsedLogin = mobileNetwork.requirePatientLoginResponse(login.body);
+    } catch {
+      fail("login", "IDENTITY_INVALID");
+    }
+    session.parsedLogin = parsedLogin;
+    session.token = parsedLogin.token;
+    if (
+      parsedLogin.patient.id !== prepared.fixture.identity.patientId ||
+      parsedLogin.patient.tenantId !== prepared.fixture.identity.tenantId ||
+      parsedLogin.user.tenantId !== prepared.fixture.identity.tenantId
+    ) {
+      fail("login", "IDENTITY_MISMATCH");
+    }
+
+    const profile = await concurrentRequest(session, "profile", "/patient/profile");
+    expectStatus(profile, "profile", [200]);
+    try {
+      mobileNetwork.requireMatchingPatientProfile(profile.body, parsedLogin);
+    } catch {
+      fail("profile", "IDENTITY_INVALID");
+    }
+    return session;
+  } catch (error) {
+    if (session.token && !session.tokenRevoked) {
+      try {
+        await revokeConcurrentSession(session);
+      } catch {
+        fail("cleanup", "CLEANUP_FAILED");
+      }
+    }
+    throw error;
+  }
+}
+
+function expectedFixtureMessage(
+  messages: JsonRecord[],
+  fixture: FixtureExpectation,
+): JsonRecord | undefined {
+  const byMessageId = fixture.messageId
+    ? messages.find((message) => messageIdentifier(message) === fixture.messageId)
+    : undefined;
+  if (fixture.messageId && !byMessageId) fail("messages", "MESSAGE_MISSING");
+  const byOrderId = fixture.labOrderId
+    ? messages.filter((message) => laboratoryOrderIdentifier(message) === fixture.labOrderId)
+    : [];
+  if (fixture.labOrderId && byOrderId.length === 0) fail("messages", "MESSAGE_MISSING");
+  if (byMessageId && fixture.labOrderId && laboratoryOrderIdentifier(byMessageId) !== fixture.labOrderId) {
+    fail("messages", "MESSAGE_MISSING");
+  }
+  // An order can contain multiple rows. Without a concrete message marker,
+  // do not guess which row is the retained initial unread message.
+  return byMessageId || (byOrderId.length === 1 ? byOrderId[0] : undefined);
+}
+
+async function readConcurrentLaboratory(
+  session: ConcurrentSession,
+): Promise<RoleObservation> {
+  const laboratory = await concurrentRequest(
+    session,
+    "messages",
+    "/patient/laboratory-messages",
+  );
+  expectStatus(laboratory, "messages", [200]);
+  if (!Array.isArray(laboratory.body)) fail("messages", "BODY_INVALID");
+  const messages = laboratory.body.filter(isRecord);
+  const fixtureMessage = expectedFixtureMessage(messages, session.fixture);
+  if (fixtureMessage && !isUnreadMessage(fixtureMessage)) {
+    fail("messages", "MESSAGE_STATE_CHANGED");
+  }
+
+  const laboratoryReload = await concurrentRequest(
+    session,
+    "messages",
+    "/patient/laboratory-messages",
+  );
+  expectStatus(laboratoryReload, "messages", [200]);
+  if (!Array.isArray(laboratoryReload.body)) fail("messages", "BODY_INVALID");
+  const reloadedMessages = laboratoryReload.body.filter(isRecord);
+  const reloadedFixtureMessage = expectedFixtureMessage(
+    reloadedMessages,
+    session.fixture,
+  );
+  if (reloadedFixtureMessage && !isUnreadMessage(reloadedFixtureMessage)) {
+    fail("messages", "RELOAD_STATE_CHANGED");
+  }
+
+  const results = await concurrentRequest(session, "results", "/patient/lab-results");
+  expectStatus(results, "results", [200]);
+  if (!Array.isArray(results.body)) fail("results", "BODY_INVALID");
+  const resultIds = results.body
+    .filter(isRecord)
+    .map((result) => stringValue(result, "id") || stringValue(result, "resultId"))
+    .filter((id): id is string => id !== undefined);
+  for (const expectedResultId of session.fixture.resultIds) {
+    if (!resultIds.includes(expectedResultId)) fail("results", "RESULT_MISSING");
+  }
+
+  const orderIds = messages
+    .map(laboratoryOrderIdentifier)
+    .filter((id): id is string => id !== undefined);
+  const messageIds = messages
+    .map(messageIdentifier)
+    .filter((id): id is string => id !== undefined);
+  return {
+    orderIds,
+    messageIds,
+    resultIds,
+  };
+}
+
+async function runConcurrentIsolation(
+  options: RunOptions,
+  credentialsValue: unknown,
+  fixtureValue: unknown,
+): Promise<void> {
+  const preparedA1 = prepareRole("A1", credentialsValue, fixtureValue);
+  const preparedB1 = prepareRole("B1", credentialsValue, fixtureValue);
+  const settled = await Promise.allSettled([
+    establishConcurrentSession(options, "A1", preparedA1),
+    establishConcurrentSession(options, "B1", preparedB1),
+  ]);
+  const sessions = settled
+    .filter(
+      (result): result is PromiseFulfilledResult<ConcurrentSession> =>
+        result.status === "fulfilled",
+    )
+    .map((result) => result.value);
+  try {
+    const failure = settled.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failure) throw failure.reason;
+    const a1 = sessions.find((session) => session.role === "A1");
+    const b1 = sessions.find((session) => session.role === "B1");
+    if (!a1 || !b1 || !a1.parsedLogin || !b1.parsedLogin) {
+      fail("login", "IDENTITY_INVALID");
+    }
+
+    const [a1Observation, b1Observation] = await Promise.all([
+      readConcurrentLaboratory(a1),
+      readConcurrentLaboratory(b1),
+    ]);
+    const observations = new Map<PatientRole, RoleObservation>();
+    assertNoCrossPatientOverlap(
+      "A1",
+      a1Observation.orderIds,
+      a1Observation.messageIds,
+      a1Observation.resultIds,
+      observations,
+    );
+    assertNoCrossPatientOverlap(
+      "B1",
+      b1Observation.orderIds,
+      b1Observation.messageIds,
+      b1Observation.resultIds,
+      observations,
+    );
+
+    await revokeConcurrentSession(a1);
+    const a1AfterLogout = await concurrentRequest(a1, "revocation", "/patient/profile");
+    expectStatus(a1AfterLogout, "revocation", [401, 403]);
+
+    // Keep B1's bearer and cookie alive while A1 is revoked. The same strict
+    // profile parser used by the mobile app proves that B1 remains bound to its
+    // own patient record and tenant.
+    const b1AfterA1Logout = await concurrentRequest(b1, "profile", "/patient/profile");
+    expectStatus(b1AfterA1Logout, "profile", [200]);
+    try {
+      mobileNetwork.requireMatchingPatientProfile(b1AfterA1Logout.body, b1.parsedLogin);
+    } catch {
+      fail("profile", "IDENTITY_INVALID");
+    }
+    const b1ReloadObservation = await readConcurrentLaboratory(b1);
+    if (
+      b1.fixture.messageId &&
+      !b1ReloadObservation.messageIds.includes(b1.fixture.messageId)
+    ) {
+      fail("messages", "MESSAGE_MISSING");
+    }
+
+    await revokeConcurrentSession(b1);
+    const b1AfterLogout = await concurrentRequest(b1, "revocation", "/patient/profile");
+    expectStatus(b1AfterLogout, "revocation", [401, 403]);
+
+    console.log("CARNET concurrent patient isolation harness: PASS");
+    console.log(`- concurrent A1+B1 genuine login verified via ${options.target.mode} target`);
+    console.log("- strict mobile login/profile parsers verified both patient-record identities");
+    console.log("- A1 logout rejected A1's bearer while B1 remained profile-valid");
+    console.log("- laboratory reads remained GET-only; initial unread state was preserved when fixture markers were available");
+    console.log("- concurrent laboratory IDs had no cross-role overlap when returned");
+  } finally {
+    await cleanupConcurrentSessions(sessions);
+  }
 }
 
 async function run(): Promise<void> {
@@ -442,6 +839,10 @@ async function run(): Promise<void> {
   const credentialsValue = parseJsonEnv(CREDENTIALS_ENV, "credentials");
   currentStage = "fixture";
   const fixtureValue = parseJsonEnv(FIXTURE_ENV, "fixture");
+  if (options.role === "isolation") {
+    await runConcurrentIsolation(options, credentialsValue, fixtureValue);
+    return;
+  }
   const roles = options.role === "all" ? PATIENT_ROLES : [options.role];
   const observations = new Map<PatientRole, RoleObservation>();
   for (const role of roles) {
@@ -449,12 +850,15 @@ async function run(): Promise<void> {
   }
   if (options.role === "all") {
     const returnedIdsAvailable = [...observations.values()].some(
-      (observation) => observation.messageIds.length > 0 || observation.resultIds.length > 0,
+      (observation) =>
+        observation.orderIds.length > 0 ||
+        observation.messageIds.length > 0 ||
+        observation.resultIds.length > 0,
     );
     console.log(
       returnedIdsAvailable
-        ? "- returned laboratory message/result IDs had no cross-role overlap"
-        : "- returned laboratory message/result IDs unavailable; overlap assertion not claimed",
+        ? "- returned laboratory order/message/result IDs had no cross-role overlap"
+        : "- returned laboratory order/message/result IDs unavailable; overlap assertion not claimed",
     );
     console.log("- cross-session validity after another role's logout not exercised");
   }
@@ -570,12 +974,9 @@ async function runForRole(
     expectStatus(laboratory, "messages", [200]);
     if (!Array.isArray(laboratory.body)) fail("messages", "BODY_INVALID");
     messages = laboratory.body.filter(isRecord);
-    const verifiedFixtureMessage = Boolean(fixture.messageId);
-    if (fixture.messageId) {
-      const fixtureMessage = messages.find(
-        (message) => messageIdentifier(message) === fixture.messageId,
-      );
-      if (!fixtureMessage) fail("messages", "MESSAGE_MISSING");
+    const fixtureMessage = expectedFixtureMessage(messages, fixture);
+    const verifiedFixtureMessage = Boolean(fixtureMessage);
+    if (fixtureMessage) {
       if (!isUnreadMessage(fixtureMessage)) fail("messages", "MESSAGE_STATE_CHANGED");
     }
 
@@ -586,11 +987,11 @@ async function runForRole(
     cookie = laboratoryReload.cookie;
     expectStatus(laboratoryReload, "messages", [200]);
     if (!Array.isArray(laboratoryReload.body)) fail("messages", "BODY_INVALID");
-    if (fixture.messageId) {
-      const reloadedFixtureMessage = laboratoryReload.body
-        .filter(isRecord)
-        .find((message) => messageIdentifier(message) === fixture.messageId);
-      if (!reloadedFixtureMessage) fail("messages", "MESSAGE_MISSING");
+    const reloadedFixtureMessage = expectedFixtureMessage(
+      laboratoryReload.body.filter(isRecord),
+      fixture,
+    );
+    if (reloadedFixtureMessage) {
       if (!isUnreadMessage(reloadedFixtureMessage)) {
         fail("messages", "RELOAD_STATE_CHANGED");
       }
@@ -607,10 +1008,13 @@ async function runForRole(
     for (const expectedResultId of fixture.resultIds) {
       if (!resultIds.includes(expectedResultId)) fail("results", "RESULT_MISSING");
     }
+    const orderIds = messages
+      .map(laboratoryOrderIdentifier)
+      .filter((id): id is string => id !== undefined);
     const messageIds = messages
       .map(messageIdentifier)
       .filter((id): id is string => id !== undefined);
-    assertNoCrossPatientOverlap(role, messageIds, resultIds, observations);
+    assertNoCrossPatientOverlap(role, orderIds, messageIds, resultIds, observations);
 
     currentStage = "logout";
     await revokeIssuedToken();

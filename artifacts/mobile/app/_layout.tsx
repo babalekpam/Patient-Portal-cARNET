@@ -20,6 +20,7 @@ import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { EHRProvider, useEHR } from "@/context/EHRContext";
 import { ThemeProvider } from "@/context/ThemeContext";
 import { I18nContext, useI18nProvider } from "@/lib/i18n";
+import { restrictedProductionFeaturesEnabled } from "@/lib/productionFeatures";
 
 const FONT_TIMEOUT_MS = 10_000;
 
@@ -106,7 +107,15 @@ function RootLayoutNav() {
   const showBlockingOverlay = Boolean(sessionError || showStartupOverlay);
 
   useEffect(() => {
-    if (isBootstrapping || sessionError) return;
+    if (isBootstrapping) return;
+    if (
+      !restrictedProductionFeaturesEnabled() &&
+      (pathname === "/insurance-history" || pathname === "/lab-messages")
+    ) {
+      router.replace(isAuthenticated ? "/(tabs)" : "/login");
+      return;
+    }
+    if (sessionError) return;
     // Only redirect into protected content after a verified session. In
     // particular, never replace /login after a failed sign-in: the mounted
     // form owns the error message and remains available for another attempt.
@@ -141,9 +150,7 @@ function RootLayoutNav() {
               <Stack.Screen name="prescriptions" options={{ headerShown: false }} />
               <Stack.Screen name="lab-results" options={{ headerShown: false }} />
               <Stack.Screen name="messages" options={{ headerShown: false }} />
-              <Stack.Screen name="lab-messages" options={{ headerShown: false }} />
               <Stack.Screen name="bills" options={{ headerShown: false }} />
-              <Stack.Screen name="insurance-history" options={{ headerShown: false }} />
               <Stack.Screen name="visit-summaries" options={{ headerShown: false }} />
               <Stack.Screen name="request-appointment" options={{ headerShown: false }} />
               <Stack.Screen name="emergency-card" options={{ headerShown: false }} />
@@ -156,6 +163,12 @@ function RootLayoutNav() {
               <Stack.Screen name="health-metrics" options={{ headerShown: false }} />
               <Stack.Screen name="telehealth" options={{ headerShown: false }} />
               <Stack.Screen name="security-privacy" options={{ headerShown: false }} />
+              {restrictedProductionFeaturesEnabled() ? (
+                <Stack.Screen name="lab-messages" options={{ headerShown: false }} />
+              ) : null}
+              {restrictedProductionFeaturesEnabled() ? (
+                <Stack.Screen name="insurance-history" options={{ headerShown: false }} />
+              ) : null}
             </Stack.Protected>
           </Stack>
         </SessionSecurity>

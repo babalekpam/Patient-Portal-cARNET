@@ -22,6 +22,10 @@ import { useEHR } from "@/context/EHRContext";
 import { useTheme } from "@/context/ThemeContext";
 import { api, type LaboratoryMessage } from "@/lib/api";
 import { sessionGeneration } from "@/lib/session";
+import {
+  PRODUCTION_FEATURE_UNAVAILABLE_MESSAGE,
+  restrictedProductionFeaturesEnabled,
+} from "@/lib/productionFeatures";
 
 interface LaboratoryThread {
   key: string;
@@ -218,8 +222,9 @@ export default function LaboratoryMessagesScreen() {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [readError, setReadError] = useState<string | null>(null);
+  const featureEnabled = restrictedProductionFeaturesEnabled();
   const canUseLaboratoryMessages =
-    !ehrLoading && (!adapter || adapter.providerId === "navimedi");
+    featureEnabled && !ehrLoading && (!adapter || adapter.providerId === "navimedi");
   const sessionKey = adapter?.sessionKey || "direct-navimedi";
   const patientKey = profile?.patientId || profile?.id || "unknown";
   const generation = sessionGeneration();
@@ -266,10 +271,12 @@ export default function LaboratoryMessagesScreen() {
         <View style={styles.centered}>
           <Feather name="info" size={36} color={colors.textTertiary} />
           <Text style={[styles.errorTitle, { color: colors.text }]}>
-            Laboratory handoff unavailable
+            {featureEnabled ? "Laboratory handoff unavailable" : "Laboratory messaging is unavailable"}
           </Text>
           <Text style={[styles.errorText, { color: colors.textSecondary }]}>
-            This connected provider does not support NaviMED laboratory handoff messaging.
+            {featureEnabled
+              ? "This connected provider does not support NaviMED laboratory handoff messaging."
+              : PRODUCTION_FEATURE_UNAVAILABLE_MESSAGE}
           </Text>
         </View>
       </View>

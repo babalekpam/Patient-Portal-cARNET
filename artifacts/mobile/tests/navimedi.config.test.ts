@@ -5,12 +5,13 @@ import {
   getNavimediNativeApiBaseUrl,
   isNavimediNativeApiOverrideActive,
   NAVIMEDI_API_BASE_URL,
-  TEMPORARY_HANDOFF_RELAY_UPSTREAM,
   resolveNavimediNativeBaseUrl,
 } from "../lib/ehr/navimediConfig";
 
 const OVERRIDE_KEY = "EXPO_PUBLIC_CARNET_NAVIMEDI_NATIVE_API_BASE_URL";
 const RELAY_OVERRIDE_KEY = "EXPO_PUBLIC_CARNET_NAVIMEDI_RELAY_UPSTREAM_URL";
+const TEMPORARY_HANDOFF_RELAY_UPSTREAM =
+  "https://942dd837-7012-47ef-8574-574ac5ab89f8-00-2gel21gszwmqv.picard.replit.dev/api";
 const originalNodeEnv = process.env.NODE_ENV;
 const originalOverride = process.env[OVERRIDE_KEY];
 const originalRelayOverride = process.env[RELAY_OVERRIDE_KEY];
@@ -45,7 +46,7 @@ test("accepts and normalizes only a development HTTPS /api override", () => {
   assert.equal(isNavimediNativeApiOverrideActive(), true);
 });
 
-test("rejects invalid or production native overrides", () => {
+test("rejects invalid overrides and ignores a production override safely", () => {
   mutableEnv.NODE_ENV = "development";
   for (const value of [
     "http://temporary.example/api",
@@ -60,7 +61,22 @@ test("rejects invalid or production native overrides", () => {
   process.env[OVERRIDE_KEY] =
     "https://942dd837-7012-47ef-8574-574ac5ab89f8-00-2gel21gszwmqv.picard.replit.dev/api";
   mutableEnv.NODE_ENV = "production";
-  assert.throws(() => getNavimediNativeApiBaseUrl(), /development-only/i);
+  assert.equal(getNavimediNativeApiBaseUrl(), NAVIMEDI_API_BASE_URL);
+});
+
+test("production relay resolution stays on NaviMED when a workspace override is exported", () => {
+  mutableEnv.NODE_ENV = "production";
+  process.env[RELAY_OVERRIDE_KEY] = TEMPORARY_HANDOFF_RELAY_UPSTREAM;
+  assert.equal(getNavimediWebRelayUpstreamBaseUrl(), NAVIMEDI_API_BASE_URL);
+});
+
+test("relay overrides require explicit development in unset and test environments", () => {
+  process.env[RELAY_OVERRIDE_KEY] = TEMPORARY_HANDOFF_RELAY_UPSTREAM;
+  for (const environment of [undefined, "test"]) {
+    if (environment === undefined) delete mutableEnv.NODE_ENV;
+    else mutableEnv.NODE_ENV = environment;
+    assert.equal(getNavimediWebRelayUpstreamBaseUrl(), NAVIMEDI_API_BASE_URL);
+  }
 });
 
 test("does not redirect explicitly configured non-production providers", () => {

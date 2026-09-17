@@ -9,6 +9,9 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "carnet:live:test": "tsx ./src/carnet-live-test.ts",
+    "carnet:clinical:test": "tsx ./src/carnet-clinical-live-test.ts",
+    "carnet:lab:staff:test": "tsx ./src/carnet-laboratory-staff-live-test.ts",
+    "test": "node --test tests/carnet-live-test-regression.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

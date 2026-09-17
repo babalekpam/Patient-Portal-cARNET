@@ -7,6 +7,17 @@ import {
   parseRelayPath,
 } from "./relay-policy";
 
+const mutableEnv = process.env as Record<string, string | undefined>;
+const originalNodeEnv = mutableEnv.NODE_ENV;
+
+test.afterEach(() => {
+  if (originalNodeEnv === undefined) delete mutableEnv.NODE_ENV;
+  else mutableEnv.NODE_ENV = originalNodeEnv;
+});
+test.beforeEach(() => {
+  mutableEnv.NODE_ENV = "development";
+});
+
 test("allows every mobile API operation with only its supported method", () => {
   const allowed = [
     ["GET", "/csrf-token"],
@@ -37,6 +48,28 @@ test("allows every mobile API operation with only its supported method", () => {
   }
   assert.equal(matchRelayRoute("DELETE", "/patient/profile"), null);
   assert.equal(matchRelayRoute("GET", "/patient/unknown"), null);
+});
+
+test("fails closed for restricted laboratory and insurance relay routes outside explicit development", () => {
+  for (const environment of ["production", "test", undefined]) {
+    if (environment === undefined) delete mutableEnv.NODE_ENV;
+    else mutableEnv.NODE_ENV = environment;
+    assert.equal(matchRelayRoute("GET", "/patient/laboratory-messages"), null, environment);
+    assert.equal(
+      matchRelayRoute(
+        "POST",
+        "/patient/laboratory-messages/550e8400-e29b-41d4-a716-446655440000/reply",
+      ),
+      null,
+      environment,
+    );
+    assert.equal(matchRelayRoute("GET", "/patient/insurance-history"), null, environment);
+  }
+  mutableEnv.NODE_ENV = "development";
+  assert.notEqual(matchRelayRoute("GET", "/patient/laboratory-messages"), null);
+  assert.notEqual(matchRelayRoute("GET", "/patient/insurance-history"), null);
+  assert.notEqual(matchRelayRoute("GET", "/patient/lab-results"), null);
+  assert.notEqual(matchRelayRoute("GET", "/medical-communications"), null);
 });
 
 test("rejects query strings, traversal, encoded separators, and malformed paths", () => {

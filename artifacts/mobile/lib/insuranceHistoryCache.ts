@@ -1,4 +1,5 @@
 import type { InsuranceFilingType, InsuranceHistoryPage } from "./insuranceHistory";
+import { restrictedProductionFeaturesEnabled } from "./productionFeatures";
 
 type CacheEntry = {
   generation: number;
@@ -24,6 +25,7 @@ export function getInsuranceHistoryPage(
   limit: number,
   offset: number,
 ): InsuranceHistoryPage | undefined {
+  if (!restrictedProductionFeaturesEnabled()) return undefined;
   return pages.get(key(generation, sessionKey, filingType, limit, offset))?.page;
 }
 
@@ -35,6 +37,7 @@ export function setInsuranceHistoryPage(
   offset: number,
   page: InsuranceHistoryPage,
 ): void {
+  if (!restrictedProductionFeaturesEnabled()) return;
   pages.set(key(generation, sessionKey, filingType, limit, offset), { generation, page });
 }
 

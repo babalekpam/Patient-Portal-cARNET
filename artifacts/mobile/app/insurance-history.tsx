@@ -30,6 +30,10 @@ import {
 } from "@/lib/insuranceHistoryQueries";
 import { insuranceHistoryNavigation } from "@/lib/insuranceHistoryPagination";
 import { api } from "@/lib/api";
+import {
+  PRODUCTION_FEATURE_UNAVAILABLE_MESSAGE,
+  restrictedProductionFeaturesEnabled,
+} from "@/lib/productionFeatures";
 
 type CategoryState = {
   offset: number;
@@ -275,13 +279,14 @@ export default function InsuranceHistoryScreen() {
   const { adapter } = useEHR();
   const { colors } = useTheme();
   const queryClient = useQueryClient();
+  const featureEnabled = restrictedProductionFeaturesEnabled();
   const accountKey = useMemo(
     () => insuranceHistoryAccountKey(profile, adapter),
     [adapter, profile],
   );
   const [categoryState, setCategoryState] =
     useState<Record<InsuranceFilingType, CategoryState>>(INITIAL_CATEGORY_STATE);
-  const unavailableForProvider = Boolean(adapter && !adapter.getInsuranceHistory);
+  const unavailableForProvider = !featureEnabled || Boolean(adapter && !adapter.getInsuranceHistory);
 
   useEffect(() => {
     clearOtherInsuranceHistoryQueries(queryClient, accountKey);
@@ -301,7 +306,7 @@ export default function InsuranceHistoryScreen() {
         limit: INSURANCE_HISTORY_PAGE_SIZE,
         offset: categoryState.medical_treatment.offset,
       }),
-    enabled: Boolean(accountKey) && !unavailableForProvider,
+    enabled: featureEnabled && Boolean(accountKey) && !unavailableForProvider,
   });
   const medicationQuery = useQuery({
     queryKey: insuranceHistoryQueryKey(
@@ -316,7 +321,7 @@ export default function InsuranceHistoryScreen() {
         limit: INSURANCE_HISTORY_PAGE_SIZE,
         offset: categoryState.medication.offset,
       }),
-    enabled: Boolean(accountKey) && !unavailableForProvider,
+    enabled: featureEnabled && Boolean(accountKey) && !unavailableForProvider,
   });
 
   const updateCategory = (filingType: InsuranceFilingType, offset: number) => {
@@ -374,10 +379,16 @@ export default function InsuranceHistoryScreen() {
           <View style={styles.unavailable}>
             <Feather name="shield" size={32} color={colors.textTertiary} />
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {noSession ? "Sign in to view insurance history" : "Insurance history is unavailable"}
+              {!featureEnabled
+                ? "Insurance history is unavailable"
+                : noSession
+                  ? "Sign in to view insurance history"
+                  : "Insurance history is unavailable"}
             </Text>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              {noSession
+              {!featureEnabled
+                ? PRODUCTION_FEATURE_UNAVAILABLE_MESSAGE
+                : noSession
                 ? "Only the signed-in patient can access these filings."
                 : "This provider does not expose the CARNET insurance-history service."}
             </Text>

@@ -12,6 +12,7 @@ import { HomeSkeleton } from "@/components/SkeletonLoader";
 import { api, type Appointment, type Message } from "@/lib/api";
 import { impactLight } from "@/lib/haptics";
 import { useI18n, type TranslationKey } from "@/lib/i18n";
+import { restrictedProductionFeaturesEnabled } from "@/lib/productionFeatures";
 
 type Icon = React.ComponentProps<typeof Feather>["name"];
 type Action = { labelKey: TranslationKey; icon: Icon; route: string; tone: "primaryLight" | "infoLight" | "warningLight" | "successLight" | "dangerLight" };
@@ -69,7 +70,11 @@ export default function HomeScreen() {
   const { data: messages = [], isError: messagesError } = useQuery({ queryKey: ["messages"], queryFn: () => api.getMessages(), enabled: !!profile });
   const { data: appointments = [], isError: appointmentsError } = useQuery({ queryKey: ["appointments"], queryFn: () => api.getAppointments(), enabled: !!profile });
   const refresh = async () => { setRefreshing(true); await Promise.all([refreshProfile(), client.invalidateQueries({ queryKey: ["messages"] }), client.invalidateQueries({ queryKey: ["appointments"] })]); setRefreshing(false); };
-  const tablet = width >= 720, wide = width >= 1000; const columns = wide ? 5 : tablet ? 4 : 2; const actions = allServices ? ACTIONS : ACTIONS.slice(0, 8); const side = tablet ? 28 : 16;
+  const tablet = width >= 720, wide = width >= 1000; const columns = wide ? 5 : tablet ? 4 : 2;
+  const visibleActions = restrictedProductionFeaturesEnabled()
+    ? ACTIONS
+    : ACTIONS.filter((item) => item.route !== "/insurance-history");
+  const actions = allServices ? visibleActions : visibleActions.slice(0, 8); const side = tablet ? 28 : 16;
   if (isLoading && !profile) return <View accessibilityRole="progressbar" accessibilityLabel={a11y.loading} aria-busy={true} style={[styles.screen, { backgroundColor: colors.background, paddingTop: (Platform.OS === "web" ? 67 : insets.top) + 18 }]}><HomeSkeleton /></View>;
   return <View style={[styles.screen, { backgroundColor: colors.background }]}><View style={[styles.coralBar, { backgroundColor: colors.coral }]} /><ScrollView accessibilityLabel={a11y.mainContent} contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={false} refreshControl={<RefreshControl accessibilityLabel={a11y.refresh} refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />} contentContainerStyle={{ paddingBottom: (Platform.OS === "web" ? 110 : insets.bottom + 105) }}>
     <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.borderLight, paddingTop: (Platform.OS === "web" ? 67 : insets.top) + 10, paddingHorizontal: side }]}><View style={[styles.max, styles.headerRow]}><View style={styles.brand}><View style={[styles.brandMark, { backgroundColor: colors.primary }]}><Feather name="heart" size={20} color={colors.onPrimary} /></View><Text style={[styles.brandText, { color: colors.text }]}>CARNET</Text>{tablet ? <Text style={[styles.byline, { color: colors.textTertiary }]}>BY ARGILETTE</Text> : null}</View><View style={styles.headerActions}><IconButton icon="search" label="Search" color={colors.textSecondary} onPress={() => go("/messages")} /><Pressable accessibilityRole="button" accessibilityLabel="Manage profile" onPress={() => go("/(tabs)/profile")} style={[styles.profileChip, { borderColor: colors.controlBorder }]}><Text style={[styles.profileInitial, { backgroundColor: colors.primaryLight, color: colors.primary }]}>{(profile?.firstName || "P").charAt(0)}</Text>{tablet ? <Text style={[styles.profileName, { color: colors.textSecondary }]}>{profile?.firstName || "Patient"}</Text> : null}</Pressable></View></View></View>

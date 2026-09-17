@@ -703,6 +703,40 @@ test("supports laboratory message reads, explicit replies, and explicit read act
   ]);
 });
 
+test("production blocks every restricted adapter operation before transport", async () => {
+  const mutableEnv = process.env as Record<string, string | undefined>;
+  const originalNodeEnv = mutableEnv.NODE_ENV;
+  let requests = 0;
+  const adapter = new NavimediAdapter(
+    "navimedi-test",
+    TEST_BASE_URL,
+    async () => {
+      requests += 1;
+      throw new Error("restricted adapter transport must not run");
+    },
+  );
+  mutableEnv.NODE_ENV = "production";
+  try {
+    await assert.rejects(adapter.getLaboratoryMessages(), /disabled in production/i);
+    await assert.rejects(
+      adapter.replyToLaboratoryMessage(
+        "550e8400-e29b-41d4-a716-446655440000",
+        "reply",
+      ),
+      /disabled in production/i,
+    );
+    await assert.rejects(
+      adapter.markLaboratoryMessageRead("550e8400-e29b-41d4-a716-446655440000"),
+      /disabled in production/i,
+    );
+    await assert.rejects(adapter.getInsuranceHistory(), /disabled in production/i);
+    assert.equal(requests, 0);
+  } finally {
+    if (originalNodeEnv === undefined) delete mutableEnv.NODE_ENV;
+    else mutableEnv.NODE_ENV = originalNodeEnv;
+  }
+});
+
 test("rejects laboratory message selectors and blank replies before network access", async () => {
   let requests = 0;
   const adapter = new NavimediAdapter(

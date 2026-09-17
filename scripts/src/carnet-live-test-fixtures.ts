@@ -7,12 +7,30 @@ export interface LocatedRecord {
   record: JsonRecord;
   parentArray?: unknown[];
   index?: number;
+  path?: string[];
 }
 
 export interface FixtureExpectation {
   identity: { patientId: string; tenantId: string };
+  labOrderId?: string;
   messageId?: string;
   resultIds: string[];
+}
+
+/**
+ * Development-only references for records that already exist in NaviMED.
+ *
+ * These are deliberately separate from the credential/identity fixture
+ * envelope.  The reference secret is an assertion about retained records,
+ * not a second source of patient identity.  Callers must compare `owner` to
+ * the independently resolved patient fixture before using any ID.
+ */
+export interface ClinicalRecordReferences {
+  owner: { patientId: string; tenantId: string };
+  labOrderId?: string;
+  messageId?: string;
+  releasedResultIds: string[];
+  hasResultReference: boolean;
 }
 
 export class FixtureSchemaError extends Error {
@@ -61,6 +79,7 @@ function walkRecords(
   parentArray?: unknown[],
   index?: number,
   depth = 0,
+  path: string[] = [],
 ): void {
   if (depth > 16 || (!isRecord(value) && !Array.isArray(value))) return;
   if (typeof value === "object" && value !== null) {
@@ -68,14 +87,17 @@ function walkRecords(
     seen.add(value);
   }
   if (isRecord(value)) {
-    visit({ record: value, parentArray, index });
-    for (const child of Object.values(value)) {
-      walkRecords(child, visit, seen, undefined, undefined, depth + 1);
+    visit({ record: value, parentArray, index, path });
+    for (const [key, child] of Object.entries(value)) {
+      walkRecords(child, visit, seen, undefined, undefined, depth + 1, [...path, key]);
     }
     return;
   }
   for (const [childIndex, child] of value.entries()) {
-    walkRecords(child, visit, seen, value, childIndex, depth + 1);
+    walkRecords(child, visit, seen, value, childIndex, depth + 1, [
+      ...path,
+      String(childIndex),
+    ]);
   }
 }
 
@@ -164,6 +186,8 @@ function directIdentity(record: JsonRecord): {
   ]);
   const tenantId = uniqueStrings([
     stringValue(record, "tenantId"),
+    stringValue(record, "patientTenantId"),
+    stringValue(record, "patient_tenant_id"),
     stringValue(patient, "tenantId"),
     stringValue(tenant, "tenantId"),
     stringValue(tenant, "id"),
@@ -220,6 +244,7 @@ export function fixtureRecord(
     if (hasCompleteIdentity(identity)) {
       return {
         identity,
+        labOrderId: knownFixtureLabOrderId(value, role),
         messageId: knownFixtureMessageId(value, role),
         resultIds: knownFixtureResultIds(value, role),
       };
@@ -254,6 +279,7 @@ export function fixtureRecord(
         patientId: alignedIdentity.patientId,
         tenantId: alignedIdentity.tenantId,
       },
+      labOrderId: knownFixtureLabOrderId(value, role),
       messageId: knownFixtureMessageId(value, role),
       resultIds: knownFixtureResultIds(value, role),
     };
@@ -278,51 +304,362 @@ export function fixtureRecord(
   const candidateIdentity = distinctCandidates[0];
   return {
     identity: candidateIdentity,
+    labOrderId: knownFixtureLabOrderId(value, role),
     messageId: knownFixtureMessageId(value, role),
     resultIds: knownFixtureResultIds(value, role),
   };
 }
 
-function knownFixtureMessageId(value: unknown, role: PatientRole): string | undefined {
-  const keys = new Set([
-    "initialLaboratoryMessageId",
-    "laboratoryMessageId",
-    "expectedLaboratoryMessageId",
-    "initialMessageId",
-    `patient${role}InitialLaboratoryMessageId`,
-    `patient${role}LaboratoryMessageId`,
-    `patient${role}ExpectedLaboratoryMessageId`,
-  ]);
-  const values: string[] = [];
-  walkRecords(value, ({ record }) => {
-    for (const key of keys) {
-      const candidate = stringValue(record, key);
-      if (candidate) values.push(candidate);
+const MAX_EXPECTED_CLINICAL_ID_CHARS = 256;
+const MAX_EXPECTED_RESULT_IDS = 128;
+
+function isSafeExpectedClinicalId(value: unknown): value is string {
+  return (
+    isNonEmptyString(value) &&
+    value.length <= MAX_EXPECTED_CLINICAL_ID_CHARS &&
+    !/[\u0000-\u001f\u007f]/.test(value)
+  );
+}
+
+function roleMarker(value: string): PatientRole | undefined {
+  const normalized = value.toLowerCase();
+  for (const role of PATIENT_ROLES) {
+    const marker = `patient${role.toLowerCase()}`;
+    if (
+      normalized === role.toLowerCase() ||
+      normalized === marker ||
+      normalized === `${marker}credentials`
+    ) {
+      return role;
+    }
+  }
+  return undefined;
+}
+
+function markedRoles(value: unknown): Set<PatientRole> {
+  const roles = new Set<PatientRole>();
+  walkRecords(value, ({ path }) => {
+    for (const segment of path || []) {
+      const role = roleMarker(segment);
+      if (role) roles.add(role);
     }
   });
-  const distinct = [...new Set(values)];
-  if (distinct.length > 1) invalid();
-  return distinct[0];
+  return roles;
+}
+
+function roleSpecificKey(value: string, role: PatientRole): boolean {
+  return value.toLowerCase().startsWith(`patient${role.toLowerCase()}`);
+}
+
+function roleFromClinicalKey(value: string): PatientRole | undefined {
+  for (const role of PATIENT_ROLES) {
+    if (roleSpecificKey(value, role)) return role;
+  }
+  return undefined;
+}
+
+function isInOtherRolePath(path: string[] | undefined, role: PatientRole): boolean {
+  return Boolean(
+    path?.some((segment) => {
+      const marker = roleMarker(segment);
+      return marker !== undefined && marker !== role;
+    }),
+  );
+}
+
+/**
+ * Only consume the documented expected-key names. A generic recursive search
+ * must not treat an arbitrary clinical-looking value as ownership evidence.
+ * Role-labelled records are excluded from another role, so A1's expected
+ * marker cannot accidentally become B1's marker.
+ */
+function knownFixtureValues(
+  value: unknown,
+  role: PatientRole,
+  keys: readonly string[],
+  arraysAllowed: boolean,
+): string[] {
+  const keySet = new Set(keys);
+  const values: string[] = [];
+  const rolesInEnvelope = markedRoles(value);
+  walkRecords(value, ({ record, path }) => {
+    for (const key of keySet) {
+      if (!(key in record) || isInOtherRolePath(path, role)) continue;
+      const keyRole = roleFromClinicalKey(key);
+      if (keyRole !== undefined && keyRole !== role) continue;
+      const hasCurrentRolePath = path?.some((segment) => roleMarker(segment) === role);
+      if (!roleSpecificKey(key, role) && !hasCurrentRolePath && rolesInEnvelope.size > 1) {
+        // A global marker cannot be safely assigned to one of several
+        // retained patients without a role-labelled path.
+        continue;
+      }
+
+      const candidate = record[key];
+      if (isSafeExpectedClinicalId(candidate)) {
+        values.push(candidate);
+        continue;
+      }
+      if (arraysAllowed && Array.isArray(candidate)) {
+        if (
+          candidate.length > MAX_EXPECTED_RESULT_IDS ||
+          !candidate.every(isSafeExpectedClinicalId)
+        ) {
+          invalid();
+        }
+        values.push(...candidate);
+        continue;
+      }
+      invalid();
+    }
+  });
+  return [...new Set(values)];
+}
+
+function knownFixtureLabOrderId(value: unknown, role: PatientRole): string | undefined {
+  const values = knownFixtureValues(
+    value,
+    role,
+    [
+      "initialLabOrderId",
+      "labOrderId",
+      "laboratoryOrderId",
+      "expectedLabOrderId",
+      `patient${role}InitialLabOrderId`,
+      `patient${role}LabOrderId`,
+      `patient${role}ExpectedLabOrderId`,
+    ],
+    false,
+  );
+  if (values.length > 1) invalid();
+  return values[0];
+}
+
+function knownFixtureMessageId(value: unknown, role: PatientRole): string | undefined {
+  const values = knownFixtureValues(
+    value,
+    role,
+    [
+      "initialLaboratoryMessageId",
+      "laboratoryMessageId",
+      "expectedLaboratoryMessageId",
+      "initialMessageId",
+      `patient${role}InitialLaboratoryMessageId`,
+      `patient${role}LaboratoryMessageId`,
+      `patient${role}ExpectedLaboratoryMessageId`,
+    ],
+    false,
+  );
+  if (values.length > 1) invalid();
+  return values[0];
 }
 
 function knownFixtureResultIds(value: unknown, role: PatientRole): string[] {
-  const keys = new Set([
-    "initialLabResultId",
-    "labResultId",
-    "expectedLabResultId",
-    "laboratoryResultId",
-    `patient${role}InitialLabResultId`,
-    `patient${role}LabResultId`,
-    `patient${role}ExpectedLabResultId`,
-  ]);
+  return knownFixtureValues(
+    value,
+    role,
+    [
+      "initialLabResultId",
+      "labResultId",
+      "expectedLabResultId",
+      "laboratoryResultId",
+      "initialLabResultIds",
+      "labResultIds",
+      "expectedLabResultIds",
+      "laboratoryResultIds",
+      `patient${role}InitialLabResultId`,
+      `patient${role}LabResultId`,
+      `patient${role}ExpectedLabResultId`,
+      `patient${role}InitialLabResultIds`,
+      `patient${role}LabResultIds`,
+      `patient${role}ExpectedLabResultIds`,
+    ],
+    true,
+  );
+}
+
+const REFERENCE_ORDER_KEYS = [
+  "existingLabOrderId",
+  "existingLaboratoryOrderId",
+  "existingOrderId",
+  "initialLabOrderId",
+  "initialLaboratoryOrderId",
+  "labOrderId",
+  "laboratoryOrderId",
+  "orderId",
+  "pendingLabOrderId",
+  "pendingLaboratoryOrderId",
+  "pendingOrderId",
+  "patientA1ExistingLabOrderId",
+  "patientA2ExistingLabOrderId",
+  "patientB1ExistingLabOrderId",
+  "patientA1PendingLabOrderId",
+  "patientA2PendingLabOrderId",
+  "patientB1PendingLabOrderId",
+] as const;
+
+const REFERENCE_MESSAGE_KEYS = [
+  "existingLaboratoryMessageId",
+  "existingLabMessageId",
+  "existingMessageId",
+  "initialLaboratoryMessageId",
+  "initialLabMessageId",
+  "initialMessageId",
+  "laboratoryMessageId",
+  "labMessageId",
+  "messageId",
+  "patientA1ExistingLaboratoryMessageId",
+  "patientA2ExistingLaboratoryMessageId",
+  "patientB1ExistingLaboratoryMessageId",
+  "patientA1ExistingMessageId",
+  "patientA2ExistingMessageId",
+  "patientB1ExistingMessageId",
+] as const;
+
+const REFERENCE_RESULT_KEYS = [
+  "resultId",
+  "labResultId",
+  "laboratoryResultId",
+  "resultIds",
+  "labResultIds",
+  "laboratoryResultIds",
+  "releasedResultId",
+  "releasedLabResultId",
+  "releasedLaboratoryResultId",
+  "releasedResultIds",
+  "releasedLabResultIds",
+  "releasedLaboratoryResultIds",
+  "expectedReleasedResultId",
+  "expectedReleasedResultIds",
+  "patientA1ReleasedResultId",
+  "patientA2ReleasedResultId",
+  "patientB1ReleasedResultId",
+  "patientA1ReleasedResultIds",
+  "patientA2ReleasedResultIds",
+  "patientB1ReleasedResultIds",
+] as const;
+
+const RELEASED_RESULT_KEYS = [
+  "releasedResultId",
+  "releasedLabResultId",
+  "releasedLaboratoryResultId",
+  "releasedResultIds",
+  "releasedLabResultIds",
+  "releasedLaboratoryResultIds",
+  "expectedReleasedResultId",
+  "expectedReleasedResultIds",
+  "patientA1ReleasedResultId",
+  "patientA2ReleasedResultId",
+  "patientB1ReleasedResultId",
+  "patientA1ReleasedResultIds",
+  "patientA2ReleasedResultIds",
+  "patientB1ReleasedResultIds",
+] as const;
+
+function optionalReferenceValues(
+  value: unknown,
+  role: PatientRole,
+  keys: readonly string[],
+  arraysAllowed: boolean,
+): { values: string[]; present: boolean } {
+  const keySet = new Set(keys);
   const values: string[] = [];
-  walkRecords(value, ({ record }) => {
-    for (const key of keys) {
-      const candidate = stringValue(record, key);
-      if (candidate) values.push(candidate);
+  let present = false;
+  const rolesInEnvelope = markedRoles(value);
+  walkRecords(value, ({ record, path }) => {
+    for (const key of keySet) {
+      if (!(key in record) || isInOtherRolePath(path, role)) continue;
+      const keyRole = roleFromClinicalKey(key);
+      if (keyRole !== undefined && keyRole !== role) continue;
+      const hasCurrentRolePath = path?.some((segment) => roleMarker(segment) === role);
+      if (!roleSpecificKey(key, role) && !hasCurrentRolePath && rolesInEnvelope.size > 1) {
+        continue;
+      }
+      const candidate = record[key];
+      if (candidate === null) continue;
+      present = true;
+      if (isSafeExpectedClinicalId(candidate)) {
+        values.push(candidate);
+        continue;
+      }
+      if (
+        arraysAllowed &&
+        Array.isArray(candidate) &&
+        candidate.length <= MAX_EXPECTED_RESULT_IDS &&
+        candidate.every(isSafeExpectedClinicalId)
+      ) {
+        values.push(...candidate);
+        continue;
+      }
+      invalid();
     }
   });
-  const distinct = [...new Set(values)];
-  if (distinct.length > 1) invalid();
-  return distinct;
+  return { values: [...new Set(values)], present };
+}
+
+function referenceOwner(value: unknown, role: PatientRole): {
+  patientId: string;
+  tenantId: string;
+} {
+  const candidates: Array<{ patientId: string; tenantId: string }> = [];
+  walkRecords(value, ({ record, path }) => {
+    if (!path?.some((segment) => roleMarker(segment) === role)) {
+      return;
+    }
+    const explicitOwnerPath = path.some((segment) =>
+      /^(owner|ownership|patient|subject)$/i.test(segment),
+    );
+    const explicitRoleEnvelope =
+      "patientId" in record &&
+      ("tenantId" in record || "patientTenantId" in record || "patient_tenant_id" in record) &&
+      Object.keys(record).some((key) =>
+        /(?:order|message|result)/i.test(key),
+      );
+    if (!explicitOwnerPath && !explicitRoleEnvelope) return;
+    const identity = directIdentity(record);
+    if (hasCompleteIdentity(identity)) candidates.push(identity);
+  });
+  const distinct = candidates.filter(
+    (identity, index, all) =>
+      all.findIndex(
+        (candidate) =>
+          candidate.patientId === identity.patientId && candidate.tenantId === identity.tenantId,
+      ) === index,
+  );
+  if (distinct.length !== 1) invalid();
+  return distinct[0];
+}
+
+/**
+ * Parse only the bounded, role-labelled expected-record keys.  In
+ * particular, this never promotes an arbitrary ID returned by NaviMED to an
+ * ownership assertion.  A role must have an explicit owner object and
+ * explicit order/message/result reference keys in the secret.
+ */
+export function clinicalRecordReferences(
+  value: unknown,
+  role: PatientRole,
+): ClinicalRecordReferences {
+  if (!isRecord(value)) invalid();
+  const owner = referenceOwner(value, role);
+  const order = optionalReferenceValues(value, role, REFERENCE_ORDER_KEYS, false);
+  const message = optionalReferenceValues(value, role, REFERENCE_MESSAGE_KEYS, false);
+  const results = optionalReferenceValues(value, role, REFERENCE_RESULT_KEYS, true);
+  const releasedResults = optionalReferenceValues(value, role, RELEASED_RESULT_KEYS, true);
+  if (order.values.length > 1 || message.values.length > 1 || releasedResults.values.length > MAX_EXPECTED_RESULT_IDS) {
+    invalid();
+  }
+  if (message.present && message.values.length === 0) invalid();
+  if (order.present && order.values.length === 0) invalid();
+  if (results.present && results.values.length > 0 && releasedResults.values.length === 0) {
+    // A result reference without a released-result marker is not sufficient
+    // for the clinical proof requested by this harness.
+    invalid();
+  }
+  return {
+    owner,
+    labOrderId: order.values[0],
+    messageId: message.values[0],
+    releasedResultIds: releasedResults.values,
+    hasResultReference: results.present && results.values.length > 0,
+  };
 }

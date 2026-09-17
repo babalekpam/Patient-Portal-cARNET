@@ -39,6 +39,7 @@ import {
   getNavimediWebRelayUpstreamBaseUrl,
   NAVIMEDI_EXPECTED_ISSUER_HEADER,
 } from "@/lib/ehr/navimediConfig";
+import { assertRestrictedProductionFeatureEnabled } from "@/lib/productionFeatures";
 
 export type {
   InsuranceFilingType,
@@ -785,6 +786,7 @@ class ApiClient {
   }
 
   async getLaboratoryMessages(): Promise<LaboratoryMessage[]> {
+    assertRestrictedProductionFeatureEnabled("laboratory-messages");
     if (this._adapter?.getLaboratoryMessages) return this._adapter.getLaboratoryMessages();
     if (this._adapter) {
       throw new Error("Laboratory handoff messages are only available for NaviMED sessions.");
@@ -799,6 +801,7 @@ class ApiClient {
     id: string,
     content: string,
   ): Promise<LaboratoryMessage> {
+    assertRestrictedProductionFeatureEnabled("laboratory-messages");
     if (this._adapter?.replyToLaboratoryMessage) {
       return this._adapter.replyToLaboratoryMessage(id, content);
     }
@@ -814,6 +817,7 @@ class ApiClient {
   }
 
   async markLaboratoryMessageRead(id: string): Promise<LaboratoryMessage> {
+    assertRestrictedProductionFeatureEnabled("laboratory-messages");
     if (this._adapter?.markLaboratoryMessageRead) {
       return this._adapter.markLaboratoryMessageRead(id);
     }
@@ -861,6 +865,7 @@ class ApiClient {
   async getInsuranceHistory(
     request: InsuranceHistoryRequest = {},
   ): Promise<InsuranceHistoryPage> {
+    assertRestrictedProductionFeatureEnabled("insurance-history");
     const normalized = normalizeInsuranceHistoryRequest(request);
     const generation = sessionGeneration();
     const sessionKey = this._adapter?.sessionKey ?? "direct-navimedi";

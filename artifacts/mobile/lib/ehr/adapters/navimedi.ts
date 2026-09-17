@@ -49,6 +49,7 @@ import {
   resolveNavimediNativeBaseUrl,
   resolveNavimediSessionBaseUrl,
 } from "../navimediConfig";
+import { assertRestrictedProductionFeatureEnabled } from "@/lib/productionFeatures";
 
 function normalizedOptionalField(value: string | undefined): string | undefined {
   const normalized = value?.trim();
@@ -557,6 +558,7 @@ export class NavimediAdapter implements EHRAdapter {
   }
 
   async getLaboratoryMessages(): Promise<LaboratoryMessage[]> {
+    assertRestrictedProductionFeatureEnabled("laboratory-messages");
     const response = await this.protectedFetch(`${this.getUrl()}/patient/laboratory-messages`, {
       headers: this.getHeaders(),
     });
@@ -567,6 +569,7 @@ export class NavimediAdapter implements EHRAdapter {
     id: string,
     content: string,
   ): Promise<LaboratoryMessage> {
+    assertRestrictedProductionFeatureEnabled("laboratory-messages");
     const messageId = requireLaboratoryMessageId(id);
     return this.mutate<LaboratoryMessage>(
       "POST",
@@ -576,6 +579,7 @@ export class NavimediAdapter implements EHRAdapter {
   }
 
   async markLaboratoryMessageRead(id: string): Promise<LaboratoryMessage> {
+    assertRestrictedProductionFeatureEnabled("laboratory-messages");
     const messageId = requireLaboratoryMessageId(id);
     return this.mutate<LaboratoryMessage>(
       "POST",
@@ -609,6 +613,7 @@ export class NavimediAdapter implements EHRAdapter {
   async getInsuranceHistory(
     request: InsuranceHistoryRequest = {},
   ): Promise<InsuranceHistoryPage> {
+    assertRestrictedProductionFeatureEnabled("insurance-history");
     const normalized = normalizeInsuranceHistoryRequest(request);
     const response = await this.protectedFetch(
       `${this.getUrl()}/patient/insurance-history?${insuranceHistoryQuery(normalized)}`,
