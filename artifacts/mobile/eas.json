@@ -23,6 +23,7 @@
         "image": "macos-sequoia-15.6-xcode-26.0"
       },
       "android": {
+        "node": "22.22.0",
         "buildType": "app-bundle"
       }
     }
