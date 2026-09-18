@@ -7,7 +7,7 @@ request.
 
 - Marketing version: **1.0.12** (previous local value 1.0.11; patch increment)
 - iOS local build number: **41** (previous local value 40)
-- Android local version code: **12** (previous local value 11)
+- Android local version code: **13** (replacement for rejected version code 12)
 - iOS bundle identifier: `com.argilette.navimed` (preserved)
 - Android application ID: `com.argilette.navimed` (preserved)
 - Apple team, Expo owner/project ID, signing associations, and store
@@ -16,6 +16,22 @@ request.
   local increments only.
 
 ## Production feature gates
+
+### Android photo/video permission replacement
+
+Google Play rejected version code 12 for broad photo/video permissions. Version
+code 13 explicitly blocks `READ_MEDIA_IMAGES` and `READ_MEDIA_VIDEO`, in addition
+to the existing external-storage exclusions. Android document selection uses the
+system image picker without requesting media-library permission. Camera capture,
+patient-session cleanup, and screenshot prevention remain intact.
+
+The permission regression tests and Expo's introspected Android manifest verify
+the source configuration and manifest removal directives. These are not a merged
+AAB manifest inspection, a device test, or Google Play approval. Before release,
+inspect the replacement AAB permissions and remove affected bundles from every
+applicable Play track, as requested by the rejection notice.
+
+### Restricted features
 
 Laboratory handoff messaging and insurance history are disabled in production
 release builds. The gates are enforced in the home/billing/messages UI,

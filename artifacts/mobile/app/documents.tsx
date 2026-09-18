@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   FlatList,
   Image,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -200,13 +201,18 @@ export default function DocumentsScreen() {
   const handlePickFromGallery = async () => {
     const expectedEpoch = capturePatientDataEpoch();
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      assertPatientDataEpoch(expectedEpoch);
-      if (status !== "granted") {
-        showAppAlert(t("error"), t("galleryPermissionRequired"));
-        return;
+      // Android's system picker grants access only to the selected image.
+      if (Platform.OS !== "android") {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        assertPatientDataEpoch(expectedEpoch);
+        if (status !== "granted") {
+          showAppAlert(t("error"), t("galleryPermissionRequired"));
+          return;
+        }
       }
       const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        legacy: false,
         quality: 0.8,
         allowsEditing: true,
         aspect: [4, 3],
