@@ -221,6 +221,24 @@ export interface LaboratoryMessage {
   updatedAt?: string;
 }
 
+/** An entry a community health worker recorded and the patient's hospital accepted. */
+export interface CommunityHealthRecord {
+  id: string;
+  entryType: "patient" | "screening" | "referral" | string;
+  summary?: string | null;
+  chwName?: string | null;
+  protocol?: string | null;
+  result?: string | null;
+  recommendation?: string | null;
+  reason?: string | null;
+  referralReference?: string | null;
+  referralStatus?: string | null;
+  reviewedBy?: string | null;
+  reviewerRole?: string | null;
+  recordedAt?: string | null;
+  reviewedAt?: string | null;
+}
+
 export interface VisitSummary {
   id?: string;
   visitDate?: string;
@@ -839,6 +857,17 @@ class ApiClient {
       originalContent: { subject, message },
       ...(recipientId && { recipientId }),
     });
+  }
+
+  async getCommunityHealth(): Promise<CommunityHealthRecord[]> {
+    if (this._adapter?.getCommunityHealth) return this._adapter.getCommunityHealth();
+    // Other record systems have no community health worker entries to show.
+    if (this._adapter) return [];
+    const response = await this.protectedFetch(`${getBaseUrl()}/patient/community-health`, {
+      headers: await this.getHeaders(),
+    });
+    const body = await this.handleResponse<{ records: CommunityHealthRecord[] }>(response);
+    return Array.isArray(body?.records) ? body.records : [];
   }
 
   async getVisitSummaries(): Promise<VisitSummary[]> {

@@ -16,6 +16,7 @@ import type {
   TelehealthAppointment,
   TelehealthSession,
   VisitSummary,
+  CommunityHealthRecord,
 } from "@/lib/api";
 import {
   insuranceHistoryQuery,
@@ -601,6 +602,14 @@ export class NavimediAdapter implements EHRAdapter {
       headers: this.getHeaders(),
     });
     return this.handleResponse<VisitSummary[]>(response);
+  }
+
+  async getCommunityHealth(): Promise<CommunityHealthRecord[]> {
+    const response = await this.protectedFetch(`${this.getUrl()}/patient/community-health`, {
+      headers: this.getHeaders(),
+    });
+    const body = await this.handleResponse<{ records: CommunityHealthRecord[] }>(response);
+    return Array.isArray(body?.records) ? body.records : [];
   }
 
   async getBills(): Promise<Bill[]> {

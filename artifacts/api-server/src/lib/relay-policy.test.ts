@@ -37,6 +37,7 @@ test("allows every mobile API operation with only its supported method", () => {
     ["GET", "/medical-communications"],
     ["POST", "/medical-communications"],
     ["GET", "/patient/visit-summaries"],
+    ["GET", "/patient/community-health"],
     ["GET", "/patient/bills"],
     ["GET", "/patient/insurance-history"],
     ["GET", "/patient/telehealth/appointments"],
