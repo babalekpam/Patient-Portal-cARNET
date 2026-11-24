@@ -755,3 +755,31 @@ test("rejects laboratory message selectors and blank replies before network acce
   );
   assert.equal(requests, 0);
 });
+test("reads the patient's accepted community health entries with the bearer token", async () => {
+  const seen: string[] = [];
+  const adapter = new NavimediAdapter(
+    "navimedi-test",
+    TEST_BASE_URL,
+    async (input, init) => {
+      seen.push(path(input));
+      assert.equal(init?.method ?? "GET", "GET");
+      assert.equal(header(init, "Authorization"), "Bearer unit-test-token");
+      return response(200, {
+        records: [
+          { id: "rec-1", entryType: "screening", protocol: "malaria", result: "LOW", chwName: "Unit Worker", recordedAt: "2026-11-24T21:30:00.000Z" },
+        ],
+      });
+    },
+  );
+  adapter.setToken("unit-test-token");
+  const records = await adapter.getCommunityHealth();
+  assert.deepEqual(seen, ["/api/patient/community-health"]);
+  assert.equal(records.length, 1);
+  assert.equal(records[0]?.chwName, "Unit Worker");
+});
+
+test("treats a community health response with no list as empty", async () => {
+  const adapter = new NavimediAdapter("navimedi-test", TEST_BASE_URL, async () => response(200, {}));
+  adapter.setToken("unit-test-token");
+  assert.deepEqual(await adapter.getCommunityHealth(), []);
+});

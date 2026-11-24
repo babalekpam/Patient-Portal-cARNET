@@ -33,6 +33,7 @@ const ACTIONS: Action[] = [
   { labelKey: "exportRecords", icon: "share", route: "/export-records", tone: "primaryLight" },
   { labelKey: "healthMetrics", icon: "activity", route: "/health-metrics", tone: "successLight" },
   { labelKey: "visits", icon: "clipboard", route: "/visit-summaries", tone: "infoLight" },
+  { labelKey: "communityHealth", icon: "home", route: "/community-health", tone: "successLight" },
 ];
 
 const go = (route: string) => { impactLight(); router.push(route as any); };

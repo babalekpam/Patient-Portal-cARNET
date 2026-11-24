@@ -154,6 +154,8 @@ const staticRoutes = new Map<string, RelayRoute>([
   ["GET /medical-communications", { category: "messages_read", protected: true, validateBody: noBody }],
   ["POST /medical-communications", { category: "message_create", protected: true, validateBody: messageBody }],
   ["GET /patient/visit-summaries", { category: "visits_read", protected: true, validateBody: noBody }],
+  // Entries recorded by a community health worker and accepted by the patient's hospital.
+  ["GET /patient/community-health", { category: "community_health_read", protected: true, validateBody: noBody }],
   ["GET /patient/bills", { category: "bills_read", protected: true, validateBody: noBody }],
   ["GET /patient/insurance-history", { category: "insurance_history_read", protected: true, validateBody: noBody }],
   ["GET /patient/telehealth/appointments", { category: "telehealth_read", protected: true, validateBody: noBody }],

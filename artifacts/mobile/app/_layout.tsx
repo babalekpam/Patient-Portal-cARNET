@@ -152,6 +152,7 @@ function RootLayoutNav() {
               <Stack.Screen name="messages" options={{ headerShown: false }} />
               <Stack.Screen name="bills" options={{ headerShown: false }} />
               <Stack.Screen name="visit-summaries" options={{ headerShown: false }} />
+              <Stack.Screen name="community-health" options={{ headerShown: false }} />
               <Stack.Screen name="request-appointment" options={{ headerShown: false }} />
               <Stack.Screen name="emergency-card" options={{ headerShown: false }} />
               <Stack.Screen name="health-timeline" options={{ headerShown: false }} />

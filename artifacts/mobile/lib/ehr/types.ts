@@ -14,6 +14,7 @@ import type {
   TelehealthAppointment,
   TelehealthSession,
   VisitSummary,
+  CommunityHealthRecord,
 } from "@/lib/api";
 import type {
   InsuranceHistoryPage,
@@ -42,6 +43,7 @@ export interface EHRAdapter {
   markLaboratoryMessageRead?(id: string): Promise<LaboratoryMessage>;
   sendMessage(subject: string, message: string, recipientId?: string): Promise<any>;
   getVisitSummaries(): Promise<VisitSummary[]>;
+  getCommunityHealth?(): Promise<CommunityHealthRecord[]>;
   getBills(): Promise<Bill[]>;
   getInsuranceHistory?(request?: InsuranceHistoryRequest): Promise<InsuranceHistoryPage>;
 
