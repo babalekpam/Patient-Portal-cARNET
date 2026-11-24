@@ -112,6 +112,8 @@ Expo React Native mobile app — NaviMED Patient Health Portal by Argilette. Mul
   transitions. The backend contract is development-only in the uploaded
   summary; no production VPS deployment, fixture source/accounts, or
   live/native verification was available.
+- **Community Health** (`app/community-health.tsx`, opened from the home screen): what a Barika community health worker recorded about the patient (registration, screening, referral), shown only after the patient's hospital approved it in NaviMED. Each card shows the visit, result, advice, referral status, who visited and who checked it. Read-only `GET /patient/community-health` through the NaviMED adapter (`lib/ehr/adapters/navimedi.ts`, `lib/api.ts`) and the relay allowlist (`artifacts/api-server/src/lib/relay-policy.ts`). Labels are translated in all 10 languages. No database change. Not yet run on a device.
+- **Patients registered by a CHW without an email** sign in with the address NaviMED issues for them, ending `@patients.carnet.invalid`, because sign-in is by email.
 - **Navigation**: Expo Router with NativeTabs (liquid glass on iOS 26+), Stack for other screens
 - **i18n**: Multi-language support via `lib/i18n.ts` with 10 languages (en, fr, es, pt, ar, zh, de, it, ja, ko). Translation files in `lib/translations/`. Language selector in profile settings. Uses React Context + AsyncStorage persistence.
 - **Key Components**:
